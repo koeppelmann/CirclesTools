@@ -165,8 +165,12 @@
     <div id="success" class="success" style="display:none;"></div>
     <div id="advancedSection" style="display:none;margin-bottom:12px;">
       <div class="input-group" style="margin-bottom:8px;">
-        <label for="lotterySelect" style="font-size:0.95em;">Select Lottery</label>
-        <select id="lotterySelect" style="padding:4px 8px;border-radius:6px;border:1px solid #d0d7de;background:#f7fafc;font-size:0.98em;width:100%;margin-bottom:8px;"></select>
+        <label for="activeLotterySelect" style="font-weight:600;font-size:1.1em;">Active Lotteries</label>
+        <select id="activeLotterySelect" style="padding:4px 8px;border-radius:6px;border:1px solid #d0d7de;background:#f7fafc;font-size:0.98em;width:100%;margin-bottom:8px;"></select>
+      </div>
+      <div class="input-group" style="margin-bottom:8px;">
+        <label for="otherLotterySelect" style="font-weight:600;font-size:1.1em;">Inactive Lotteries</label>
+        <select id="otherLotterySelect" style="padding:4px 8px;border-radius:6px;border:1px solid #d0d7de;background:#f7fafc;font-size:0.98em;width:100%;margin-bottom:8px;"></select>
       </div>
       <div class="input-group" style="margin-bottom:8px;">
         <label for="lotteryAddress" style="font-size:0.95em;">Or Enter Lottery Address</label>
@@ -281,31 +285,53 @@
     async function loadLotteriesList() {
       try {
         allLotteries = await factory.allDeployments();
-        const select = document.getElementById('lotterySelect');
-        select.innerHTML = '';
-        for (let i = allLotteries.length - 1; i >= 0; i--) {
-          const addr = allLotteries[i];
+        const activeLotterySelect = document.getElementById('activeLotterySelect');
+        const otherLotterySelect = document.getElementById('otherLotterySelect');
+        const now = Math.floor(Date.now() / 1000);
+        const activeOptions = [];
+        const otherOptions = [];
+        await Promise.all(allLotteries.map(async (addr) => {
           let name = addr;
           try {
             const l = new ethers.Contract(addr, LOTTERY_ABI, provider);
             name = await l.lotteryName();
+            const [isDrawn, isCancelled, endTime] = await Promise.all([
+              l.isDrawn(),
+              l.isCancelled(),
+              l.endTime()
+            ]);
+            const option = document.createElement('option');
+            option.value = addr;
+            option.textContent = `${name} (${addr.slice(0, 6)}...${addr.slice(-4)})`;
+            if (!isDrawn && !isCancelled && endTime.toNumber() > now) {
+              activeOptions.push(option);
+            } else {
+              otherOptions.push(option);
+            }
           } catch {}
-          const option = document.createElement('option');
-          option.value = addr;
-          option.textContent = `${name} (${addr.slice(0, 6)}...${addr.slice(-4)})`;
-          select.appendChild(option);
-        }
+        }));
+        activeLotterySelect.innerHTML = '';
+        otherLotterySelect.innerHTML = '';
+        activeOptions.forEach(opt => activeLotterySelect.appendChild(opt));
+        otherOptions.forEach(opt => otherLotterySelect.appendChild(opt));
         // By default, select the latest
         if (allLotteries.length > 0) {
-          select.value = allLotteries[allLotteries.length - 1];
-          setLotteryAddress(select.value);
+          activeLotterySelect.value = allLotteries[allLotteries.length - 1];
+          otherLotterySelect.value = allLotteries[allLotteries.length - 1];
+          setLotteryAddress(activeLotterySelect.value);
+          setLotteryAddress(otherLotterySelect.value);
         }
       } catch (e) {
         showError('Could not load lotteries from factory.');
       }
     }
 
-    document.getElementById('lotterySelect').addEventListener('change', function() {
+    document.getElementById('activeLotterySelect').addEventListener('change', function() {
+      setLotteryAddress(this.value);
+      loadLotteryByAddress(this.value);
+    });
+
+    document.getElementById('otherLotterySelect').addEventListener('change', function() {
       setLotteryAddress(this.value);
       loadLotteryByAddress(this.value);
     });
@@ -368,7 +394,7 @@
     // --- On page load: load lotteries and show latest ---
     window.addEventListener('DOMContentLoaded', async () => {
       await loadLotteriesList();
-      const select = document.getElementById('lotterySelect');
+      const select = document.getElementById('activeLotterySelect');
       const addr = getParam('address');
       if (addr && /^0x[a-fA-F0-9]{40}$/.test(addr)) {
         setLotteryAddress(addr);
@@ -631,13 +657,26 @@
       if (drawn && winner && winner !== ethers.constants.AddressZero) {
         // Laurel wreath SVG
         const laurel = `<svg width='80' height='80' viewBox='0 0 80 80' style='position:absolute;left:0;top:0;pointer-events:none;'><g><ellipse cx='40' cy='40' rx='36' ry='36' fill='none' stroke='#27ae60' stroke-width='4' stroke-dasharray='8 8' /></g></svg>`;
-        html += `<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px 0 18px 0;position:relative;'>
-          <div style='position:relative;width:80px;height:80px;'>
-            ${laurel}
-            <img src='${winnerAvatar}' alt='avatar' style='width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid #27ae60;position:absolute;left:8px;top:8px;background:#fff;' />
-          </div>
-          <div style='margin-top:10px;font-size:1.2em;font-weight:bold;color:#27ae60;text-align:center;'>${winnerName ? winnerName : 'Winner'}</div>
-        </div>`;
+        const winnerProfileUrl = winner && winner !== ethers.constants.AddressZero ? `https://app.metri.xyz/${winner}` : null;
+        if (winnerProfileUrl) {
+          html += `<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px 0 18px 0;position:relative;'>
+            <a href='${winnerProfileUrl}' target='_blank' style='text-decoration:none;'>
+              <div style='position:relative;width:80px;height:80px;'>
+                ${laurel}
+                <img src='${winnerAvatar}' alt='avatar' style='width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid #27ae60;position:absolute;left:8px;top:8px;background:#fff;' />
+              </div>
+              <div style='margin-top:10px;font-size:1.2em;font-weight:bold;color:#27ae60;text-align:center;'>${winnerName ? winnerName : winner.slice(0, 6) + '...' + winner.slice(-4)}</div>
+            </a>
+          </div>`;
+        } else {
+          html += `<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px 0 18px 0;position:relative;'>
+            <div style='position:relative;width:80px;height:80px;'>
+              ${laurel}
+              <img src='${winnerAvatar}' alt='avatar' style='width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid #27ae60;position:absolute;left:8px;top:8px;background:#fff;' />
+            </div>
+            <div style='margin-top:10px;font-size:1.2em;font-weight:bold;color:#27ae60;text-align:center;'>${winnerName ? winnerName : 'Winner'}</div>
+          </div>`;
+        }
       }
       // Participants
       if (participants && participants.length > 0) {
