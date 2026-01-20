@@ -147,8 +147,8 @@
             width: 100% !important;
             max-width: none !important;
             height: 250px;
-            max-height: 350px;
-            min-height: 150px;
+            max-height: min(50vh, 450px);
+            min-height: 120px;
             border-left: none;
             border-top: 1px solid var(--border);
             z-index: 50;
@@ -686,13 +686,18 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .results-meta {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 15px;
+            gap: 8px 12px;
             margin-bottom: 15px;
             padding: 10px;
             background: var(--bg);
             border-radius: 8px;
             font-size: 0.85rem;
+        }
+        .results-meta > span:first-child {
+            min-width: 100%;  /* Force request count to its own line */
+            margin-bottom: 4px;
         }
         .results-meta .status {
             display: flex;
@@ -864,6 +869,160 @@
         .batch-item .status-icon.running { color: var(--warning); }
         .batch-item .status-icon.success { color: var(--success); }
         .batch-item .status-icon.error { color: var(--error); }
+
+        /* Batch results display - summary table and accordion */
+        .batch-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .batch-summary-table th,
+        .batch-summary-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .batch-summary-table th {
+            background: var(--bg);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .batch-summary-table td {
+            font-size: 0.9rem;
+        }
+        .batch-summary-table code {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+            background: var(--bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .batch-accordion-item {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .batch-accordion-header {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg);
+            transition: background 0.2s;
+        }
+        .batch-accordion-header:hover {
+            background: #f0eff9;
+        }
+        .batch-accordion-header .accordion-icon {
+            transition: transform 0.2s;
+            color: var(--text-muted);
+        }
+        .batch-accordion-header.expanded .accordion-icon {
+            transform: rotate(90deg);
+        }
+        .batch-accordion-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+        }
+        .batch-accordion-content.expanded {
+            display: block;
+        }
+        .batch-view-toggle {
+            display: flex;
+            gap: 3px;
+        }
+        .batch-view-toggle .btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .batch-export-btns {
+            display: flex;
+            gap: 3px;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
+        /* Batch diff styles */
+        .batch-diff-item {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .batch-diff-header {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg);
+            transition: background 0.2s;
+        }
+        .batch-diff-header:hover {
+            background: #f0eff9;
+        }
+        .batch-diff-header.identical {
+            border-left: 3px solid var(--success);
+        }
+        .batch-diff-header.different {
+            border-left: 3px solid var(--warning);
+        }
+        .batch-diff-header.error {
+            border-left: 3px solid var(--error);
+        }
+        .batch-diff-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+        }
+        .batch-diff-content.expanded {
+            display: block;
+        }
+        .batch-diff-mini {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .batch-diff-mini .diff-panel {
+            max-height: 300px;
+        }
+        .diff-summary-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        .diff-summary-badge.identical {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+        .diff-summary-badge.different {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+        .diff-summary-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error);
+        }
+        .batch-compare-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .batch-compare-controls select {
+            padding: 4px 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            background: white;
+            max-width: 90px;
+        }
 
         .toast-container {
             position: fixed;
@@ -1786,8 +1945,10 @@
 
             if (layout.classList.contains('layout-bottom')) {
                 // Bottom layout: drag to resize height (fixed positioning)
+                // Limit to 50% of viewport or 450px max, whichever is smaller
+                var maxHeight = Math.min(window.innerHeight * 0.5, 450);
                 var delta = startPos - e.clientY;
-                var newHeight = Math.max(100, Math.min(startSize + delta, window.innerHeight - 200));
+                var newHeight = Math.max(100, Math.min(startSize + delta, maxHeight));
                 panel.style.height = newHeight + 'px';
                 // Update main layout height to make room for panel
                 layout.style.height = 'calc(100vh - 60px - ' + newHeight + 'px)';
@@ -2133,6 +2294,19 @@
             '<div class="form-group"><label class="form-label">limit <span class="type-badge">number</span></label>' +
             '<input type="number" class="form-input" id="param-limit" placeholder="50" value="50"></div>' +
 
+            '<div class="form-group"><label class="form-label">columns <span class="type-badge">string[]</span></label>' +
+            '<input type="text" class="form-input" id="param-columns" placeholder="blockNumber, avatar, timestamp (comma-separated, empty = all)">' +
+            '<div class="form-hint">Comma-separated column names to return. Leave empty for all columns.</div></div>' +
+
+            '<div class="form-group"><label class="form-label">order <span class="type-badge">object[]</span></label>' +
+            '<textarea class="json-editor" id="param-order" style="min-height: 80px;" placeholder=\'[{"Column": "blockNumber", "SortOrder": "DESC"}]\'></textarea>' +
+            '<div class="form-hint">Sort order: [{Column, SortOrder}] where SortOrder is "ASC" or "DESC"</div></div>' +
+
+            '<div style="display: flex; gap: 20px; align-items: center; margin-bottom: 15px;">' +
+            '<label class="form-checkbox"><input type="checkbox" id="param-distinct"> <span>distinct</span></label>' +
+            '<div class="form-group" style="flex: 1; margin-bottom: 0;"><label class="form-label" style="margin-bottom: 4px;">cursor <span class="type-badge">string</span></label>' +
+            '<input type="text" class="form-input" id="param-cursor" placeholder="Pagination cursor from previous response"></div></div>' +
+
             // Quick filters section
             '<div style="background: var(--bg-light); border-radius: 8px; padding: 12px; margin-bottom: 15px;">' +
             '<label class="form-label" style="margin-bottom: 10px;"><i class="fas fa-filter" style="margin-right: 6px;"></i>Quick Filters</label>' +
@@ -2354,6 +2528,12 @@
         // Helper to get param value from form
         function getParamValue(param) {
             var value;
+            // Special handling for eventTypes (uses checkboxes instead of standard input)
+            if (param.name === 'eventTypes') {
+                var selectedEvents = Array.from(document.querySelectorAll('input[name="eventType"]:checked'))
+                    .map(function(cb) { return cb.value; });
+                return selectedEvents.length > 0 ? selectedEvents : undefined;
+            }
             if (param.type === 'boolean') {
                 var el = document.getElementById('param-' + param.name);
                 if (el) {
@@ -2371,7 +2551,9 @@
                     value = Array.from(builder.querySelectorAll('input'))
                         .map(function(inp) { return inp.value.trim(); })
                         .filter(function(v) { return v; });
-                    if (value.length === 0) value = undefined;
+                    if (value.length === 0) {
+                        value = param.required ? [] : undefined;
+                    }
                 }
             } else if (param.type === 'object' || param.type === 'object[]') {
                 var el = document.getElementById('param-' + param.name);
@@ -2388,11 +2570,17 @@
             } else if (param.type === 'number') {
                 var el = document.getElementById('param-' + param.name);
                 if (el && el.value) {
-                    var numVal = parseInt(el.value);
-                    if (!param.required && param.default !== undefined && numVal === param.default) {
-                        value = undefined;
+                    var strVal = el.value.trim();
+                    // Keep large numbers (uint256) as strings to avoid precision loss
+                    if (/^\d+$/.test(strVal) && strVal.length > 15) {
+                        value = strVal; // Keep as string for uint256
                     } else {
-                        value = numVal;
+                        var numVal = parseInt(strVal);
+                        if (!param.required && param.default !== undefined && numVal === param.default) {
+                            value = undefined;
+                        } else {
+                            value = numVal;
+                        }
                     }
                 }
             } else {
@@ -2406,22 +2594,58 @@
 
         if (config.isQueryBuilder) {
             var query = {
-                namespace: document.getElementById('param-namespace').value,
-                table: document.getElementById('param-table').value
+                Namespace: document.getElementById('param-namespace').value,
+                Table: document.getElementById('param-table').value,
+                Columns: [],
+                Filter: [],
+                Order: []
             };
-            var limit = document.getElementById('param-limit').value;
-            if (limit) query.limit = parseInt(limit);
 
+            // Add columns (comma-separated string -> array)
+            var columnsEl = document.getElementById('param-columns');
+            if (columnsEl && columnsEl.value.trim()) {
+                query.Columns = columnsEl.value.split(',').map(function(c) { return c.trim(); }).filter(function(c) { return c; });
+            }
+
+            // Add limit
+            var limit = document.getElementById('param-limit').value;
+            if (limit) query.Limit = parseInt(limit);
+
+            // Add filter
             var filterStr = document.getElementById('param-filter').value.trim();
             if (filterStr) {
                 try {
-                    query.filter = JSON.parse(filterStr);
+                    query.Filter = JSON.parse(filterStr);
                 } catch (e) {
                     showToast('Invalid filter JSON', 'error');
                     return null;
                 }
             }
+
+            // Add order
+            var orderEl = document.getElementById('param-order');
+            if (orderEl && orderEl.value.trim()) {
+                try {
+                    query.Order = JSON.parse(orderEl.value);
+                } catch (e) {
+                    showToast('Invalid order JSON', 'error');
+                    return null;
+                }
+            }
+
+            // Add distinct
+            var distinctEl = document.getElementById('param-distinct');
+            if (distinctEl && distinctEl.checked) {
+                query.Distinct = true;
+            }
+
             params.push(query);
+
+            // Cursor as separate param (second argument to circles_query)
+            var cursorEl = document.getElementById('param-cursor');
+            if (cursorEl && cursorEl.value.trim()) {
+                params.push(cursorEl.value.trim());
+            }
         } else if (config.useObjectParams) {
             // Methods that use object params (e.g., pathfinder)
             var objParams = {};
@@ -2468,11 +2692,18 @@
             }
         }
 
+        // For methods with positional params where later params may be set while earlier are empty,
+        // ensure correct positioning by padding with nulls
         if (currentMethod === 'circles_events') {
-            var selectedEvents = Array.from(document.querySelectorAll('input[name="eventType"]:checked'))
-                .map(function(cb) { return cb.value; });
-            while (params.length < 3) params.push(null);
-            if (selectedEvents.length > 0) params[3] = selectedEvents;
+            // circles_events: eventTypes is at index 3, needs padding if earlier params are empty
+            var eventTypesIdx = 3;
+            var eventTypesValue = params.find(function(p) { return Array.isArray(p); });
+            if (eventTypesValue && params.indexOf(eventTypesValue) < eventTypesIdx) {
+                // eventTypes was placed at wrong position, reposition it
+                params = params.filter(function(p) { return !Array.isArray(p); });
+                while (params.length < eventTypesIdx) params.push(null);
+                params.push(eventTypesValue);
+            }
         }
 
         // Strip trailing optional params (null, undefined, false for bool defaults, empty arrays)
@@ -2873,6 +3104,354 @@
             diffInfo + diffHtml;
     }
 
+    // Batch results view state
+    var currentBatchViewMode = 'summary';
+    var lastBatchResults = null;
+
+    function renderBatchResults(results, viewMode) {
+        lastBatchResults = results;
+        currentBatchViewMode = viewMode || 'summary';
+
+        var successCount = results.filter(function(r) { return r.success && !r.response?.error; }).length;
+        var errorCount = results.length - successCount;
+
+        // Build server options for compare dropdown (exclude current server)
+        var serverOptions = Object.keys(SERVERS).filter(function(s) { return s !== currentServer; })
+            .map(function(s) { return '<option value="' + s + '">' + escapeHtml(SERVERS[s].name) + '</option>'; }).join('');
+
+        var html = '<div class="results-meta" style="flex-wrap: wrap;">' +
+            '<span style="min-width: auto; margin-bottom: 0;"><strong>' + results.length + '</strong> requests ' +
+            '(<span style="color: var(--success)">' + successCount + ' OK</span>, ' +
+            '<span style="color: var(--error)">' + errorCount + ' err</span>)</span>' +
+            '<div class="batch-view-toggle">' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'summary' ? 'active' : '') + '" onclick="switchBatchView(\'summary\')" title="Summary"><i class="fas fa-table"></i></button>' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'accordion' ? 'active' : '') + '" onclick="switchBatchView(\'accordion\')" title="Details"><i class="fas fa-list"></i></button>' +
+            '</div>' +
+            '<div class="batch-compare-controls">' +
+            '<select id="batchDiffServer" title="Compare with...">' + serverOptions + '</select>' +
+            '<button class="btn btn-outline btn-sm" onclick="executeBatchDiff()" title="Compare"><i class="fas fa-code-compare"></i></button>' +
+            '</div>' +
+            '<div class="batch-export-btns">' +
+            '<button class="btn btn-outline btn-sm" onclick="exportBatchJson()" title="Export JSON"><i class="fas fa-download"></i></button>' +
+            '<button class="btn btn-outline btn-sm" onclick="exportBatchCsv()" title="Export CSV"><i class="fas fa-file-csv"></i></button>' +
+            '</div></div>';
+
+        if (viewMode === 'summary') {
+            html += renderBatchSummaryTable(results);
+        } else {
+            html += renderBatchAccordion(results);
+        }
+        return html;
+    }
+
+    function renderBatchSummaryTable(results) {
+        var html = '<table class="batch-summary-table"><thead><tr>' +
+            '<th style="width: 40px;">#</th><th>Method</th><th style="width: 80px;">Status</th><th style="width: 120px;">Actions</th></tr></thead><tbody>';
+
+        results.forEach(function(r, idx) {
+            var success = r.success && !r.response?.error;
+            var errorMsg = '';
+            if (!success) {
+                errorMsg = r.error || r.response?.error?.message || 'Unknown error';
+                if (errorMsg.length > 50) errorMsg = errorMsg.substring(0, 50) + '...';
+            }
+            html += '<tr>' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td><code>' + escapeHtml(r.request?.method || 'Request') + '</code>' +
+                (!success ? '<br><small style="color: var(--error);">' + escapeHtml(errorMsg) + '</small>' : '') + '</td>' +
+                '<td><span class="status-badge ' + (success ? 'success' : 'error') + '">' +
+                (success ? '<i class="fas fa-check"></i> OK' : '<i class="fas fa-times"></i> Err') + '</span></td>' +
+                '<td><button class="btn btn-outline btn-sm" onclick="viewBatchDetail(' + idx + ')"><i class="fas fa-eye"></i></button> ' +
+                '<button class="btn btn-outline btn-sm" onclick="copyBatchItem(' + idx + ')"><i class="fas fa-copy"></i></button></td></tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
+    function renderBatchAccordion(results) {
+        return results.map(function(r, idx) {
+            var success = r.success && !r.response?.error;
+            return '<div class="batch-accordion-item">' +
+                '<div class="batch-accordion-header" onclick="toggleBatchAccordion(' + idx + ')" id="batch-header-' + idx + '">' +
+                '<i class="fas fa-chevron-right accordion-icon" id="accordion-icon-' + idx + '"></i>' +
+                '<span class="status-badge ' + (success ? 'success' : 'error') + '">' + (success ? 'OK' : 'Err') + '</span>' +
+                '<code style="font-size: 0.85rem;">' + escapeHtml(r.request?.method || 'Request ' + (idx + 1)) + '</code>' +
+                '<span style="margin-left: auto; color: var(--text-muted); font-size: 0.8rem;">#' + (idx + 1) + '</span></div>' +
+                '<div class="batch-accordion-content" id="accordion-content-' + idx + '">' +
+                '<pre class="json-display">' + syntaxHighlight(JSON.stringify(r.success ? r.response : { error: r.error }, null, 2)) + '</pre></div></div>';
+        }).join('');
+    }
+
+    function switchBatchView(mode) {
+        if (!lastBatchResults) return;
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = renderBatchResults(lastBatchResults, mode);
+    }
+
+    function toggleBatchAccordion(idx) {
+        var header = document.getElementById('batch-header-' + idx);
+        var content = document.getElementById('accordion-content-' + idx);
+        var icon = document.getElementById('accordion-icon-' + idx);
+
+        if (content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            header.classList.remove('expanded');
+        } else {
+            content.classList.add('expanded');
+            header.classList.add('expanded');
+        }
+    }
+
+    function viewBatchDetail(idx) {
+        if (!lastBatchResults || !lastBatchResults[idx]) return;
+        var r = lastBatchResults[idx];
+        var data = r.success ? r.response : { error: r.error };
+
+        // Switch to accordion view and expand this item
+        switchBatchView('accordion');
+        setTimeout(function() {
+            var content = document.getElementById('accordion-content-' + idx);
+            var header = document.getElementById('batch-header-' + idx);
+            if (content && !content.classList.contains('expanded')) {
+                content.classList.add('expanded');
+                header.classList.add('expanded');
+            }
+            content?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+    }
+
+    function copyBatchItem(idx) {
+        if (!lastBatchResults || !lastBatchResults[idx]) return;
+        var r = lastBatchResults[idx];
+        var data = r.success ? r.response : { error: r.error };
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        showToast('Response copied to clipboard');
+    }
+
+    function exportBatchJson() {
+        if (!lastBatchResults) return;
+        var exportData = {
+            timestamp: new Date().toISOString(),
+            server: SERVERS[currentServer].name,
+            totalRequests: lastBatchResults.length,
+            successful: lastBatchResults.filter(function(r) { return r.success && !r.response?.error; }).length,
+            results: lastBatchResults.map(function(r, i) {
+                return {
+                    index: i + 1,
+                    method: r.request?.method,
+                    request: r.request,
+                    response: r.response || { error: r.error },
+                    success: r.success && !r.response?.error
+                };
+            })
+        };
+        downloadFile(JSON.stringify(exportData, null, 2), 'batch-results-' + Date.now() + '.json', 'application/json');
+        showToast('JSON exported');
+    }
+
+    function exportBatchCsv() {
+        if (!lastBatchResults) return;
+        var csv = 'Index,Method,Status,HasError,ErrorMessage\n';
+        lastBatchResults.forEach(function(r, i) {
+            var success = r.success && !r.response?.error;
+            var errorMsg = '';
+            if (!success) {
+                errorMsg = (r.error || r.response?.error?.message || 'Unknown').replace(/"/g, '""');
+            }
+            csv += (i + 1) + ',"' + (r.request?.method || '') + '",' + (success ? 'Success' : 'Error') + ',' + (!success) + ',"' + errorMsg + '"\n';
+        });
+        downloadFile(csv, 'batch-summary-' + Date.now() + '.csv', 'text/csv');
+        showToast('CSV exported');
+    }
+
+    function downloadFile(content, filename, mimeType) {
+        var blob = new Blob([content], { type: mimeType });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Batch diff state
+    var lastBatchDiffData = null;
+    var batchDiffViewMode = 'unified';
+
+    async function executeBatchDiff() {
+        if (!lastBatchResults || lastBatchResults.length === 0) {
+            showToast('No batch results to compare', 'error');
+            return;
+        }
+
+        var diffServerKey = document.getElementById('batchDiffServer')?.value;
+        if (!diffServerKey) {
+            showToast('Select a server to compare with', 'error');
+            return;
+        }
+
+        var server2 = SERVERS[diffServerKey];
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
+            '<p style="margin-top: 15px;">Comparing ' + lastBatchResults.length + ' requests with ' + escapeHtml(server2.name) + '...</p></div>';
+
+        var comparisonResults = [];
+        var startTime = Date.now();
+
+        for (var i = 0; i < lastBatchResults.length; i++) {
+            var original = lastBatchResults[i];
+            var req = original.request;
+
+            // Determine endpoint for this request
+            var endpoint = server2.rpc;
+            if (req.method && req.method === 'circlesV2_findPath') {
+                endpoint = server2.pathfinder;
+            } else if (req.method && req.method.startsWith('eth_')) {
+                endpoint = server2.chainRpc;
+            }
+
+            try {
+                var controller = new AbortController();
+                var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
+
+                var response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                var data2;
+                if (!response.ok) {
+                    data2 = { error: 'HTTP ' + response.status };
+                } else {
+                    var text = await response.text();
+                    data2 = text ? JSON.parse(text) : { error: 'Empty response' };
+                }
+
+                // Compare responses
+                var data1 = original.success ? original.response : { error: original.error };
+                var json1 = JSON.stringify(data1, null, 2);
+                var json2 = JSON.stringify(data2, null, 2);
+                var isIdentical = json1 === json2;
+                var hasError = !original.success || data2.error;
+
+                comparisonResults.push({
+                    request: req,
+                    server1: { data: data1, success: original.success },
+                    server2: { data: data2, success: !data2.error },
+                    identical: isIdentical,
+                    hasError: hasError
+                });
+
+            } catch (e) {
+                comparisonResults.push({
+                    request: req,
+                    server1: { data: original.success ? original.response : { error: original.error }, success: original.success },
+                    server2: { data: { error: e.name === 'AbortError' ? 'Timeout' : e.message }, success: false },
+                    identical: false,
+                    hasError: true
+                });
+            }
+        }
+
+        var elapsed = Date.now() - startTime;
+
+        // Store for view toggling
+        lastBatchDiffData = {
+            results: comparisonResults,
+            server1: currentServer,
+            server2: diffServerKey,
+            elapsed: elapsed
+        };
+
+        resultsBody.innerHTML = renderBatchDiffResults(comparisonResults, diffServerKey, batchDiffViewMode);
+    }
+
+    function renderBatchDiffResults(results, server2Key, viewMode) {
+        batchDiffViewMode = viewMode || 'unified';
+
+        var identicalCount = results.filter(function(r) { return r.identical; }).length;
+        var differentCount = results.filter(function(r) { return !r.identical && !r.hasError; }).length;
+        var errorCount = results.filter(function(r) { return r.hasError && !r.identical; }).length;
+
+        var html = '<div class="results-meta">' +
+            '<span><strong>Batch Diff:</strong> ' + escapeHtml(SERVERS[currentServer].name) + ' vs ' + escapeHtml(SERVERS[server2Key].name) + '</span>' +
+            '<span style="margin-left: 15px;">' +
+            '<span class="diff-summary-badge identical"><i class="fas fa-check"></i> ' + identicalCount + ' identical</span> ' +
+            '<span class="diff-summary-badge different"><i class="fas fa-not-equal"></i> ' + differentCount + ' different</span> ' +
+            '<span class="diff-summary-badge error"><i class="fas fa-times"></i> ' + errorCount + ' errors</span></span>' +
+            '<div class="batch-view-toggle" style="margin-left: auto;">' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'unified' ? 'active' : '') + '" onclick="switchBatchDiffView(\'unified\')"><i class="fas fa-align-left"></i> Unified</button>' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'side' ? 'active' : '') + '" onclick="switchBatchDiffView(\'side\')"><i class="fas fa-columns"></i> Side-by-side</button>' +
+            '</div>' +
+            '<button class="btn btn-outline btn-sm" onclick="switchBatchView(\'summary\')" style="margin-left: 10px;"><i class="fas fa-arrow-left"></i> Back</button>' +
+            '</div>';
+
+        results.forEach(function(r, idx) {
+            var statusClass = r.identical ? 'identical' : (r.hasError ? 'error' : 'different');
+            var statusText = r.identical ? 'Identical' : (r.hasError ? 'Error' : 'Different');
+            var statusIcon = r.identical ? 'check' : (r.hasError ? 'times' : 'not-equal');
+
+            html += '<div class="batch-diff-item">' +
+                '<div class="batch-diff-header ' + statusClass + '" onclick="toggleBatchDiffItem(' + idx + ')" id="diff-header-' + idx + '">' +
+                '<i class="fas fa-chevron-right accordion-icon" id="diff-icon-' + idx + '"></i>' +
+                '<span class="diff-summary-badge ' + statusClass + '"><i class="fas fa-' + statusIcon + '"></i> ' + statusText + '</span>' +
+                '<code style="font-size: 0.85rem;">' + escapeHtml(r.request?.method || 'Request ' + (idx + 1)) + '</code>' +
+                '<span style="margin-left: auto; color: var(--text-muted); font-size: 0.8rem;">#' + (idx + 1) + '</span></div>' +
+                '<div class="batch-diff-content" id="diff-content-' + idx + '">' +
+                renderSingleDiff(r, idx, viewMode) +
+                '</div></div>';
+        });
+
+        return html;
+    }
+
+    function renderSingleDiff(comparison, idx, viewMode) {
+        var data1 = comparison.server1.data;
+        var data2 = comparison.server2.data;
+
+        if (comparison.identical) {
+            return '<div style="text-align: center; padding: 15px; color: var(--success);"><i class="fas fa-check-circle"></i> Responses are identical</div>' +
+                '<pre class="json-display" style="max-height: 200px; overflow: auto;">' + syntaxHighlight(JSON.stringify(data1, null, 2)) + '</pre>';
+        }
+
+        if (viewMode === 'unified') {
+            var unifiedDiff = generateUnifiedDiff(data1, data2, SERVERS[currentServer].name, SERVERS[lastBatchDiffData.server2].name);
+            return unifiedDiff.html;
+        } else {
+            // Side-by-side
+            return '<div class="batch-diff-mini">' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[currentServer].name) + '</div>' +
+                '<div class="diff-content">' + syntaxHighlight(JSON.stringify(data1, null, 2)) + '</div></div>' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[lastBatchDiffData.server2].name) + '</div>' +
+                '<div class="diff-content">' + syntaxHighlight(JSON.stringify(data2, null, 2)) + '</div></div></div>';
+        }
+    }
+
+    function toggleBatchDiffItem(idx) {
+        var header = document.getElementById('diff-header-' + idx);
+        var content = document.getElementById('diff-content-' + idx);
+        var icon = document.getElementById('diff-icon-' + idx);
+
+        if (content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            header.classList.remove('expanded');
+        } else {
+            content.classList.add('expanded');
+            header.classList.add('expanded');
+        }
+    }
+
+    function switchBatchDiffView(mode) {
+        if (!lastBatchDiffData) return;
+        batchDiffViewMode = mode;
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = renderBatchDiffResults(lastBatchDiffData.results, lastBatchDiffData.server2, mode);
+    }
+
     function addToBatch() {
         var request = buildRequest();
         if (!request) return;
@@ -2921,6 +3500,7 @@
         if (batchQueue.length === 0) return;
 
         var results = [];
+        var startTime = Date.now();
 
         for (var i = 0; i < batchQueue.length; i++) {
             batchQueue[i].status = 'running';
@@ -2940,25 +3520,35 @@
 
                 batchQueue[i].status = data.error ? 'error' : 'success';
                 batchQueue[i].result = data;
-                results.push({ method: batchQueue[i].method, result: data });
+                // Use same structure as executeRawJson for consistency
+                results.push({
+                    request: batchQueue[i].request,
+                    response: data,
+                    success: !data.error
+                });
 
             } catch (error) {
                 batchQueue[i].status = 'error';
                 batchQueue[i].result = { error: error.message };
-                results.push({ method: batchQueue[i].method, error: error.message });
+                results.push({
+                    request: batchQueue[i].request,
+                    error: error.message,
+                    success: false
+                });
             }
 
             updateBatchUI();
         }
 
-        lastResult = { batch: true, results: results };
+        var elapsed = Date.now() - startTime;
+        lastResult = { batch: true, results: results, elapsed: elapsed };
         var resultsBody = document.getElementById('resultsBody');
-        resultsBody.innerHTML = '<div class="results-meta">' +
-            '<div><i class="fas fa-layer-group"></i> Batch Results (' + results.length + ' requests)</div></div>' +
-            '<div class="json-display">' + syntaxHighlight(JSON.stringify(results, null, 2)) + '</div>';
+
+        // Use improved batch display
+        resultsBody.innerHTML = renderBatchResults(results, 'summary');
         document.getElementById('resultsPanel').classList.add('visible');
 
-        var successCount = results.filter(function(r) { return !r.error; }).length;
+        var successCount = results.filter(function(r) { return r.success && !r.response?.error; }).length;
         showToast('Batch complete: ' + successCount + '/' + results.length + ' succeeded');
     }
 
@@ -3197,20 +3787,9 @@
             lastResponse = r.success ? r.response : { error: r.error };
             displayResult(lastResponse, elapsed, !lastResponse.error);
         } else {
-            // Multiple results - show combined view
-            var html = '<div class="results-meta">' +
-                '<span>' + results.length + ' requests completed in ' + elapsed + 'ms</span></div>';
-
-            results.forEach(function(r, idx) {
-                var statusClass = r.success && !r.response.error ? 'success' : 'error';
-                html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">' +
-                    '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">' +
-                    '<span class="status-badge ' + statusClass + '">' + (r.success && !r.response.error ? 'Success' : 'Error') + '</span>' +
-                    '<code style="font-size: 0.85rem;">' + escapeHtml(r.request.method || 'Request ' + (idx + 1)) + '</code></div>' +
-                    '<pre class="json-display">' + syntaxHighlight(JSON.stringify(r.success ? r.response : { error: r.error }, null, 2)) + '</pre></div>';
-            });
-
-            resultsBody.innerHTML = html;
+            // Multiple results - use improved batch display with summary/accordion
+            lastResult = { results: results, elapsed: elapsed };
+            resultsBody.innerHTML = renderBatchResults(results, 'summary');
         }
     }
 
