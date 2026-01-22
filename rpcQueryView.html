@@ -1825,11 +1825,120 @@
             { name: 'Get Valid Inviters', method: 'circles_getValidInviters', params: { address: '' } }
         ],
         pathfinder: [
+            // === Basic Transfer Presets ===
             { name: 'Max Flow Query', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935' } },
             { name: 'Basic Transfer Path (1 CRC)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000' } },
             { name: 'Path with Wrapping', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000', withWrap: true } },
             { name: 'Limited Hops (max 3)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000', maxTransfers: 3 } },
+
+            // === Token Filtering (Include) ===
+            { name: 'Transfer with FromTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...token1']
+            } },
+            { name: 'Transfer with ToTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...token1']
+            } },
+            { name: 'Combined Token Filters', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...sourceToken'],
+                toTokens: ['0x...sinkToken']
+            } },
+
+            // === Token Filtering (Exclude) ===
+            { name: 'Transfer with Excluded FromTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedFromTokens: ['0x...excludedToken']
+            } },
+            { name: 'Transfer with Excluded ToTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedToTokens: ['0x...excludedToken']
+            } },
+            { name: 'Combined Exclusions', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedFromTokens: ['0x...excludedFrom'],
+                excludedToTokens: ['0x...excludedTo']
+            } },
+            { name: 'Mixed Include/Exclude', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...allowedFrom'],
+                excludedToTokens: ['0x...excludedTo']
+            } },
+
+            // === Self-Conversion / Swap Scenarios ===
+            { name: 'Self-Swap Basic', description: 'Convert between tokens for same holder', method: 'circlesV2_findPath', params: {
+                source: '0x...sameAddress',
+                sink: '0x...sameAddress',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...targetToken']
+            } },
+            { name: 'Self-Swap Discovery', description: 'Find all possible swaps for holder', method: 'circlesV2_findPath', params: {
+                source: '0x...sameAddress',
+                sink: '0x...sameAddress',
+                targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+            } },
+
+            // === Quantized Mode (Invitation Module) ===
             { name: 'Quantized Mode (96 CRC)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '96000000000000000000', quantizedMode: true } },
+            { name: 'Quantized Single Token', description: 'Basic invite path with specific token', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '96000000000000000000',
+                quantizedMode: true,
+                toTokens: ['0x...inviterToken']
+            } },
+            { name: 'Quantized Multi-Token', description: 'Multi-token invite options', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '96000000000000000000',
+                quantizedMode: true,
+                toTokens: ['0x...inviterToken1', '0x...inviterToken2', '0x...inviterToken3']
+            } },
+            { name: 'Quantized Discovery', description: 'Discover all invite options', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935',
+                quantizedMode: true
+            } },
+            { name: 'Quantized Max Invites', description: 'Find max possible invitations', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '960000000000000000000',
+                quantizedMode: true
+            } },
+
+            // === Group Minting ===
+            { name: 'Group Mint Path', description: 'Path to mint group tokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '0x...groupAddress',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...groupToken']
+            } },
+
+            // === Consented Flow Testing ===
+            { name: 'Consented Flow', description: 'Test consent constraints', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                simulatedConsentedAvatars: ['0x...consentedAvatar1', '0x...consentedAvatar2']
+            } },
+
+            // === Simulated State ===
             { name: 'With Simulated Balance', method: 'circlesV2_findPath', params: {
                 source: '',
                 sink: '',
@@ -1842,12 +1951,24 @@
                 targetFlow: '1000000000000000000',
                 simulatedTrusts: [{ truster: '0x...truster', trustee: '0x...trustee' }]
             } },
-            { name: 'Full Options Example', method: 'circlesV2_findPath', params: {
+            { name: 'Simulated Trust + Balance', description: 'Graph modification testing', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '5000000000000000000',
+                simulatedBalances: [{ holder: '0x...holder', token: '0x...token', amount: '50000000000000000000', isWrapped: false, isStatic: false }],
+                simulatedTrusts: [{ truster: '0x...truster', trustee: '0x...trustee' }]
+            } },
+
+            // === Full Integration Testing ===
+            { name: 'Full Featured', description: 'All parameters combined', method: 'circlesV2_findPath', params: {
                 source: '',
                 sink: '',
                 targetFlow: '5000000000000000000',
                 withWrap: true,
                 maxTransfers: 5,
+                fromTokens: ['0x...allowedFrom'],
+                toTokens: ['0x...allowedTo'],
+                excludedFromTokens: ['0x...excludedFrom'],
                 simulatedBalances: [{ holder: '0x...', token: '0x...', amount: '50000000000000000000', isWrapped: false, isStatic: false }],
                 simulatedTrusts: [{ truster: '0x...', trustee: '0x...' }],
                 simulatedConsentedAvatars: ['0x...']
