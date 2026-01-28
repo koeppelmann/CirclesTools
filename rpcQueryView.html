@@ -1630,7 +1630,7 @@
                 'CrcV1_Signup', 'CrcV1_OrganizationSignup', 'CrcV1_Trust', 'CrcV1_HubTransfer', 'CrcV1_Transfer',
                 'CrcV2_RegisterHuman', 'CrcV2_RegisterOrganization', 'CrcV2_RegisterGroup', 'CrcV2_RegisterShortName',
                 'CrcV2_PersonalMint', 'CrcV2_Trust', 'CrcV2_Stopped', 'CrcV2_ApprovalForAll',
-                'CrcV2_TransferSingle', 'CrcV2_TransferBatch', 'CrcV2_UpdateMetadataDigest', 'CrcV2_URI',
+                'CrcV2_TransferSingle', 'CrcV2_TransferBatch', 'CrcV2_TransferData', 'CrcV2_UpdateMetadataDigest', 'CrcV2_URI',
                 'CrcV2_ERC20WrapperDeployed', 'CrcV2_Erc20WrapperTransfer',
                 'CrcV2_DepositInflationary', 'CrcV2_WithdrawInflationary',
                 'CrcV2_DepositDemurraged', 'CrcV2_WithdrawDemurraged',
@@ -1817,7 +1817,8 @@
         ],
         query: [
             { name: 'Query Avatars Table', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 50 } },
-            { name: 'Recent V2 Transfers', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferSingle'], limit: 50 } },
+            { name: 'Recent V2 Transfers', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferSingle'] } },
+            { name: 'TransferData Events', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferData'] } },
             { name: 'List All Tables', method: 'circles_tables', params: {} }
         ],
         sdk: [
@@ -2602,6 +2603,20 @@
                 // Find param definition to get type
                 var paramDef = config.params ? config.params.find(function(p) { return p.name === name; }) : null;
 
+                // Special handling for eventTypes (uses checkboxes)
+                if (name === 'eventTypes' && Array.isArray(value)) {
+                    // Uncheck all event type checkboxes first
+                    document.querySelectorAll('input[name="eventType"]').forEach(function(cb) {
+                        cb.checked = false;
+                    });
+                    // Check the ones specified in the preset
+                    value.forEach(function(eventType) {
+                        var cb = document.querySelector('input[name="eventType"][value="' + eventType + '"]');
+                        if (cb) cb.checked = true;
+                    });
+                    return;
+                }
+
                 // Handle array builders (address[], string[], etc.)
                 var builder = document.getElementById('param-' + name + '-builder');
                 if (builder && Array.isArray(value)) {
@@ -2819,9 +2834,11 @@
             // circles_events: eventTypes is at index 3, needs padding if earlier params are empty
             var eventTypesIdx = 3;
             var eventTypesValue = params.find(function(p) { return Array.isArray(p); });
-            if (eventTypesValue && params.indexOf(eventTypesValue) < eventTypesIdx) {
+            if (eventTypesValue && params.indexOf(eventTypesValue) !== eventTypesIdx) {
                 // eventTypes was placed at wrong position, reposition it
                 params = params.filter(function(p) { return !Array.isArray(p); });
+                // Truncate to eventTypesIdx to remove trailing nulls, then pad if needed
+                params = params.slice(0, eventTypesIdx);
                 while (params.length < eventTypesIdx) params.push(null);
                 params.push(eventTypesValue);
             }
