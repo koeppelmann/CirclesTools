@@ -2031,11 +2031,48 @@
     }
 
     function toggleResultsPanel() {
-        document.getElementById('resultsPanel').classList.toggle('visible');
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        var isVisible = panel.classList.toggle('visible');
+
+        // In bottom layout, update main layout height based on panel visibility
+        if (layout.classList.contains('layout-bottom')) {
+            if (isVisible) {
+                var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            } else {
+                layout.style.height = 'calc(100vh - 60px)';
+            }
+        }
+        // Update grid columns for right layout visibility changes
+        updateGridColumns();
     }
 
     function closeResultsPanel() {
-        document.getElementById('resultsPanel').classList.remove('visible');
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        panel.classList.remove('visible');
+
+        // In bottom layout, restore full height when panel is closed
+        if (layout.classList.contains('layout-bottom')) {
+            layout.style.height = 'calc(100vh - 60px)';
+        }
+        // Update grid columns for right layout
+        updateGridColumns();
+    }
+
+    function showResultsPanel() {
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        panel.classList.add('visible');
+
+        // In bottom layout, adjust main layout height for panel
+        if (layout.classList.contains('layout-bottom')) {
+            var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+            layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+        }
+        // Update grid columns for right layout
+        updateGridColumns();
     }
 
     // Resize handle functionality
@@ -2105,7 +2142,10 @@
         }
         if (savedHeight && layout.classList.contains('layout-bottom')) {
             panel.style.height = savedHeight + 'px';
-            layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            // Only reduce layout height if panel is actually visible
+            if (panel.classList.contains('visible')) {
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            }
             panel.style.maxHeight = savedHeight + 'px';
             panel.style.minHeight = savedHeight + 'px';
         }
@@ -2130,9 +2170,14 @@
             // Bottom layout: 2 columns (sidebar + main), results is fixed positioned
             layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr';
         } else {
-            // Right layout: 3 columns (sidebar + main + results)
-            var resultsWidth = parseInt(resultsPanel.style.width) || 400;
-            layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr ' + resultsWidth + 'px';
+            // Right layout: only include results column if panel is visible
+            if (resultsPanel.classList.contains('visible')) {
+                var resultsWidth = parseInt(resultsPanel.style.width) || 400;
+                layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr ' + resultsWidth + 'px';
+            } else {
+                // Panel hidden - use 2 columns
+                layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr';
+            }
         }
     }
 
@@ -2201,7 +2246,12 @@
         if (isBottom) {
             var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
             panel.style.height = savedHeight + 'px';
-            layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            // Only reduce layout height if panel is visible
+            if (panel.classList.contains('visible')) {
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            } else {
+                layout.style.height = 'calc(100vh - 60px)';
+            }
         } else {
             var savedWidth = localStorage.getItem('resultsPanelWidth');
             if (savedWidth) {
@@ -2232,10 +2282,12 @@
             btn.innerHTML = '<i class="fas fa-columns"></i>';
             btn.title = 'Move panel to right';
 
-            // Set height for bottom layout
+            // Set height for bottom layout - only reduce if panel is visible
             var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
             panel.style.height = savedHeight + 'px';
-            layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            // Panel starts hidden, so use full height initially
+            // Height will be reduced when panel becomes visible via showResultsPanel()
+            layout.style.height = 'calc(100vh - 60px)';
         }
         // Update grid columns after loading layout preference
         updateGridColumns();
@@ -2680,18 +2732,32 @@
                         value = el.checked;
                     }
                 }
-            } else if (param.type.endsWith('[]') && param.type !== 'object[]') {
+            } else if (param.type.endsWith('[]')) {
                 // Array types use a builder element
                 var builder = document.getElementById('param-' + param.name + '-builder');
                 if (builder) {
-                    value = Array.from(builder.querySelectorAll('input'))
+                    var rawValues = Array.from(builder.querySelectorAll('input'))
                         .map(function(inp) { return inp.value.trim(); })
                         .filter(function(v) { return v; });
+
+                    // For object[] types, parse each item as JSON
+                    if (param.type === 'object[]') {
+                        value = rawValues.map(function(v) {
+                            try {
+                                return JSON.parse(v);
+                            } catch (e) {
+                                throw new Error('Invalid JSON in ' + param.name + ': ' + v);
+                            }
+                        });
+                    } else {
+                        value = rawValues;
+                    }
+
                     if (value.length === 0) {
                         value = param.required ? [] : undefined;
                     }
                 }
-            } else if (param.type === 'object' || param.type === 'object[]') {
+            } else if (param.type === 'object') {
                 var el = document.getElementById('param-' + param.name);
                 if (el) {
                     var str = el.value.trim();
@@ -2805,8 +2871,12 @@
             }
             params.push(objParams);
         } else {
-            // Standard positional params
+            // Standard positional params - build array with correct index positions
             try {
+                var lastFilledIndex = -1;
+                var tempParams = [];
+
+                // First pass: collect all values and track last filled index
                 for (var i = 0; i < config.params.length; i++) {
                     var param = config.params[i];
                     var value = getParamValue(param);
@@ -2816,31 +2886,19 @@
                         return null;
                     }
 
+                    tempParams[i] = value;
                     if (value !== undefined) {
-                        params.push(value);
-                    } else if (params.length > 0) {
-                        params.push(null);
+                        lastFilledIndex = i;
                     }
+                }
+
+                // Second pass: build params array up to lastFilledIndex, using null for gaps
+                for (var i = 0; i <= lastFilledIndex; i++) {
+                    params.push(tempParams[i] !== undefined ? tempParams[i] : null);
                 }
             } catch (e) {
                 showToast(e.message, 'error');
                 return null;
-            }
-        }
-
-        // For methods with positional params where later params may be set while earlier are empty,
-        // ensure correct positioning by padding with nulls
-        if (currentMethod === 'circles_events') {
-            // circles_events: eventTypes is at index 3, needs padding if earlier params are empty
-            var eventTypesIdx = 3;
-            var eventTypesValue = params.find(function(p) { return Array.isArray(p); });
-            if (eventTypesValue && params.indexOf(eventTypesValue) !== eventTypesIdx) {
-                // eventTypes was placed at wrong position, reposition it
-                params = params.filter(function(p) { return !Array.isArray(p); });
-                // Truncate to eventTypesIdx to remove trailing nulls, then pad if needed
-                params = params.slice(0, eventTypesIdx);
-                while (params.length < eventTypesIdx) params.push(null);
-                params.push(eventTypesValue);
             }
         }
 
@@ -2891,7 +2949,7 @@
         var resultsBody = document.getElementById('resultsBody');
         resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
             '<p style="margin-top: 15px; color: var(--text-muted);">Executing request...</p></div>';
-        document.getElementById('resultsPanel').classList.add('visible');
+        showResultsPanel();
 
         var startTime = Date.now();
         var bodyStr;
@@ -3684,7 +3742,7 @@
 
         // Use improved batch display
         resultsBody.innerHTML = renderBatchResults(results, 'summary');
-        document.getElementById('resultsPanel').classList.add('visible');
+        showResultsPanel();
 
         var successCount = results.filter(function(r) { return r.success && !r.response?.error; }).length;
         showToast('Batch complete: ' + successCount + '/' + results.length + ' succeeded');
@@ -3852,7 +3910,7 @@
         var resultsBody = document.getElementById('resultsBody');
         resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
             '<p style="margin-top: 15px; color: var(--text-muted);">Executing ' + requests.length + ' request(s)...</p></div>';
-        document.getElementById('resultsPanel').classList.add('visible');
+        showResultsPanel();
 
         var startTime = Date.now();
         var results = [];
