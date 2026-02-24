@@ -1827,7 +1827,9 @@
         ],
         tx: [
             { name: 'Recent Transactions', method: 'circles_getTransactionHistory', params: { avatarAddress: '', limit: 20 } },
-            { name: 'Transfer Data (calldata)', method: 'circles_getTransferData', params: { address: '', limit: 20 } }
+            { name: 'Transfer Data (all)', method: 'circles_getTransferData', params: { address: '', limit: 20 } },
+            { name: 'Transfer Data (sent)', method: 'circles_getTransferData', params: { address: '', direction: 'sent', limit: 20 } },
+            { name: 'Transfer Data (pair)', method: 'circles_getTransferData', params: { address: '', counterparty: '', limit: 20 } }
         ],
         query: [
             { name: 'Query Avatars Table', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 50 } },
