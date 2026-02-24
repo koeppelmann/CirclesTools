@@ -1613,6 +1613,17 @@
                 { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
             ]
         },
+        circles_getTransferData: {
+            category: 'tx',
+            description: 'Get transfer data (calldata bytes) for ERC-1155 transfers',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Primary address to filter' },
+                { name: 'direction', type: 'string', required: false, description: '"sent", "received", or null (both)' },
+                { name: 'counterparty', type: 'address', required: false, description: 'Counterparty address filter' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results (max 1000)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
         circles_events: {
             category: 'query',
             description: 'Query indexed blockchain events with advanced filtering',
@@ -1813,7 +1824,8 @@
             { name: 'Get Group Members', method: 'circles_getGroupMembers', params: { groupAddress: '' } }
         ],
         tx: [
-            { name: 'Recent Transactions', method: 'circles_getTransactionHistory', params: { avatarAddress: '', limit: 20 } }
+            { name: 'Recent Transactions', method: 'circles_getTransactionHistory', params: { avatarAddress: '', limit: 20 } },
+            { name: 'Transfer Data (calldata)', method: 'circles_getTransferData', params: { address: '', limit: 20 } }
         ],
         query: [
             { name: 'Query Avatars Table', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 50 } },
