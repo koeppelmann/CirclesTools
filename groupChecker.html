@@ -528,11 +528,10 @@
                     const thead = document.createElement("thead");
                     const headerRow = document.createElement("tr");
                     const headers = [
-                        'Group Address', 'Owner', 'Fee Collection',
-                        'Static ERC20', 'Price/', 'Supply ', 'Market Cap',
+                        'Group Address', 'Owner', 'Total Supply',
+                        'Static ERC20', 'Price/', 'sERC20 Supply ', 'Market Cap',
                         'Demurraged ERC20', 'Demurraged ERC20 Supply',
-                        'ERC1155 Total Supply', 'Balance',
-                        'Membership Conditions', 'Service', 'Base Mint Handler', 'Base Mint Policy', 'Base Treasury'
+                        'Membership Conditions', 'Service', 'Base Mint Handler', 'Base Mint Policy', 'Base Treasury', 'Fee Collection'
                     ];
 
                     const unitToggleLabels = [];
@@ -544,7 +543,7 @@
                         updateAllRows();
                     }
 
-                    const sortableColumns = { 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap', 8: 'sortDemurragedSupply', 9: 'sortErc1155Supply' };
+                    const sortableColumns = { 2: 'sortErc1155Supply', 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap', 8: 'sortDemurragedSupply' };
                     let currentSort = { col: null, dir: null };
 
                     function sortTable(tbody, sortKey, dir) {
@@ -561,6 +560,9 @@
                         const th = document.createElement("th");
                         th.textContent = headerText;
                         // Add clickable unit toggle for Price and Supply headers
+                        if (idx === 2) {
+                            th.title = 'Total supply of ERC1155 CRC';
+                        }
                         if (idx === 4 || idx === 5) {
                             const unitSpan = document.createElement('span');
                             unitSpan.className = 'unit-label';
@@ -736,7 +738,10 @@
                         // Add cells to row
                         row.appendChild(createAddressCell(groupAddress, true));
                         row.appendChild(createAddressCell(info.owner));
-                        row.appendChild(createAddressCell(info.feeCollection));
+                        // ERC1155 Total Supply
+                        const erc1155SupplyVal = parseFloat(ethers.utils.formatEther(info.erc1155TotalSupply || 0));
+                        row.sortErc1155Supply = erc1155SupplyVal;
+                        row.appendChild(document.createElement('td')).textContent = erc1155SupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
                         // Static ERC20 (actually demurraged)
                         row.appendChild(createAddressCell(info.demurragedERC20, false, false, false, true, true));
                         // Static ERC20 Price
@@ -801,12 +806,6 @@
                         const demurragedSupplyVal = parseFloat(ethers.utils.formatEther(info.staticERC20TotalSupply || 0));
                         row.sortDemurragedSupply = demurragedSupplyVal;
                         row.appendChild(document.createElement('td')).textContent = demurragedSupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
-                        // ERC1155 Total Supply
-                        const erc1155SupplyVal = parseFloat(ethers.utils.formatEther(info.erc1155TotalSupply || 0));
-                        row.sortErc1155Supply = erc1155SupplyVal;
-                        row.appendChild(document.createElement('td')).textContent = erc1155SupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
-                        // Balance
-                        row.appendChild(document.createElement('td')).textContent = parseFloat(ethers.utils.formatEther(info.balance || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 });
                         // Membership conditions
                         const conditionsCell = document.createElement('td');
                         if (info.membershipConditions.length > 0) {
@@ -836,6 +835,7 @@
                         row.appendChild(baseMintHandlerCell);
                         row.appendChild(createAddressCell(info.baseMintPolicy, false, false, false, true));
                         row.appendChild(createAddressCell(info.baseTreasury, false, false, false, true));
+                        row.appendChild(createAddressCell(info.feeCollection));
 
                         tbody.appendChild(row);
                     }
@@ -917,6 +917,9 @@
                 const trusterAddress =
                     "0x0afd8899bca011bb95611409f09c8efbf6b169cf";
                 const trustedGroups = await fetchTrustedGroups(trusterAddress);
+                // Add extra groups not covered by the truster
+                const extraGroups = ['0x86533d1aDA8Ffbe7b6F7244F9A1b707f7f3e239b'];
+                extraGroups.forEach(g => { if (!trustedGroups.includes(g)) trustedGroups.push(g); });
                 if (trustedGroups.length > 0) {
                     groupInput.value = trustedGroups.join(", ");
                     // Automatically trigger the check
@@ -938,11 +941,11 @@
                 const thead = document.createElement('thead');
                 const headerRow = document.createElement('tr');
                 const headers = [
-                    'Group Address', 'Owner', 'Service', 'Fee Collection',
+                    'Group Address', 'Owner', 'Total Supply',
+                    'Service',
                     'Base Mint Handler', 'Base Mint Policy', 'Base Treasury',
                     'Static ERC20', 'Static ERC20 Price', 'Static ERC20 Supply',
-                    'ERC1155 Total Supply', 'Balance',
-                    'Membership Conditions'
+                    'Membership Conditions', 'Fee Collection'
                 ];
 
                 headers.forEach(headerText => {
@@ -980,16 +983,13 @@
                     // Add all fields
                     addRow(group.groupAddress, true);
                     addRow(group.owner, true);
+                    addRow(ethers.utils.formatEther(group.erc1155TotalSupply || 0));
                     addRow(group.service, true);
-                    addRow(group.feeCollection, true);
                     addRow(group.baseMintHandler, true);
                     addRow(group.baseMintPolicy, true);
                     addRow(group.baseTreasury, true);
                     addRow(group.staticERC20, true);
-                    addRow(ethers.utils.formatEther(group.erc1155TotalSupply || 0));
                     addRow(ethers.utils.formatEther(group.staticERC20TotalSupply || 0));
-                    addRow(ethers.utils.formatEther(group.balance || 0));
-
                     // Add membership conditions
                     const conditionsCell = document.createElement('td');
                     if (group.membershipConditions && group.membershipConditions.length > 0) {
@@ -1012,6 +1012,7 @@
                         conditionsCell.textContent = 'None';
                     }
                     row.appendChild(conditionsCell);
+                    addRow(group.feeCollection, true);
 
                     tbody.appendChild(row);
                 });
