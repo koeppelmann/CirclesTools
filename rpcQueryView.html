@@ -1,0 +1,4056 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Circles RPC Query Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #191568;
+            --accent: #ff491b;
+            --bg: #fff7f5;
+            --card-bg: #ffffff;
+            --border: #e5e3fb;
+            --text: #191568;
+            --text-muted: #666;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "DM Sans", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        header h1 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .server-select {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .server-select label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .server-select select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            cursor: pointer;
+        }
+        .server-select select option {
+            background: var(--primary);
+            color: #fff;
+        }
+        .server-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+        .status-dot.error { background: var(--error); }
+        .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 400px;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 250px 1fr;
+            }
+            .results-panel {
+                display: none;
+            }
+            .results-panel.visible {
+                display: block;
+                position: fixed;
+                top: 60px;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                max-width: 500px;
+                z-index: 100;
+                box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            }
+        }
+        @media (max-width: 768px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none;
+            }
+            .sidebar.visible {
+                display: block;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                bottom: 0;
+                width: 280px;
+                z-index: 100;
+                box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+            }
+        }
+
+        /* Bottom layout mode - use fixed positioning for results panel */
+        .main-layout.layout-bottom {
+            height: calc(100vh - 60px - 250px); /* Leave space for bottom panel */
+        }
+        .main-layout.layout-bottom .results-panel {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            top: auto !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: 250px;
+            max-height: min(50vh, 450px);
+            min-height: 120px;
+            border-left: none;
+            border-top: 1px solid var(--border);
+            z-index: 50;
+            display: none;
+        }
+        .main-layout.layout-bottom .results-panel.visible {
+            display: flex;
+        }
+        .main-layout.layout-bottom .results-body {
+            max-height: none;
+        }
+
+        /* Resize handle styles */
+        .resize-handle {
+            position: absolute;
+            background: transparent;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+        .resize-handle:hover, .resize-handle.dragging {
+            background: var(--accent);
+        }
+        /* Right panel: vertical resize handle on left edge */
+        .results-panel .resize-handle {
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+        }
+        /* Bottom panel: horizontal resize handle on top edge */
+        .main-layout.layout-bottom .results-panel .resize-handle {
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: auto;
+            width: auto;
+            height: 5px;
+            cursor: row-resize;
+        }
+        @media (max-width: 1200px) {
+            .main-layout.layout-bottom {
+                grid-template-columns: 250px 1fr;
+            }
+        }
+        @media (max-width: 768px) {
+            .main-layout.layout-bottom {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr;
+            }
+            .main-layout.layout-bottom .results-panel {
+                display: none;
+            }
+            .main-layout.layout-bottom .results-panel.visible {
+                display: block;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 50vh;
+                z-index: 100;
+            }
+        }
+
+        .sidebar {
+            background: var(--card-bg);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 15px 0;
+            position: relative;
+            min-width: 200px;
+            max-width: 400px;
+            transition: width 0.2s, min-width 0.2s, padding 0.2s;
+        }
+        .sidebar.collapsed {
+            min-width: 50px;
+            width: 50px !important;
+            padding: 15px 0;
+            overflow: hidden;
+        }
+        .sidebar.collapsed .sidebar-section {
+            display: none;
+        }
+        .sidebar.collapsed .sidebar-collapse-btn {
+            display: flex;
+        }
+        .sidebar-collapse-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--card-bg);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            z-index: 5;
+            transition: all 0.2s;
+        }
+        .sidebar-collapse-btn:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+        .sidebar.collapsed .sidebar-collapse-btn {
+            right: auto;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .sidebar.collapsed .sidebar-collapse-btn i {
+            transform: rotate(180deg);
+        }
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+        .sidebar-resize-handle:hover,
+        .sidebar-resize-handle.dragging {
+            background: var(--accent);
+        }
+        .sidebar.collapsed .sidebar-resize-handle {
+            display: none;
+        }
+        .sidebar-section {
+            margin-bottom: 5px;
+        }
+        .sidebar-header {
+            padding: 8px 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .sidebar-header:hover {
+            background: var(--bg);
+        }
+        .sidebar-header i {
+            width: 16px;
+            text-align: center;
+            color: var(--accent);
+        }
+        .sidebar-header .chevron {
+            margin-left: auto;
+            transition: transform 0.2s;
+        }
+        .sidebar-header.collapsed .chevron {
+            transform: rotate(-90deg);
+        }
+        .method-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .method-list.collapsed {
+            display: none;
+        }
+        .method-item {
+            padding: 8px 15px 8px 38px;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: background 0.1s;
+            border-left: 3px solid transparent;
+        }
+        .method-item:hover {
+            background: var(--bg);
+        }
+        .method-item.active {
+            background: #ffede8;
+            border-left-color: var(--accent);
+            font-weight: 500;
+        }
+        .method-item code {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+        }
+
+        .main-content {
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg);
+        }
+        .builder-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+        .builder-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        .builder-title {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .builder-title code {
+            font-family: 'SF Mono', Monaco, monospace;
+            background: var(--bg);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        .builder-desc {
+            margin: 5px 0 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .preset-select {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .preset-select select {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            background: var(--card-bg);
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+        .form-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.92rem;
+        }
+        .form-label .required {
+            color: var(--error);
+        }
+        .form-label .type-badge {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            background: var(--border);
+            border-radius: 4px;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(255,73,27,0.1);
+        }
+        .form-input.monospace {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.9rem;
+        }
+        .form-input.error {
+            border-color: var(--error);
+        }
+        .form-hint {
+            margin-top: 4px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+        .form-error {
+            margin-top: 4px;
+            font-size: 0.82rem;
+            color: var(--error);
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .form-checkbox input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        .array-builder {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            background: var(--bg);
+        }
+        .array-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .array-item:last-child {
+            margin-bottom: 0;
+        }
+        .array-item input {
+            flex: 1;
+        }
+        .array-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+        .array-btn.add {
+            background: var(--primary);
+            color: #fff;
+        }
+        .array-btn.add:hover {
+            background: #251b9f;
+        }
+        .array-btn.remove {
+            background: #fee2e2;
+            color: var(--error);
+        }
+        .array-btn.remove:hover {
+            background: #fecaca;
+        }
+
+        .json-editor {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            resize: vertical;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .json-editor:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .optional-section {
+            margin-top: 20px;
+            border-top: 1px dashed var(--border);
+            padding-top: 15px;
+        }
+        .optional-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+        .optional-toggle:hover {
+            color: var(--text);
+        }
+        .optional-toggle i {
+            transition: transform 0.2s;
+        }
+        .optional-toggle.expanded i {
+            transform: rotate(90deg);
+        }
+        .optional-content {
+            display: none;
+        }
+        .optional-content.visible {
+            display: block;
+        }
+
+        .action-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #e63e0f;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-secondary:hover {
+            background: #251b9f;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover {
+            background: var(--bg);
+            border-color: var(--text-muted);
+        }
+        .btn-icon {
+            padding: 8px;
+            min-width: 36px;
+        }
+
+        .results-panel {
+            background: var(--card-bg);
+            border-left: 1px solid var(--border);
+            display: none;  /* Hidden by default, shown with .visible */
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;  /* For resize handle positioning */
+        }
+        .results-panel.visible {
+            display: flex;
+        }
+        .results-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg);
+        }
+        .results-tabs {
+            display: flex;
+            gap: 5px;
+        }
+        .results-tab {
+            padding: 6px 12px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .results-tab:hover {
+            background: var(--border);
+        }
+        .results-tab.active {
+            background: var(--primary);
+            color: #fff;
+        }
+        .results-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .results-body {
+            flex: 1;
+            overflow: auto;
+            padding: 15px;
+        }
+        .results-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px;
+        }
+        .results-empty i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+        .results-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .results-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: var(--bg);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        .results-meta > span:first-child {
+            min-width: 100%;  /* Force request count to its own line */
+            margin-bottom: 4px;
+        }
+        .results-meta .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .results-meta .status.success { color: var(--success); }
+        .results-meta .status.error { color: var(--error); }
+
+        .json-display {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .json-display .string { color: #ce9178; }
+        .json-display .number { color: #b5cea8; }
+        .json-display .boolean { color: #569cd6; }
+        .json-display .null { color: #569cd6; }
+        .json-display .key { color: #9cdcfe; }
+        .json-display .bracket { color: #ffd700; }
+
+        .curl-display {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: var(--bg);
+            border-color: var(--text-muted);
+        }
+        .history-item .method {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .history-item .time {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .history-item .server {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            background: var(--border);
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        .diff-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .main-layout.layout-bottom .diff-container {
+            grid-template-columns: 1fr;  /* Stack vertically in bottom layout */
+        }
+        .diff-panel {
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .diff-header {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #fff;
+        }
+        .diff-content {
+            padding: 12px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            color: #d4d4d4;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow: auto;
+        }
+        /* Unified diff styles */
+        .unified-diff {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            overflow: auto;
+            max-height: 500px;
+        }
+        .diff-line {
+            padding: 1px 8px;
+            margin: 0 -12px;
+        }
+        .diff-line.added {
+            background: rgba(46, 160, 67, 0.25);
+            color: #7ee787;
+        }
+        .diff-line.added::before {
+            content: "+ ";
+            color: #7ee787;
+        }
+        .diff-line.removed {
+            background: rgba(248, 81, 73, 0.25);
+            color: #ffa198;
+        }
+        .diff-line.removed::before {
+            content: "- ";
+            color: #ffa198;
+        }
+        .diff-line.context {
+            color: #8b949e;
+        }
+        .diff-line.context::before {
+            content: "  ";
+        }
+        .diff-path {
+            color: #58a6ff;
+            padding: 8px;
+            margin: 8px -12px;
+            background: rgba(88, 166, 255, 0.1);
+            font-weight: 500;
+        }
+
+        .batch-list {
+            margin-bottom: 15px;
+        }
+        .batch-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .batch-item .method {
+            flex: 1;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85rem;
+        }
+        .batch-item .status-icon {
+            width: 20px;
+            text-align: center;
+        }
+        .batch-item .status-icon.pending { color: var(--text-muted); }
+        .batch-item .status-icon.running { color: var(--warning); }
+        .batch-item .status-icon.success { color: var(--success); }
+        .batch-item .status-icon.error { color: var(--error); }
+
+        /* Batch results display - summary table and accordion */
+        .batch-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .batch-summary-table th,
+        .batch-summary-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .batch-summary-table th {
+            background: var(--bg);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .batch-summary-table td {
+            font-size: 0.9rem;
+        }
+        .batch-summary-table code {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+            background: var(--bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .batch-accordion-item {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .batch-accordion-header {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg);
+            transition: background 0.2s;
+        }
+        .batch-accordion-header:hover {
+            background: #f0eff9;
+        }
+        .batch-accordion-header .accordion-icon {
+            transition: transform 0.2s;
+            color: var(--text-muted);
+        }
+        .batch-accordion-header.expanded .accordion-icon {
+            transform: rotate(90deg);
+        }
+        .batch-accordion-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+        }
+        .batch-accordion-content.expanded {
+            display: block;
+        }
+        .batch-view-toggle {
+            display: flex;
+            gap: 3px;
+        }
+        .batch-view-toggle .btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .batch-export-btns {
+            display: flex;
+            gap: 3px;
+        }
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
+        /* Batch diff styles */
+        .batch-diff-item {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .batch-diff-header {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg);
+            transition: background 0.2s;
+        }
+        .batch-diff-header:hover {
+            background: #f0eff9;
+        }
+        .batch-diff-header.identical {
+            border-left: 3px solid var(--success);
+        }
+        .batch-diff-header.different {
+            border-left: 3px solid var(--warning);
+        }
+        .batch-diff-header.error {
+            border-left: 3px solid var(--error);
+        }
+        .batch-diff-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+        }
+        .batch-diff-content.expanded {
+            display: block;
+        }
+        .batch-diff-mini {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .batch-diff-mini .diff-panel {
+            max-height: 300px;
+        }
+        .diff-summary-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        .diff-summary-badge.identical {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+        .diff-summary-badge.different {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+        .diff-summary-badge.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error);
+        }
+        .batch-compare-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .batch-compare-controls select {
+            padding: 4px 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            background: white;
+            max-width: 90px;
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .toast {
+            background: var(--primary);
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--error); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            padding: 8px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+        }
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+
+        .kbd {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            font-family: 'SF Mono', Monaco, monospace;
+            background: var(--border);
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .kbd-hint {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            margin-left: 8px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .server-url {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            font-family: 'SF Mono', Monaco, monospace;
+            margin-top: 2px;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.visible {
+            display: flex;
+        }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 0;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: var(--primary);
+        }
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .raw-json-input {
+            width: 100%;
+            min-height: 300px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.85rem;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            resize: vertical;
+        }
+        .raw-json-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .raw-json-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+        .header-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .header-btn:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        .batch-import-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        .batch-import-section h4 {
+            margin: 0 0 10px;
+            font-size: 0.95rem;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div>
+                <h1><i class="fas fa-terminal" style="margin-right: 8px;"></i>RPC Query Builder</h1>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div class="server-select">
+                <label>Server:</label>
+                <select id="serverSelect" onchange="onServerChange()">
+                    <option value="staging2">Staging2 (New)</option>
+                    <option value="staging">Staging</option>
+                    <option value="prod">Production</option>
+                </select>
+                <span class="server-url" id="serverUrl">staging.circlesubi.network</span>
+            </div>
+            <div class="server-status" id="serverStatus">
+                <span class="status-dot loading"></span>
+                <span id="statusText">Checking...</span>
+            </div>
+            <button class="header-btn" onclick="openRawJsonModal()">
+                <i class="fas fa-code"></i> Raw JSON
+            </button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'balance')">
+                    <i class="fas fa-coins"></i>
+                    <span>Balance & Tokens</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-balance"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'avatar')">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Avatars & Profiles</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-avatar"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'trust')">
+                    <i class="fas fa-handshake"></i>
+                    <span>Trust & Groups</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-trust"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'tx')">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>Transactions</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-tx"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'query')">
+                    <i class="fas fa-database"></i>
+                    <span>Events & Query</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-query"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'sdk')">
+                    <i class="fas fa-puzzle-piece"></i>
+                    <span>SDK Methods</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-sdk"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'pathfinder')">
+                    <i class="fas fa-route"></i>
+                    <span>Pathfinder</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-pathfinder"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'chain')">
+                    <i class="fas fa-link"></i>
+                    <span>Chain RPC</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-chain"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'system')">
+                    <i class="fas fa-cog"></i>
+                    <span>System</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-system"></div>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); margin-top: 15px; padding-top: 15px;">
+                <div class="sidebar-header" onclick="toggleCategory(this, 'history')">
+                    <i class="fas fa-history"></i>
+                    <span>History</span>
+                    <i class="fas fa-chevron-down chevron"></i>
+                </div>
+                <div class="method-list" id="category-history">
+                    <div id="historyList" style="padding: 0 15px;"></div>
+                    <div style="padding: 10px 15px; border-top: 1px solid var(--border); margin-top: 10px;">
+                        <button class="btn btn-outline" style="width: 100%; font-size: 0.85rem; padding: 6px;" onclick="clearAllData()">
+                            <i class="fas fa-trash"></i> Clear All Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content" id="mainContent">
+            <div class="builder-card" id="builderCard">
+                <div class="builder-header">
+                    <div>
+                        <h2 class="builder-title">Select a method from the sidebar</h2>
+                        <p class="builder-desc">Choose an RPC method to build and execute a request</p>
+                    </div>
+                </div>
+                <div id="formContainer">
+                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <i class="fas fa-arrow-left" style="font-size: 2rem; margin-bottom: 15px; opacity: 0.3;"></i>
+                        <p>Select a method from the sidebar to get started</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="builder-card" id="batchCard" style="display: none;">
+                <div class="builder-header">
+                    <div>
+                        <h2 class="builder-title"><i class="fas fa-layer-group"></i> Batch Queue</h2>
+                        <p class="builder-desc">Execute multiple requests in sequence</p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline btn-icon" onclick="clearBatch()" title="Clear batch">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="batch-list" id="batchList"></div>
+                <button class="btn btn-secondary" onclick="executeBatch()">
+                    <i class="fas fa-play"></i> Execute Batch
+                </button>
+            </div>
+        </main>
+
+        <aside class="results-panel" id="resultsPanel">
+            <div class="resize-handle" id="resizeHandle"></div>
+            <div class="results-header">
+                <div class="results-tabs">
+                    <button class="results-tab active" onclick="switchResultTab('response')" data-tab="response">Response</button>
+                    <button class="results-tab" onclick="switchResultTab('curl')" data-tab="curl">cURL</button>
+                    <button class="results-tab" onclick="switchResultTab('fetch')" data-tab="fetch">Fetch</button>
+                    <button class="results-tab" onclick="switchResultTab('diff')" data-tab="diff">Diff</button>
+                </div>
+                <div class="results-actions">
+                    <button class="btn btn-outline btn-icon" onclick="copyResult()" title="Copy to clipboard">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="btn btn-outline btn-icon" onclick="toggleResultsLayout()" id="layoutToggleBtn" title="Toggle panel position">
+                        <i class="fas fa-columns"></i>
+                    </button>
+                    <button class="btn btn-outline btn-icon" onclick="closeResultsPanel()" title="Close panel">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="results-body" id="resultsBody">
+                <div class="results-empty">
+                    <i class="fas fa-inbox"></i>
+                    <p>Execute a request to see results here</p>
+                    <p style="font-size: 0.85rem;">Press <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> to execute</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+    // Server Configuration
+    const SERVERS = {
+        staging2: {
+            name: 'Staging2 (New)',
+            rpc: 'https://staging.circlesubi.network/',
+            pathfinder: 'https://staging.circlesubi.network/',  // Also on root
+            chainRpc: 'https://rpc.gnosischain.com'
+        },
+        staging: {
+            name: 'Staging',
+            rpc: 'https://rpc.circlesubi.network/',
+            pathfinder: 'https://rpc.circlesubi.network/',
+            chainRpc: 'https://rpc.circlesubi.network/'
+        },
+        prod: {
+            name: 'Production',
+            rpc: 'https://rpc.aboutcircles.com/',
+            pathfinder: 'https://rpc.aboutcircles.com/',
+            chainRpc: 'https://rpc.aboutcircles.com/'
+        }
+    };
+
+    let currentServer = 'staging2';
+    let currentMethod = null;
+    let lastResult = null;
+    let lastRequest = null;
+    let history = [];
+    let batchQueue = [];
+
+    // Method Registry - all RPC methods with their parameter schemas
+    const METHODS = {
+        circles_getTotalBalance: {
+            category: 'balance',
+            description: 'Get total V1 Circles balance (use circlesV2_getTotalBalance for V2)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Ethereum address to check' },
+                { name: 'version', type: 'number', required: false, description: 'Protocol version (1 or 2)' },
+                { name: 'asTimeCircles', type: 'boolean', required: false, default: true, description: 'Format as TimeCircles' }
+            ]
+        },
+        circlesV2_getTotalBalance: {
+            category: 'balance',
+            description: 'Get total V2 Circles balance for an address (recommended for V2 accounts)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Ethereum address to check' },
+                { name: 'asTimeCircles', type: 'boolean', required: false, default: true, description: 'Format as TimeCircles' }
+            ]
+        },
+        circles_getTokenBalances: {
+            category: 'balance',
+            description: 'Get all token balances with full metadata for an address',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Address to get balances for' }
+            ]
+        },
+        circles_getTokenInfo: {
+            category: 'balance',
+            description: 'Get metadata for a specific token',
+            params: [
+                { name: 'tokenAddress', type: 'address', required: true, description: 'Token contract address' }
+            ]
+        },
+        circles_getTokenInfoBatch: {
+            category: 'balance',
+            description: 'Get metadata for multiple tokens',
+            params: [
+                { name: 'tokenAddresses', type: 'address[]', required: true, description: 'Array of token addresses' }
+            ]
+        },
+        circles_getAvatarInfo: {
+            category: 'avatar',
+            description: 'Get avatar information for an address (V1 and V2 merged)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAvatarInfoBatch: {
+            category: 'avatar',
+            description: 'Get avatar information for multiple addresses',
+            params: [
+                { name: 'addresses', type: 'address[]', required: true, description: 'Array of avatar addresses' }
+            ]
+        },
+        circles_getProfileByAddress: {
+            category: 'avatar',
+            description: 'Get profile data for an avatar address',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getProfileByAddressBatch: {
+            category: 'avatar',
+            description: 'Get profiles for multiple addresses',
+            params: [
+                { name: 'addresses', type: 'address[]', required: true, description: 'Array of avatar addresses' }
+            ]
+        },
+        circles_getProfileCid: {
+            category: 'avatar',
+            description: 'Get the IPFS CID for an avatar profile',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getProfileByCid: {
+            category: 'avatar',
+            description: 'Retrieve a profile from IPFS by its CID',
+            params: [
+                { name: 'cid', type: 'string', required: true, description: 'CIDv0 string' }
+            ]
+        },
+        circles_searchProfiles: {
+            category: 'avatar',
+            description: 'Full-text search for profiles',
+            params: [
+                { name: 'text', type: 'string', required: true, description: 'Search query (max 3 tokens)' },
+                { name: 'limit', type: 'number', required: false, default: 20, description: 'Max results (max 100)' },
+                { name: 'offset', type: 'number', required: false, default: 0, description: 'Pagination offset' },
+                { name: 'types', type: 'string[]', required: false, description: 'Filter by avatar types' }
+            ]
+        },
+        circles_searchProfileByAddressOrName: {
+            category: 'avatar',
+            description: 'Unified search by address prefix OR name/text',
+            params: [
+                { name: 'query', type: 'string', required: true, description: 'Search query (0x prefix = address search)' },
+                { name: 'limit', type: 'number', required: false, default: 20, description: 'Max results' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' },
+                { name: 'types', type: 'string[]', required: false, description: 'Filter by avatar types' }
+            ]
+        },
+        circles_getTrustRelations: {
+            category: 'trust',
+            description: 'Get trust relationships for an address',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAggregatedTrustRelations: {
+            category: 'trust',
+            description: 'Get aggregated trust relations in SDK-compatible format',
+            params: [
+                { name: 'avatar', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getCommonTrust: {
+            category: 'trust',
+            description: 'Find addresses that two users both trust',
+            params: [
+                { name: 'address1', type: 'address', required: true, description: 'First address' },
+                { name: 'address2', type: 'address', required: true, description: 'Second address' },
+                { name: 'version', type: 'number', required: false, description: 'Filter by version (1, 2, or null for both)' }
+            ]
+        },
+        circles_findGroups: {
+            category: 'trust',
+            description: 'Find groups with filters (staging2 only)',
+            serverNote: 'Only available on Staging2',
+            params: [
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results' },
+                { name: 'queryParams', type: 'object', required: false, description: 'Filter params (nameStartsWith, symbolStartsWith, ownerIn)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getGroupMembers: {
+            category: 'trust',
+            description: 'Get members of a specific group with pagination',
+            params: [
+                { name: 'groupAddress', type: 'address', required: true, description: 'Group address' },
+                { name: 'limit', type: 'number', required: false, default: 100, description: 'Max results' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getGroupMemberships: {
+            category: 'trust',
+            description: 'Get groups that an avatar is a member of',
+            params: [
+                { name: 'memberAddress', type: 'address', required: true, description: 'Member address' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getNetworkSnapshot: {
+            category: 'trust',
+            description: 'Get a complete snapshot of the Circles trust network',
+            params: []
+        },
+        circles_getTransactionHistory: {
+            category: 'tx',
+            description: 'Get transaction history for an avatar',
+            params: [
+                { name: 'avatarAddress', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max transactions' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' },
+                { name: 'version', type: 'number', required: false, description: 'Filter by version (null = both)' },
+                { name: 'excludeIntermediary', type: 'boolean', required: false, default: true, description: 'Exclude intermediary hops' }
+            ]
+        },
+        circles_getTransactionHistoryEnriched: {
+            category: 'tx',
+            description: 'Transaction history with enriched participant profiles',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'fromBlock', type: 'number', required: true, description: 'Starting block number' },
+                { name: 'toBlock', type: 'number', required: false, description: 'Ending block number' },
+                { name: 'limit', type: 'number', required: false, default: 20, description: 'Max transactions' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' },
+                { name: 'version', type: 'number', required: false, description: 'Filter by version' },
+                { name: 'excludeIntermediary', type: 'boolean', required: false, default: true, description: 'Exclude intermediary hops' }
+            ]
+        },
+        circles_getTokenHolders: {
+            category: 'tx',
+            description: 'Get all holders of a specific token',
+            params: [
+                { name: 'tokenAddress', type: 'address', required: true, description: 'Token address' },
+                { name: 'limit', type: 'number', required: false, default: 100, description: 'Max holders' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getTransferData: {
+            category: 'tx',
+            description: 'Get transfer data (calldata bytes) for ERC-1155 transfers',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Primary address to filter' },
+                { name: 'direction', type: 'string', required: false, description: '"sent", "received", or null (both)' },
+                { name: 'counterparty', type: 'address', required: false, description: 'Counterparty address filter' },
+                { name: 'fromBlock', type: 'number', required: false, description: 'Start block (inclusive)' },
+                { name: 'toBlock', type: 'number', required: false, description: 'End block (inclusive)' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results (max 1000)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_events: {
+            category: 'query',
+            description: 'Query indexed blockchain events with advanced filtering',
+            params: [
+                { name: 'address', type: 'address', required: false, description: 'Filter by address' },
+                { name: 'fromBlock', type: 'number', required: false, description: 'Starting block (inclusive)' },
+                { name: 'toBlock', type: 'number', required: false, description: 'Ending block (inclusive)' },
+                { name: 'eventTypes', type: 'string[]', required: false, description: 'Filter by event types' },
+                { name: 'filterPredicates', type: 'object[]', required: false, description: 'Advanced filter predicates' },
+                { name: 'sortAscending', type: 'boolean', required: false, default: false, description: 'Sort order' },
+                { name: 'limit', type: 'number', required: false, default: 100, description: 'Max events (max 1000)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ],
+            eventTypes: [
+                'CrcV1_Signup', 'CrcV1_OrganizationSignup', 'CrcV1_Trust', 'CrcV1_HubTransfer', 'CrcV1_Transfer',
+                'CrcV2_RegisterHuman', 'CrcV2_RegisterOrganization', 'CrcV2_RegisterGroup', 'CrcV2_RegisterShortName',
+                'CrcV2_PersonalMint', 'CrcV2_Trust', 'CrcV2_Stopped', 'CrcV2_ApprovalForAll',
+                'CrcV2_TransferSingle', 'CrcV2_TransferBatch', 'CrcV2_TransferData', 'CrcV2_UpdateMetadataDigest', 'CrcV2_URI',
+                'CrcV2_ERC20WrapperDeployed', 'CrcV2_Erc20WrapperTransfer',
+                'CrcV2_DepositInflationary', 'CrcV2_WithdrawInflationary',
+                'CrcV2_DepositDemurraged', 'CrcV2_WithdrawDemurraged',
+                'CrcV2_StreamCompleted', 'CrcV2_DiscountCost', 'CrcV2_GroupMint',
+                'CrcV2_FlowEdgesScopeSingleStarted', 'CrcV2_FlowEdgesScopeLastEnded'
+            ]
+        },
+        circles_query: {
+            category: 'query',
+            description: 'Generic database query using structured DTOs',
+            params: [
+                { name: 'namespace', type: 'string', required: true, description: 'Database namespace' },
+                { name: 'table', type: 'string', required: true, description: 'Table name' },
+                { name: 'columns', type: 'string[]', required: false, description: 'Specific columns to retrieve' },
+                { name: 'filter', type: 'object[]', required: false, description: 'WHERE conditions (FilterPredicateDto)' },
+                { name: 'order', type: 'object[]', required: false, description: 'ORDER BY clauses' },
+                { name: 'limit', type: 'number', required: false, description: 'Row limit' },
+                { name: 'distinct', type: 'boolean', required: false, description: 'Remove duplicates' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ],
+            isQueryBuilder: true
+        },
+        circles_tables: {
+            category: 'query',
+            description: 'Get available database tables and schemas',
+            params: []
+        },
+        circles_getProfileView: {
+            category: 'sdk',
+            description: 'Complete profile combining avatar, profile, trust stats, and balances',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getTrustNetworkSummary: {
+            category: 'sdk',
+            description: 'Aggregated trust network statistics',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'maxDepth', type: 'number', required: false, description: 'Max depth for network traversal' }
+            ]
+        },
+        circles_getAggregatedTrustRelationsEnriched: {
+            category: 'sdk',
+            description: 'Trust relations categorized by type with enriched avatar info',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results per page' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getValidInviters: {
+            category: 'sdk',
+            description: 'Addresses that trust the given address AND have sufficient balance',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'minimumBalance', type: 'string', required: false, description: 'Minimum balance required (in CRC)' },
+                { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getInvitationOrigin: {
+            category: 'sdk',
+            description: 'Invitation origin showing how a user joined Circles',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAllInvitations: {
+            category: 'sdk',
+            description: 'All available invitations for an address from all sources',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'minimumBalance', type: 'string', required: false, description: 'Minimum balance required (in CRC)' }
+            ]
+        },
+        circlesV2_findPath: {
+            category: 'pathfinder',
+            description: 'Calculate a transitive payment path through the trust network',
+            endpoint: 'pathfinder',
+            useObjectParams: true,  // Pathfinder uses {source, sink, targetFlow, ...} not positional
+            params: [
+                { name: 'source', type: 'address', required: true, description: 'Source address' },
+                { name: 'sink', type: 'address', required: true, description: 'Destination address' },
+                { name: 'targetFlow', type: 'string', required: true, description: 'Target amount as uint256 string (in wei). Use MAX for max flow.', hasMaxButton: true },
+                { name: 'withWrap', type: 'boolean', required: false, description: 'Enable ERC20 wrapping' },
+                { name: 'fromTokens', type: 'address[]', required: false, description: 'Whitelist source tokens' },
+                { name: 'toTokens', type: 'address[]', required: false, description: 'Whitelist destination tokens' },
+                { name: 'excludedFromTokens', type: 'address[]', required: false, description: 'Blacklist source tokens' },
+                { name: 'excludedToTokens', type: 'address[]', required: false, description: 'Blacklist destination tokens' },
+                { name: 'simulatedBalances', type: 'object[]', required: false, description: 'Override balances for testing' },
+                { name: 'simulatedTrusts', type: 'object[]', required: false, description: 'Override trusts for testing' },
+                { name: 'simulatedConsentedAvatars', type: 'address[]', required: false, description: 'Pre-consented avatars' },
+                { name: 'maxTransfers', type: 'number', required: false, description: 'Max transfer hops' },
+                { name: 'quantizedMode', type: 'boolean', required: false, description: '96 CRC quantization for invitations' }
+            ]
+        },
+        eth_blockNumber: {
+            category: 'chain',
+            description: 'Get the current block number',
+            endpoint: 'chainRpc',
+            params: []
+        },
+        eth_syncing: {
+            category: 'chain',
+            description: 'Check if the node is syncing',
+            endpoint: 'chainRpc',
+            params: []
+        },
+        eth_chainId: {
+            category: 'chain',
+            description: 'Get the chain ID',
+            endpoint: 'chainRpc',
+            params: []
+        },
+        eth_getBalance: {
+            category: 'chain',
+            description: 'Get the balance of an address',
+            endpoint: 'chainRpc',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Address to check' },
+                { name: 'block', type: 'string', required: false, default: 'latest', description: 'Block number or "latest"' }
+            ]
+        },
+        eth_getBlockByNumber: {
+            category: 'chain',
+            description: 'Get a block by its number',
+            endpoint: 'chainRpc',
+            params: [
+                { name: 'blockNumber', type: 'string', required: true, description: 'Block number (hex) or "latest"' },
+                { name: 'fullTx', type: 'boolean', required: false, default: false, description: 'Include full transaction objects' }
+            ]
+        },
+        eth_getTransactionByHash: {
+            category: 'chain',
+            description: 'Get a transaction by its hash',
+            endpoint: 'chainRpc',
+            params: [
+                { name: 'txHash', type: 'string', required: true, description: 'Transaction hash' }
+            ]
+        },
+        eth_getTransactionReceipt: {
+            category: 'chain',
+            description: 'Get a transaction receipt by its hash',
+            endpoint: 'chainRpc',
+            params: [
+                { name: 'txHash', type: 'string', required: true, description: 'Transaction hash' }
+            ]
+        },
+        eth_getLogs: {
+            category: 'chain',
+            description: 'Get logs matching filter (pass filter object)',
+            endpoint: 'chainRpc',
+            params: [
+                { name: 'filter', type: 'object', required: true, description: 'Filter: {fromBlock, toBlock, address, topics[]}. Example: {"fromBlock":"latest","toBlock":"latest","address":"0x..."}' }
+            ]
+        },
+        circles_health: {
+            category: 'system',
+            description: 'Health check endpoint',
+            params: []
+        }
+    };
+
+    // Presets
+    const PRESETS = {
+        balance: [
+            { name: 'Get V2 Total Balance', method: 'circlesV2_getTotalBalance', params: { address: '' } },
+            { name: 'Get V1 Total Balance', method: 'circles_getTotalBalance', params: { address: '' } },
+            { name: 'Get All Token Balances', method: 'circles_getTokenBalances', params: { address: '' } }
+        ],
+        avatar: [
+            { name: 'Get Avatar Info', method: 'circles_getAvatarInfo', params: { address: '' } },
+            { name: 'Get Full Profile', method: 'circles_getProfileByAddress', params: { address: '' } },
+            { name: 'Search Profiles', method: 'circles_searchProfiles', params: { text: 'circles', limit: 20 } }
+        ],
+        trust: [
+            { name: 'Get Trust Relations', method: 'circles_getTrustRelations', params: { address: '' } },
+            { name: 'Find All Groups', method: 'circles_findGroups', params: { limit: 50 } },
+            { name: 'Get Group Members', method: 'circles_getGroupMembers', params: { groupAddress: '' } }
+        ],
+        tx: [
+            { name: 'Recent Transactions', method: 'circles_getTransactionHistory', params: { avatarAddress: '', limit: 20 } },
+            { name: 'Transfer Data (all)', method: 'circles_getTransferData', params: { address: '', limit: 20 } },
+            { name: 'Transfer Data (sent)', method: 'circles_getTransferData', params: { address: '', direction: 'sent', limit: 20 } },
+            { name: 'Transfer Data (pair)', method: 'circles_getTransferData', params: { address: '', counterparty: '', limit: 20 } }
+        ],
+        query: [
+            { name: 'Query Avatars Table', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 50 } },
+            { name: 'Recent V2 Transfers', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferSingle'] } },
+            { name: 'TransferData Events', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferData'] } },
+            { name: 'List All Tables', method: 'circles_tables', params: {} }
+        ],
+        sdk: [
+            { name: 'Get Profile View', method: 'circles_getProfileView', params: { address: '' } },
+            { name: 'Get Valid Inviters', method: 'circles_getValidInviters', params: { address: '' } }
+        ],
+        pathfinder: [
+            // === Basic Transfer Presets ===
+            { name: 'Max Flow Query', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935' } },
+            { name: 'Basic Transfer Path (1 CRC)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000' } },
+            { name: 'Path with Wrapping', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000', withWrap: true } },
+            { name: 'Limited Hops (max 3)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '1000000000000000000', maxTransfers: 3 } },
+
+            // === Token Filtering (Include) ===
+            { name: 'Transfer with FromTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...token1']
+            } },
+            { name: 'Transfer with ToTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...token1']
+            } },
+            { name: 'Combined Token Filters', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...sourceToken'],
+                toTokens: ['0x...sinkToken']
+            } },
+
+            // === Token Filtering (Exclude) ===
+            { name: 'Transfer with Excluded FromTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedFromTokens: ['0x...excludedToken']
+            } },
+            { name: 'Transfer with Excluded ToTokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedToTokens: ['0x...excludedToken']
+            } },
+            { name: 'Combined Exclusions', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                excludedFromTokens: ['0x...excludedFrom'],
+                excludedToTokens: ['0x...excludedTo']
+            } },
+            { name: 'Mixed Include/Exclude', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                fromTokens: ['0x...allowedFrom'],
+                excludedToTokens: ['0x...excludedTo']
+            } },
+
+            // === Self-Conversion / Swap Scenarios ===
+            { name: 'Self-Swap Basic', description: 'Convert between tokens for same holder', method: 'circlesV2_findPath', params: {
+                source: '0x...sameAddress',
+                sink: '0x...sameAddress',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...targetToken']
+            } },
+            { name: 'Self-Swap Discovery', description: 'Find all possible swaps for holder', method: 'circlesV2_findPath', params: {
+                source: '0x...sameAddress',
+                sink: '0x...sameAddress',
+                targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+            } },
+
+            // === Quantized Mode (Invitation Module) ===
+            { name: 'Quantized Mode (96 CRC)', method: 'circlesV2_findPath', params: { source: '', sink: '', targetFlow: '96000000000000000000', quantizedMode: true } },
+            { name: 'Quantized Single Token', description: 'Basic invite path with specific token', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '96000000000000000000',
+                quantizedMode: true,
+                toTokens: ['0x...inviterToken']
+            } },
+            { name: 'Quantized Multi-Token', description: 'Multi-token invite options', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '96000000000000000000',
+                quantizedMode: true,
+                toTokens: ['0x...inviterToken1', '0x...inviterToken2', '0x...inviterToken3']
+            } },
+            { name: 'Quantized Discovery', description: 'Discover all invite options', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '115792089237316195423570985008687907853269984665640564039457584007913129639935',
+                quantizedMode: true
+            } },
+            { name: 'Quantized Max Invites', description: 'Find max possible invitations', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '960000000000000000000',
+                quantizedMode: true
+            } },
+
+            // === Group Minting ===
+            { name: 'Group Mint Path', description: 'Path to mint group tokens', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '0x...groupAddress',
+                targetFlow: '1000000000000000000',
+                toTokens: ['0x...groupToken']
+            } },
+
+            // === Consented Flow Testing ===
+            { name: 'Consented Flow', description: 'Test consent constraints', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                simulatedConsentedAvatars: ['0x...consentedAvatar1', '0x...consentedAvatar2']
+            } },
+
+            // === Simulated State ===
+            { name: 'With Simulated Balance', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                simulatedBalances: [{ holder: '0x...holder', token: '0x...token', amount: '10000000000000000000', isWrapped: false, isStatic: false }]
+            } },
+            { name: 'With Simulated Trust', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '1000000000000000000',
+                simulatedTrusts: [{ truster: '0x...truster', trustee: '0x...trustee' }]
+            } },
+            { name: 'Simulated Trust + Balance', description: 'Graph modification testing', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '5000000000000000000',
+                simulatedBalances: [{ holder: '0x...holder', token: '0x...token', amount: '50000000000000000000', isWrapped: false, isStatic: false }],
+                simulatedTrusts: [{ truster: '0x...truster', trustee: '0x...trustee' }]
+            } },
+
+            // === Full Integration Testing ===
+            { name: 'Full Featured', description: 'All parameters combined', method: 'circlesV2_findPath', params: {
+                source: '',
+                sink: '',
+                targetFlow: '5000000000000000000',
+                withWrap: true,
+                maxTransfers: 5,
+                fromTokens: ['0x...allowedFrom'],
+                toTokens: ['0x...allowedTo'],
+                excludedFromTokens: ['0x...excludedFrom'],
+                simulatedBalances: [{ holder: '0x...', token: '0x...', amount: '50000000000000000000', isWrapped: false, isStatic: false }],
+                simulatedTrusts: [{ truster: '0x...', trustee: '0x...' }],
+                simulatedConsentedAvatars: ['0x...']
+            } }
+        ],
+        chain: [
+            { name: 'Current Block', method: 'eth_blockNumber', params: {} },
+            { name: 'Sync Status', method: 'eth_syncing', params: {} },
+            { name: 'Chain ID', method: 'eth_chainId', params: {} }
+        ],
+        system: [
+            { name: 'Health Check', method: 'circles_health', params: {} }
+        ]
+    };
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initSidebar();
+        initSidebarResize();  // Setup sidebar collapse/resize
+        loadHistory();
+        loadLayoutPreference();  // This calls updateGridColumns()
+        // Set initial server URL display
+        var server = SERVERS[currentServer];
+        document.getElementById('serverUrl').textContent = server.rpc.replace('https://', '').replace(/\/$/, '');
+        checkServerStatus();
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                executeRequest();
+            }
+        });
+    });
+
+    function initSidebar() {
+        Object.entries(METHODS).forEach(function([methodName, config]) {
+            var list = document.getElementById('category-' + config.category);
+            if (list) {
+                var item = document.createElement('div');
+                item.className = 'method-item';
+                item.dataset.method = methodName;
+                var code = document.createElement('code');
+                code.textContent = methodName;
+                item.appendChild(code);
+                item.addEventListener('click', function() { selectMethod(methodName, this); });
+                list.appendChild(item);
+            }
+        });
+    }
+
+    function toggleCategory(header, category) {
+        var list = document.getElementById('category-' + category);
+        header.classList.toggle('collapsed');
+        list.classList.toggle('collapsed');
+    }
+
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('visible');
+    }
+
+    function toggleResultsPanel() {
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        var isVisible = panel.classList.toggle('visible');
+
+        // In bottom layout, update main layout height based on panel visibility
+        if (layout.classList.contains('layout-bottom')) {
+            if (isVisible) {
+                var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            } else {
+                layout.style.height = 'calc(100vh - 60px)';
+            }
+        }
+        // Update grid columns for right layout visibility changes
+        updateGridColumns();
+    }
+
+    function closeResultsPanel() {
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        panel.classList.remove('visible');
+
+        // In bottom layout, restore full height when panel is closed
+        if (layout.classList.contains('layout-bottom')) {
+            layout.style.height = 'calc(100vh - 60px)';
+        }
+        // Update grid columns for right layout
+        updateGridColumns();
+    }
+
+    function showResultsPanel() {
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        panel.classList.add('visible');
+
+        // In bottom layout, adjust main layout height for panel
+        if (layout.classList.contains('layout-bottom')) {
+            var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+            layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+        }
+        // Update grid columns for right layout
+        updateGridColumns();
+    }
+
+    // Resize handle functionality
+    (function initResizeHandle() {
+        var handle = document.getElementById('resizeHandle');
+        var panel = document.getElementById('resultsPanel');
+        var layout = document.querySelector('.main-layout');
+        var isDragging = false;
+        var startPos, startSize;
+
+        handle.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            handle.classList.add('dragging');
+            document.body.style.cursor = layout.classList.contains('layout-bottom') ? 'row-resize' : 'col-resize';
+            document.body.style.userSelect = 'none';
+
+            if (layout.classList.contains('layout-bottom')) {
+                startPos = e.clientY;
+                startSize = panel.offsetHeight;
+            } else {
+                startPos = e.clientX;
+                startSize = panel.offsetWidth;
+            }
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+
+            if (layout.classList.contains('layout-bottom')) {
+                // Bottom layout: drag to resize height (fixed positioning)
+                // Limit to 50% of viewport or 450px max, whichever is smaller
+                var maxHeight = Math.min(window.innerHeight * 0.5, 450);
+                var delta = startPos - e.clientY;
+                var newHeight = Math.max(100, Math.min(startSize + delta, maxHeight));
+                panel.style.height = newHeight + 'px';
+                // Update main layout height to make room for panel
+                layout.style.height = 'calc(100vh - 60px - ' + newHeight + 'px)';
+                localStorage.setItem('resultsPanelHeight', newHeight);
+            } else {
+                // Right layout: drag to resize width
+                var delta = startPos - e.clientX;
+                var newWidth = Math.max(250, Math.min(startSize + delta, window.innerWidth - 400));
+                panel.style.width = newWidth + 'px';
+                // Update grid to accommodate new width
+                var mainLayout = document.querySelector('.main-layout');
+                mainLayout.style.gridTemplateColumns = '280px 1fr ' + newWidth + 'px';
+                localStorage.setItem('resultsPanelWidth', newWidth);
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                handle.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // Restore saved sizes on load
+        var savedWidth = localStorage.getItem('resultsPanelWidth');
+        var savedHeight = localStorage.getItem('resultsPanelHeight');
+        if (savedWidth && !layout.classList.contains('layout-bottom')) {
+            panel.style.width = savedWidth + 'px';
+            layout.style.gridTemplateColumns = '280px 1fr ' + savedWidth + 'px';
+        }
+        if (savedHeight && layout.classList.contains('layout-bottom')) {
+            panel.style.height = savedHeight + 'px';
+            // Only reduce layout height if panel is actually visible
+            if (panel.classList.contains('visible')) {
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            }
+            panel.style.maxHeight = savedHeight + 'px';
+            panel.style.minHeight = savedHeight + 'px';
+        }
+    })();
+
+    // Sidebar collapse and resize
+    function toggleSidebar() {
+        var sidebar = document.getElementById('sidebar');
+        var isCollapsed = sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+        updateGridColumns();
+    }
+
+    function updateGridColumns() {
+        var layout = document.querySelector('.main-layout');
+        var sidebar = document.getElementById('sidebar');
+        var resultsPanel = document.getElementById('resultsPanel');
+
+        var sidebarWidth = sidebar.classList.contains('collapsed') ? 50 : (parseInt(sidebar.style.width) || 280);
+
+        if (layout.classList.contains('layout-bottom')) {
+            // Bottom layout: 2 columns (sidebar + main), results is fixed positioned
+            layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr';
+        } else {
+            // Right layout: only include results column if panel is visible
+            if (resultsPanel.classList.contains('visible')) {
+                var resultsWidth = parseInt(resultsPanel.style.width) || 400;
+                layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr ' + resultsWidth + 'px';
+            } else {
+                // Panel hidden - use 2 columns
+                layout.style.gridTemplateColumns = sidebarWidth + 'px 1fr';
+            }
+        }
+    }
+
+    // Sidebar resize functionality - called from DOMContentLoaded
+    function initSidebarResize() {
+        var handle = document.getElementById('sidebarResizeHandle');
+        var sidebar = document.getElementById('sidebar');
+        var isDragging = false;
+        var startX, startWidth;
+
+        handle.addEventListener('mousedown', function(e) {
+            if (sidebar.classList.contains('collapsed')) return;
+            isDragging = true;
+            handle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            startX = e.clientX;
+            startWidth = sidebar.offsetWidth;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            var delta = e.clientX - startX;
+            var newWidth = Math.max(200, Math.min(startWidth + delta, 400));
+            sidebar.style.width = newWidth + 'px';
+            localStorage.setItem('sidebarWidth', newWidth);
+            updateGridColumns();
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                handle.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // Restore saved state on load
+        var savedCollapsed = localStorage.getItem('sidebarCollapsed');
+        var savedWidth = localStorage.getItem('sidebarWidth');
+
+        if (savedCollapsed === '1') {
+            sidebar.classList.add('collapsed');
+        }
+        if (savedWidth && savedCollapsed !== '1') {
+            sidebar.style.width = savedWidth + 'px';
+        }
+    }
+
+    function toggleResultsLayout() {
+        var layout = document.querySelector('.main-layout');
+        var panel = document.getElementById('resultsPanel');
+        var btn = document.getElementById('layoutToggleBtn');
+        var isBottom = layout.classList.toggle('layout-bottom');
+
+        // Reset inline styles when switching layouts
+        panel.style.width = '';
+        panel.style.height = '';
+        panel.style.maxHeight = '';
+        panel.style.minHeight = '';
+        layout.style.height = '';
+
+        // Apply saved size for new layout
+        if (isBottom) {
+            var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+            panel.style.height = savedHeight + 'px';
+            // Only reduce layout height if panel is visible
+            if (panel.classList.contains('visible')) {
+                layout.style.height = 'calc(100vh - 60px - ' + savedHeight + 'px)';
+            } else {
+                layout.style.height = 'calc(100vh - 60px)';
+            }
+        } else {
+            var savedWidth = localStorage.getItem('resultsPanelWidth');
+            if (savedWidth) {
+                panel.style.width = savedWidth + 'px';
+            }
+        }
+
+        // Update grid columns based on new layout
+        updateGridColumns();
+
+        // Update button icon
+        btn.innerHTML = isBottom
+            ? '<i class="fas fa-columns"></i>'
+            : '<i class="fas fa-window-maximize"></i>';
+        btn.title = isBottom ? 'Move panel to right' : 'Move panel to bottom';
+
+        // Save preference
+        localStorage.setItem('rpcQueryView_layout', isBottom ? 'bottom' : 'right');
+    }
+
+    function loadLayoutPreference() {
+        var saved = localStorage.getItem('rpcQueryView_layout');
+        if (saved === 'bottom') {
+            var layout = document.querySelector('.main-layout');
+            var panel = document.getElementById('resultsPanel');
+            var btn = document.getElementById('layoutToggleBtn');
+            layout.classList.add('layout-bottom');
+            btn.innerHTML = '<i class="fas fa-columns"></i>';
+            btn.title = 'Move panel to right';
+
+            // Set height for bottom layout - only reduce if panel is visible
+            var savedHeight = localStorage.getItem('resultsPanelHeight') || '250';
+            panel.style.height = savedHeight + 'px';
+            // Panel starts hidden, so use full height initially
+            // Height will be reduced when panel becomes visible via showResultsPanel()
+            layout.style.height = 'calc(100vh - 60px)';
+        }
+        // Update grid columns after loading layout preference
+        updateGridColumns();
+    }
+
+    function onServerChange() {
+        currentServer = document.getElementById('serverSelect').value;
+        var server = SERVERS[currentServer];
+        document.getElementById('serverUrl').textContent = server.rpc.replace('https://', '').replace(/\/$/, '');
+        checkServerStatus();
+    }
+
+    async function checkServerStatus() {
+        var statusDot = document.querySelector('.status-dot');
+        var statusText = document.getElementById('statusText');
+        statusDot.className = 'status-dot loading';
+        statusText.textContent = 'Checking...';
+
+        try {
+            var server = SERVERS[currentServer];
+            var response = await fetch(server.rpc, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'circles_health', params: [] })
+            });
+            var data = await response.json();
+            if (data.result === 'Healthy') {
+                statusDot.className = 'status-dot';
+                statusText.textContent = 'Connected';
+            } else if (data.error) {
+                throw new Error(data.error.message);
+            } else {
+                statusDot.className = 'status-dot';
+                statusText.textContent = data.result || 'OK';
+            }
+        } catch (e) {
+            statusDot.className = 'status-dot error';
+            statusText.textContent = 'Error';
+        }
+    }
+
+    function selectMethod(methodName, element) {
+        document.querySelectorAll('.method-item').forEach(function(el) { el.classList.remove('active'); });
+        if (element) element.classList.add('active');
+
+        currentMethod = methodName;
+        var config = METHODS[methodName];
+
+        var builder = document.getElementById('builderCard');
+        var header = builder.querySelector('.builder-header');
+        var formContainer = document.getElementById('formContainer');
+
+        // Build header
+        var presetOptions = (PRESETS[config.category] || []).map(function(p, i) {
+            return '<option value="' + i + '">' + escapeHtml(p.name) + '</option>';
+        }).join('');
+
+        var serverNote = config.serverNote
+            ? '<span style="display:inline-block;background:#ff491b;color:white;font-size:0.75rem;padding:2px 8px;border-radius:4px;margin-left:10px;">' + escapeHtml(config.serverNote) + '</span>'
+            : '';
+
+        header.innerHTML = '<div><h2 class="builder-title"><code>' + escapeHtml(methodName) + '</code>' + serverNote + '</h2>' +
+            '<p class="builder-desc">' + escapeHtml(config.description) + '</p></div>' +
+            '<div class="preset-select"><select id="presetSelect" onchange="loadPreset()">' +
+            '<option value="">Load preset...</option>' + presetOptions + '</select></div>';
+
+        // Build form
+        var formHTML = '';
+        var requiredParams = config.params.filter(function(p) { return p.required; });
+        var optionalParams = config.params.filter(function(p) { return !p.required; });
+
+        requiredParams.forEach(function(param) {
+            formHTML += buildFormField(param);
+        });
+
+        if (optionalParams.length > 0) {
+            formHTML += '<div class="optional-section">' +
+                '<div class="optional-toggle" onclick="toggleOptional(this)">' +
+                '<i class="fas fa-chevron-right"></i>' +
+                '<span>Optional Parameters (' + optionalParams.length + ')</span></div>' +
+                '<div class="optional-content">';
+            optionalParams.forEach(function(param) {
+                formHTML += buildFormField(param);
+            });
+            formHTML += '</div></div>';
+        }
+
+        if (config.isQueryBuilder) {
+            formHTML = buildQueryBuilderForm();
+        }
+        if (config.eventTypes) {
+            formHTML += buildEventTypesSelector(config.eventTypes);
+        }
+
+        formHTML += '<div class="action-bar">' +
+            '<button class="btn btn-primary" onclick="executeRequest()">' +
+            '<i class="fas fa-play"></i> Execute</button>' +
+            '<span class="kbd-hint"><span class="kbd">Ctrl</span>+<span class="kbd">Enter</span></span>' +
+            '<button class="btn btn-outline" onclick="addToBatch()"><i class="fas fa-plus"></i> Add to Batch</button>' +
+            '<button class="btn btn-outline" onclick="copyRequestJson()"><i class="fas fa-copy"></i> Copy JSON</button></div>';
+
+        formContainer.innerHTML = formHTML;
+    }
+
+    function buildFormField(param) {
+        var id = 'param-' + param.name;
+        var required = param.required ? '<span class="required">*</span>' : '';
+        var typeStr = param.type;
+
+        if (param.type === 'boolean') {
+            return '<div class="form-group"><label class="form-checkbox">' +
+                '<input type="checkbox" id="' + id + '"' + (param.default ? ' checked' : '') + '>' +
+                '<span>' + escapeHtml(param.name) + '</span>' +
+                '<span class="type-badge">' + typeStr + '</span></label>' +
+                '<div class="form-hint">' + escapeHtml(param.description || '') + '</div></div>';
+        }
+
+        if (param.type.endsWith('[]')) {
+            return '<div class="form-group"><label class="form-label">' +
+                escapeHtml(param.name) + ' ' + required +
+                '<span class="type-badge">' + typeStr + '</span></label>' +
+                '<div class="array-builder" id="' + id + '-builder">' +
+                '<div class="array-item"><input type="text" class="form-input monospace" placeholder="Enter value...">' +
+                '<button class="array-btn remove" onclick="removeArrayItem(this)"><i class="fas fa-minus"></i></button></div></div>' +
+                '<button class="array-btn add" onclick="addArrayItem(\'' + id + '-builder\')" style="margin-top: 8px;">' +
+                '<i class="fas fa-plus"></i> Add Item</button>' +
+                '<div class="form-hint">' + escapeHtml(param.description || '') + '</div></div>';
+        }
+
+        if (param.type === 'object' || param.type === 'object[]') {
+            var placeholder = param.type === 'object[]' ? '[{"key": "value"}]' : '{"key": "value"}';
+            return '<div class="form-group"><label class="form-label">' +
+                escapeHtml(param.name) + ' ' + required +
+                '<span class="type-badge">' + typeStr + '</span></label>' +
+                '<textarea class="json-editor" id="' + id + '" placeholder=\'' + placeholder + '\'></textarea>' +
+                '<div class="form-hint">' + escapeHtml(param.description || '') + '</div></div>';
+        }
+
+        var inputType = param.type === 'number' ? 'number' : 'text';
+        var placeholder = param.type === 'address' ? '0x...' : (param.default !== undefined ? param.default : '');
+        var defaultVal = param.default !== undefined ? param.default : '';
+
+        // Add Max button for fields like targetFlow
+        var maxButton = '';
+        if (param.hasMaxButton) {
+            maxButton = '<button type="button" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem; margin-left: 8px;" ' +
+                'onclick="document.getElementById(\'' + id + '\').value=\'115792089237316195423570985008687907853269984665640564039457584007913129639935\'" ' +
+                'title="Set to max uint256 for max flow query">MAX</button>';
+        }
+
+        return '<div class="form-group"><label class="form-label">' +
+            escapeHtml(param.name) + ' ' + required +
+            '<span class="type-badge">' + typeStr + '</span></label>' +
+            '<div style="display: flex; align-items: center;">' +
+            '<input type="' + inputType + '" class="form-input' + (param.type === 'address' ? ' monospace' : '') + '"' +
+            ' id="' + id + '" placeholder="' + placeholder + '" value="' + defaultVal + '" style="flex: 1;">' +
+            maxButton + '</div>' +
+            '<div class="form-hint">' + escapeHtml(param.description || '') + '</div></div>';
+    }
+
+    function buildQueryBuilderForm() {
+        return '<div class="form-group"><label class="form-label">namespace <span class="required">*</span>' +
+            '<span class="type-badge">string</span></label>' +
+            '<select class="form-input" id="param-namespace" onchange="updateTableOptions()">' +
+            '<option value="CrcV1">CrcV1</option><option value="CrcV2">CrcV2</option>' +
+            '<option value="V_Crc" selected>V_Crc</option><option value="V_CrcV1">V_CrcV1</option>' +
+            '<option value="V_CrcV2">V_CrcV2</option><option value="V_Safe">V_Safe</option>' +
+            '<option value="Safe">Safe</option><option value="CrcV2_InvitationEscrow">CrcV2_InvitationEscrow</option>' +
+            '<option value="CrcV2_InvitationsAtScale">CrcV2_InvitationsAtScale</option>' +
+            '<option value="CrcV2_PaymentGateway">CrcV2_PaymentGateway</option>' +
+            '<option value="CrcV2_TokenOffers">CrcV2_TokenOffers</option></select></div>' +
+            '<div class="form-group"><label class="form-label">table <span class="required">*</span>' +
+            '<span class="type-badge">string</span></label>' +
+            '<select class="form-input" id="param-table">' +
+            '<option value="Avatars">Avatars</option><option value="Stats">Stats</option>' +
+            '<option value="Tokens">Tokens</option><option value="Transfers">Transfers</option>' +
+            '<option value="TransferSummary">TransferSummary</option><option value="TrustRelations">TrustRelations</option></select></div>' +
+            '<div class="form-group"><label class="form-label">limit <span class="type-badge">number</span></label>' +
+            '<input type="number" class="form-input" id="param-limit" placeholder="50" value="50"></div>' +
+
+            '<div class="form-group"><label class="form-label">columns <span class="type-badge">string[]</span></label>' +
+            '<input type="text" class="form-input" id="param-columns" placeholder="blockNumber, avatar, timestamp (comma-separated, empty = all)">' +
+            '<div class="form-hint">Comma-separated column names to return. Leave empty for all columns.</div></div>' +
+
+            '<div class="form-group"><label class="form-label">order <span class="type-badge">object[]</span></label>' +
+            '<textarea class="json-editor" id="param-order" style="min-height: 80px;" placeholder=\'[{"Column": "blockNumber", "SortOrder": "DESC"}]\'></textarea>' +
+            '<div class="form-hint">Sort order: [{Column, SortOrder}] where SortOrder is "ASC" or "DESC"</div></div>' +
+
+            '<div style="display: flex; gap: 20px; align-items: center; margin-bottom: 15px;">' +
+            '<label class="form-checkbox"><input type="checkbox" id="param-distinct"> <span>distinct</span></label>' +
+            '<div class="form-group" style="flex: 1; margin-bottom: 0;"><label class="form-label" style="margin-bottom: 4px;">cursor <span class="type-badge">string</span></label>' +
+            '<input type="text" class="form-input" id="param-cursor" placeholder="Pagination cursor from previous response"></div></div>' +
+
+            // Quick filters section
+            '<div style="background: var(--bg-light); border-radius: 8px; padding: 12px; margin-bottom: 15px;">' +
+            '<label class="form-label" style="margin-bottom: 10px;"><i class="fas fa-filter" style="margin-right: 6px;"></i>Quick Filters</label>' +
+
+            '<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin-bottom: 10px;">' +
+            '<input type="text" class="form-input" id="qf-column" placeholder="Column (e.g. blockNumber, avatar)" style="font-size: 0.85rem;">' +
+            '<select class="form-input" id="qf-op" style="width: auto; font-size: 0.85rem;">' +
+            '<option value="Equals">=</option><option value="NotEquals">≠</option>' +
+            '<option value="GreaterThan">></option><option value="GreaterThanOrEquals">≥</option>' +
+            '<option value="LessThan"><</option><option value="LessThanOrEquals">≤</option>' +
+            '<option value="Like">LIKE</option><option value="In">IN</option></select>' +
+            '<input type="text" class="form-input" id="qf-value" placeholder="Value" style="font-size: 0.85rem;"></div>' +
+
+            '<button class="btn btn-outline" onclick="addQuickFilter()" style="font-size: 0.8rem; padding: 4px 10px;">' +
+            '<i class="fas fa-plus"></i> Add Filter</button>' +
+            '<span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 10px;">Common: blockNumber, avatar, from, to, timestamp</span></div>' +
+
+            '<div class="form-group"><label class="form-label">filter (JSON array) <span class="type-badge">object[]</span></label>' +
+            '<textarea class="json-editor" id="param-filter" placeholder=\'[{"type":"FilterPredicate","column":"blockNumber","filterType":"GreaterThan","value":1000000}]\'></textarea>' +
+            '<div class="form-hint">Filter predicates: Equals, NotEquals, GreaterThan, LessThan, Like, In, IsNull, etc.</div></div>';
+    }
+
+    function addQuickFilter() {
+        var column = document.getElementById('qf-column').value.trim();
+        var op = document.getElementById('qf-op').value;
+        var value = document.getElementById('qf-value').value.trim();
+
+        if (!column || !value) {
+            showToast('Enter column and value', 'error');
+            return;
+        }
+
+        // Parse value - numbers only if they fit safely (avoid uint256 overflow issues)
+        var parsedValue = value;
+        if (/^\d+$/.test(value)) {
+            var num = parseInt(value);
+            // Only use as number if it fits in safe integer range (not uint256, etc.)
+            if (num <= Number.MAX_SAFE_INTEGER) {
+                parsedValue = num;
+            }
+            // Otherwise keep as string to avoid Decimal overflow on server
+        } else if (/^\d+\.\d+$/.test(value)) {
+            parsedValue = parseFloat(value);
+        }
+
+        var filter = {
+            type: 'FilterPredicate',
+            column: column,
+            filterType: op,
+            value: parsedValue
+        };
+
+        var filterEl = document.getElementById('param-filter');
+        var existing = [];
+        if (filterEl.value.trim()) {
+            try {
+                existing = JSON.parse(filterEl.value);
+                if (!Array.isArray(existing)) existing = [existing];
+            } catch (e) {
+                existing = [];
+            }
+        }
+        existing.push(filter);
+        filterEl.value = JSON.stringify(existing, null, 2);
+
+        // Clear quick filter inputs
+        document.getElementById('qf-column').value = '';
+        document.getElementById('qf-value').value = '';
+        showToast('Filter added: ' + column + ' ' + op + ' ' + value, 'success');
+    }
+
+    // Tables available per namespace (from circles_tables)
+    var NAMESPACE_TABLES = {
+        'CrcV1': ['Signup', 'OrganizationSignup', 'Trust', 'HubTransfer', 'Transfer', 'TransferSummary', 'UpdateMetadataDigest'],
+        'CrcV2': ['PersonalMint', 'RegisterGroup', 'RegisterHuman', 'RegisterOrganization', 'RegisterShortName',
+            'Trust', 'Stopped', 'ApprovalForAll', 'TransferSingle', 'TransferBatch', 'TransferSummary',
+            'ERC20WrapperDeployed_Inflationary', 'ERC20WrapperDeployed_Demurraged', 'Erc20WrapperTransfer',
+            'DepositInflationary', 'WithdrawInflationary', 'DepositDemurraged', 'WithdrawDemurraged',
+            'StreamCompleted', 'DiscountCost', 'GroupMint', 'GroupRedeem', 'FlowEdgesScopeSingleStarted',
+            'FlowEdgesScopeLastEnded', 'UpdateMetadataDigest', 'URI', 'CidV0'],
+        'V_Crc': ['Avatars', 'Stats', 'Tokens', 'Transfers', 'TransferSummary', 'TrustRelations'],
+        'V_CrcV1': ['Avatars', 'BalancesByAccountAndToken', 'TotalSupply', 'Transfers', 'TrustRelations'],
+        'V_CrcV2': ['Avatars', 'BalancesByAccountAndToken', 'Groups', 'GroupMemberships', 'GroupTokenHoldersBalance',
+            'GroupTokenSupply', 'GroupVaultBalancesByToken', 'GroupCollateralByToken', 'TrustRelations',
+            'TotalSupply', 'Transfers'],
+        'V_Safe': ['Owners'],
+        'Safe': ['AddedOwner', 'ProxyCreation', 'RemovedOwner', 'SafeSetup'],
+        'CrcV2_InvitationEscrow': ['InvitationEscrowed', 'InvitationRedeemed', 'InvitationRefunded', 'InvitationRevoked'],
+        'CrcV2_InvitationsAtScale': ['AccountClaimed', 'AccountCreated', 'AdminSet', 'BotCreated', 'FarmGrown',
+            'InvitationModuleUpdated', 'InviterQuotaUpdated', 'InvitesClaimed', 'MaintainerSet', 'RegisterHuman', 'SeederSet'],
+        'CrcV2_PaymentGateway': ['GatewayCreated', 'PaymentReceived', 'TrustUpdated'],
+        'CrcV2_TokenOffers': ['AccountWeightProviderCreated', 'AccountWeightSet', 'CycleConfiguration',
+            'ERC20TokenOfferCreated', 'ExactInputPathComputed', 'ExactInputResult', 'ExactOutputPathComputed',
+            'ExactOutputResult', 'MultiTrustNetworkMint', 'OfferDeleted', 'OfferUpdated', 'TokenOfferCreated']
+    };
+
+    function updateTableOptions() {
+        var namespace = document.getElementById('param-namespace').value;
+        var tableSelect = document.getElementById('param-table');
+        var tables = NAMESPACE_TABLES[namespace] || ['Avatars'];
+
+        tableSelect.innerHTML = tables.map(function(t) {
+            return '<option value="' + t + '">' + t + '</option>';
+        }).join('');
+    }
+
+    function buildEventTypesSelector(eventTypes) {
+        var grouped = {};
+        eventTypes.forEach(function(et) {
+            var prefix = et.split('_')[0];
+            if (!grouped[prefix]) grouped[prefix] = [];
+            grouped[prefix].push(et);
+        });
+
+        var html = '<div class="form-group"><label class="form-label">Event Types (select multiple)</label>' +
+            '<div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">';
+
+        Object.entries(grouped).forEach(function([prefix, types]) {
+            html += '<div style="margin-bottom: 12px;"><strong style="font-size: 0.85rem; color: var(--text-muted);">' +
+                escapeHtml(prefix) + '</strong><div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">';
+            types.forEach(function(t) {
+                html += '<label class="form-checkbox" style="font-size: 0.85rem;">' +
+                    '<input type="checkbox" name="eventType" value="' + escapeHtml(t) + '">' +
+                    escapeHtml(t.split('_').pop()) + '</label>';
+            });
+            html += '</div></div>';
+        });
+
+        html += '</div></div>';
+        return html;
+    }
+
+    function toggleOptional(toggle) {
+        var content = toggle.nextElementSibling;
+        toggle.classList.toggle('expanded');
+        content.classList.toggle('visible');
+    }
+
+    function addArrayItem(builderId) {
+        var builder = document.getElementById(builderId);
+        var item = document.createElement('div');
+        item.className = 'array-item';
+        item.innerHTML = '<input type="text" class="form-input monospace" placeholder="Enter value...">' +
+            '<button class="array-btn remove" onclick="removeArrayItem(this)"><i class="fas fa-minus"></i></button>';
+        builder.appendChild(item);
+    }
+
+    function removeArrayItem(btn) {
+        var builder = btn.closest('.array-builder');
+        if (builder.children.length > 1) {
+            btn.closest('.array-item').remove();
+        }
+    }
+
+    function loadPreset() {
+        var select = document.getElementById('presetSelect');
+        var idx = select.value;
+        if (!idx) return;
+
+        var config = METHODS[currentMethod];
+        var preset = PRESETS[config.category][parseInt(idx)];
+
+        if (preset.method !== currentMethod) {
+            var methodItem = document.querySelector('.method-item[data-method="' + preset.method + '"]');
+            if (methodItem) {
+                selectMethod(preset.method, methodItem);
+            }
+        }
+
+        setTimeout(function() {
+            Object.entries(preset.params).forEach(function([name, value]) {
+                // Find param definition to get type
+                var paramDef = config.params ? config.params.find(function(p) { return p.name === name; }) : null;
+
+                // Special handling for eventTypes (uses checkboxes)
+                if (name === 'eventTypes' && Array.isArray(value)) {
+                    // Uncheck all event type checkboxes first
+                    document.querySelectorAll('input[name="eventType"]').forEach(function(cb) {
+                        cb.checked = false;
+                    });
+                    // Check the ones specified in the preset
+                    value.forEach(function(eventType) {
+                        var cb = document.querySelector('input[name="eventType"][value="' + eventType + '"]');
+                        if (cb) cb.checked = true;
+                    });
+                    return;
+                }
+
+                // Handle array builders (address[], string[], etc.)
+                var builder = document.getElementById('param-' + name + '-builder');
+                if (builder && Array.isArray(value)) {
+                    // Clear existing items except first
+                    while (builder.children.length > 1) {
+                        builder.removeChild(builder.lastChild);
+                    }
+                    // Fill values
+                    value.forEach(function(v, i) {
+                        if (i === 0) {
+                            var firstInput = builder.querySelector('input');
+                            if (firstInput) firstInput.value = typeof v === 'object' ? JSON.stringify(v) : v;
+                        } else {
+                            addArrayItem('param-' + name + '-builder');
+                            var inputs = builder.querySelectorAll('input');
+                            var lastInput = inputs[inputs.length - 1];
+                            if (lastInput) lastInput.value = typeof v === 'object' ? JSON.stringify(v) : v;
+                        }
+                    });
+                    return;
+                }
+
+                // Handle regular inputs and textareas
+                var el = document.getElementById('param-' + name);
+                if (el) {
+                    if (el.type === 'checkbox') {
+                        el.checked = value;
+                    } else if (el.tagName === 'TEXTAREA' || (paramDef && (paramDef.type === 'object' || paramDef.type === 'object[]'))) {
+                        // Object/JSON fields
+                        el.value = typeof value === 'object' ? JSON.stringify(value, null, 2) : value;
+                    } else {
+                        el.value = typeof value === 'object' ? JSON.stringify(value) : value;
+                    }
+                }
+            });
+        }, 100);
+    }
+
+    function buildRequest() {
+        if (!currentMethod) return null;
+
+        var config = METHODS[currentMethod];
+        var params = [];
+
+        // Helper to get param value from form
+        function getParamValue(param) {
+            var value;
+            // Special handling for eventTypes (uses checkboxes instead of standard input)
+            if (param.name === 'eventTypes') {
+                var selectedEvents = Array.from(document.querySelectorAll('input[name="eventType"]:checked'))
+                    .map(function(cb) { return cb.value; });
+                return selectedEvents.length > 0 ? selectedEvents : undefined;
+            }
+            if (param.type === 'boolean') {
+                var el = document.getElementById('param-' + param.name);
+                if (el) {
+                    // For optional booleans with a default, treat as undefined if matching default
+                    if (!param.required && param.default !== undefined && el.checked === param.default) {
+                        value = undefined;
+                    } else {
+                        value = el.checked;
+                    }
+                }
+            } else if (param.type.endsWith('[]')) {
+                // Array types use a builder element
+                var builder = document.getElementById('param-' + param.name + '-builder');
+                if (builder) {
+                    var rawValues = Array.from(builder.querySelectorAll('input'))
+                        .map(function(inp) { return inp.value.trim(); })
+                        .filter(function(v) { return v; });
+
+                    // For object[] types, parse each item as JSON
+                    if (param.type === 'object[]') {
+                        value = rawValues.map(function(v) {
+                            try {
+                                return JSON.parse(v);
+                            } catch (e) {
+                                throw new Error('Invalid JSON in ' + param.name + ': ' + v);
+                            }
+                        });
+                    } else {
+                        value = rawValues;
+                    }
+
+                    if (value.length === 0) {
+                        value = param.required ? [] : undefined;
+                    }
+                }
+            } else if (param.type === 'object') {
+                var el = document.getElementById('param-' + param.name);
+                if (el) {
+                    var str = el.value.trim();
+                    if (str) {
+                        try {
+                            value = JSON.parse(str);
+                        } catch (e) {
+                            throw new Error('Invalid JSON for ' + param.name);
+                        }
+                    }
+                }
+            } else if (param.type === 'number') {
+                var el = document.getElementById('param-' + param.name);
+                if (el && el.value) {
+                    var strVal = el.value.trim();
+                    // Keep large numbers (uint256) as strings to avoid precision loss
+                    if (/^\d+$/.test(strVal) && strVal.length > 15) {
+                        value = strVal; // Keep as string for uint256
+                    } else {
+                        var numVal = parseInt(strVal);
+                        if (!param.required && param.default !== undefined && numVal === param.default) {
+                            value = undefined;
+                        } else {
+                            value = numVal;
+                        }
+                    }
+                }
+            } else {
+                var el = document.getElementById('param-' + param.name);
+                if (el) {
+                    value = el.value.trim() || undefined;
+                }
+            }
+            return value;
+        }
+
+        if (config.isQueryBuilder) {
+            var query = {
+                Namespace: document.getElementById('param-namespace').value,
+                Table: document.getElementById('param-table').value,
+                Columns: [],
+                Filter: [],
+                Order: []
+            };
+
+            // Add columns (comma-separated string -> array)
+            var columnsEl = document.getElementById('param-columns');
+            if (columnsEl && columnsEl.value.trim()) {
+                query.Columns = columnsEl.value.split(',').map(function(c) { return c.trim(); }).filter(function(c) { return c; });
+            }
+
+            // Add limit
+            var limit = document.getElementById('param-limit').value;
+            if (limit) query.Limit = parseInt(limit);
+
+            // Add filter
+            var filterStr = document.getElementById('param-filter').value.trim();
+            if (filterStr) {
+                try {
+                    query.Filter = JSON.parse(filterStr);
+                } catch (e) {
+                    showToast('Invalid filter JSON', 'error');
+                    return null;
+                }
+            }
+
+            // Add order
+            var orderEl = document.getElementById('param-order');
+            if (orderEl && orderEl.value.trim()) {
+                try {
+                    query.Order = JSON.parse(orderEl.value);
+                } catch (e) {
+                    showToast('Invalid order JSON', 'error');
+                    return null;
+                }
+            }
+
+            // Add distinct
+            var distinctEl = document.getElementById('param-distinct');
+            if (distinctEl && distinctEl.checked) {
+                query.Distinct = true;
+            }
+
+            params.push(query);
+
+            // Cursor as separate param (second argument to circles_query)
+            var cursorEl = document.getElementById('param-cursor');
+            if (cursorEl && cursorEl.value.trim()) {
+                params.push(cursorEl.value.trim());
+            }
+        } else if (config.useObjectParams) {
+            // Methods that use object params (e.g., pathfinder)
+            var objParams = {};
+            try {
+                for (var i = 0; i < config.params.length; i++) {
+                    var param = config.params[i];
+                    var value = getParamValue(param);
+
+                    if (param.required && (value === undefined || value === '')) {
+                        showToast(param.name + ' is required', 'error');
+                        return null;
+                    }
+
+                    if (value !== undefined) {
+                        objParams[param.name] = value;
+                    }
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+                return null;
+            }
+            params.push(objParams);
+        } else {
+            // Standard positional params - build array with correct index positions
+            try {
+                var lastFilledIndex = -1;
+                var tempParams = [];
+
+                // First pass: collect all values and track last filled index
+                for (var i = 0; i < config.params.length; i++) {
+                    var param = config.params[i];
+                    var value = getParamValue(param);
+
+                    if (param.required && (value === undefined || value === '')) {
+                        showToast(param.name + ' is required', 'error');
+                        return null;
+                    }
+
+                    tempParams[i] = value;
+                    if (value !== undefined) {
+                        lastFilledIndex = i;
+                    }
+                }
+
+                // Second pass: build params array up to lastFilledIndex, using null for gaps
+                for (var i = 0; i <= lastFilledIndex; i++) {
+                    params.push(tempParams[i] !== undefined ? tempParams[i] : null);
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+                return null;
+            }
+        }
+
+        // Strip trailing optional params (null, undefined, false for bool defaults, empty arrays)
+        // This ensures compatibility with servers that have stricter param counts
+        var paramDefs = config.params || [];
+        while (params.length > 0) {
+            var lastIdx = params.length - 1;
+            var lastVal = params[lastIdx];
+            var paramDef = paramDefs[lastIdx];
+
+            // Always strip null/undefined
+            if (lastVal === null || lastVal === undefined) {
+                params.pop();
+                continue;
+            }
+            // Strip empty arrays
+            if (Array.isArray(lastVal) && lastVal.length === 0) {
+                params.pop();
+                continue;
+            }
+            // Strip boolean if it matches the default value
+            if (paramDef && paramDef.type === 'boolean' && paramDef.default !== undefined && lastVal === paramDef.default) {
+                params.pop();
+                continue;
+            }
+            // Non-strippable value found, stop
+            break;
+        }
+
+        return {
+            jsonrpc: '2.0',
+            id: 1,
+            method: currentMethod,
+            params: params
+        };
+    }
+
+    async function executeRequest() {
+        var request = buildRequest();
+        if (!request) return;
+
+        lastRequest = request;
+        var config = METHODS[currentMethod];
+        var server = SERVERS[currentServer];
+        var endpoint = server[config.endpoint || 'rpc'];
+
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
+            '<p style="margin-top: 15px; color: var(--text-muted);">Executing request...</p></div>';
+        showResultsPanel();
+
+        var startTime = Date.now();
+        var bodyStr;
+        try {
+            bodyStr = JSON.stringify(request);
+        } catch (e) {
+            console.error('JSON stringify error:', e, request);
+            showToast('Failed to build request: ' + e.message, 'error');
+            return;
+        }
+        console.log('RPC Request:', endpoint, bodyStr);
+
+        try {
+            // Add 30 second timeout to prevent infinite loading
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
+
+            var response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: bodyStr,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            var data = await response.json();
+            var elapsed = Date.now() - startTime;
+
+            lastResult = { request: request, response: data, elapsed: elapsed, server: currentServer };
+            addToHistory(currentMethod, currentServer, elapsed, !data.error);
+            displayResult(data, elapsed, !data.error);
+
+        } catch (error) {
+            var elapsed = Date.now() - startTime;
+            var errorMsg = error.name === 'AbortError' ? 'Request timed out (30s)' : error.message;
+            lastResult = { request: request, error: errorMsg, elapsed: elapsed, server: currentServer };
+            displayResult({ error: { message: errorMsg } }, elapsed, false);
+        }
+    }
+
+    function displayResult(data, elapsed, success) {
+        var resultsBody = document.getElementById('resultsBody');
+        var statusClass = success ? 'success' : 'error';
+        var statusIcon = success ? 'check-circle' : 'times-circle';
+
+        resultsBody.innerHTML = '<div class="results-meta">' +
+            '<div class="status ' + statusClass + '"><i class="fas fa-' + statusIcon + '"></i> ' +
+            (success ? 'Success' : 'Error') + '</div>' +
+            '<div><i class="fas fa-clock"></i> ' + elapsed + 'ms</div>' +
+            '<div><i class="fas fa-server"></i> ' + escapeHtml(SERVERS[currentServer].name) + '</div></div>' +
+            '<div class="json-display">' + syntaxHighlight(JSON.stringify(data, null, 2)) + '</div>';
+
+        // Mark response tab as active (don't call switchResultTab to avoid recursion)
+        document.querySelectorAll('.results-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelector('.results-tab[data-tab="response"]').classList.add('active');
+    }
+
+    function syntaxHighlight(json) {
+        json = escapeHtml(json);
+        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+            var cls = 'number';
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) {
+                    cls = 'key';
+                    match = match.slice(0, -1) + '</span>:';
+                    return '<span class="' + cls + '">' + match;
+                } else {
+                    cls = 'string';
+                }
+            } else if (/true|false/.test(match)) {
+                cls = 'boolean';
+            } else if (/null/.test(match)) {
+                cls = 'null';
+            }
+            return '<span class="' + cls + '">' + match + '</span>';
+        });
+    }
+
+    function switchResultTab(tab) {
+        document.querySelectorAll('.results-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelector('.results-tab[data-tab="' + tab + '"]').classList.add('active');
+
+        var resultsBody = document.getElementById('resultsBody');
+
+        if (!lastRequest) {
+            resultsBody.innerHTML = '<div class="results-empty"><i class="fas fa-inbox"></i><p>Execute a request first</p></div>';
+            return;
+        }
+
+        if (tab === 'response') {
+            if (lastResult) {
+                var data = lastResult.response || { error: { message: lastResult.error } };
+                var success = !lastResult.error && !data.error;
+                var statusClass = success ? 'success' : 'error';
+                var statusIcon = success ? 'check-circle' : 'times-circle';
+                resultsBody.innerHTML = '<div class="results-meta">' +
+                    '<div class="status ' + statusClass + '"><i class="fas fa-' + statusIcon + '"></i> ' +
+                    (success ? 'Success' : 'Error') + '</div>' +
+                    '<div><i class="fas fa-clock"></i> ' + lastResult.elapsed + 'ms</div>' +
+                    '<div><i class="fas fa-server"></i> ' + escapeHtml(SERVERS[lastResult.server].name) + '</div></div>' +
+                    '<div class="json-display">' + syntaxHighlight(JSON.stringify(data, null, 2)) + '</div>';
+            }
+        } else if (tab === 'curl') {
+            var curl = generateCurl();
+            resultsBody.innerHTML = '<div class="curl-display">' + escapeHtml(curl) + '</div>';
+        } else if (tab === 'fetch') {
+            var fetchCode = generateFetch();
+            resultsBody.innerHTML = '<div class="curl-display">' + escapeHtml(fetchCode) + '</div>';
+        } else if (tab === 'diff') {
+            var diffServers = Object.entries(SERVERS).filter(function([k]) { return k !== currentServer; })
+                .map(function([k, v]) { return '<option value="' + k + '">' + escapeHtml(v.name) + '</option>'; }).join('');
+            resultsBody.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">' +
+                '<p>Select a second server to compare responses</p>' +
+                '<select id="diffServer" style="margin-top: 10px; padding: 8px;">' + diffServers + '</select><br>' +
+                '<label style="display: inline-flex; align-items: center; gap: 8px; margin-top: 15px; cursor: pointer;">' +
+                '<input type="checkbox" id="diffOnlyChanges"> Show only differences</label>' +
+                '<button class="btn btn-secondary" onclick="executeDiff()" style="margin-top: 15px;">' +
+                '<i class="fas fa-code-compare"></i> Compare</button></div>';
+        }
+    }
+
+    function generateCurl() {
+        if (!lastRequest) return '';
+        var config = METHODS[currentMethod];
+        var server = SERVERS[currentServer];
+        var endpoint = server[config.endpoint || 'rpc'];
+
+        return "curl -X POST '" + endpoint + "' \\\n" +
+            "  -H 'Content-Type: application/json' \\\n" +
+            "  -d '" + JSON.stringify(lastRequest) + "'";
+    }
+
+    function generateFetch() {
+        if (!lastRequest) return '';
+        var config = METHODS[currentMethod];
+        var server = SERVERS[currentServer];
+        var endpoint = server[config.endpoint || 'rpc'];
+
+        return "const response = await fetch('" + endpoint + "', {\n" +
+            "  method: 'POST',\n" +
+            "  headers: { 'Content-Type': 'application/json' },\n" +
+            "  body: JSON.stringify(" + JSON.stringify(lastRequest, null, 2) + ")\n" +
+            "});\n" +
+            "const data = await response.json();\n" +
+            "console.log(data);";
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Deep object diff - returns object with only different paths
+    function getDifferences(obj1, obj2, path) {
+        path = path || '';
+        var diffs = { left: {}, right: {}, paths: [] };
+
+        function isObject(val) {
+            return val !== null && typeof val === 'object' && !Array.isArray(val);
+        }
+
+        function addDiff(p, v1, v2) {
+            diffs.paths.push(p);
+            setNestedValue(diffs.left, p, v1);
+            setNestedValue(diffs.right, p, v2);
+        }
+
+        function setNestedValue(obj, path, value) {
+            var parts = path.split('.');
+            var current = obj;
+            for (var i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) current[parts[i]] = {};
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+
+        function compare(v1, v2, p) {
+            if (v1 === v2) return;
+            if (typeof v1 !== typeof v2) {
+                addDiff(p, v1, v2);
+                return;
+            }
+            if (Array.isArray(v1) && Array.isArray(v2)) {
+                if (JSON.stringify(v1) !== JSON.stringify(v2)) {
+                    addDiff(p, v1, v2);
+                }
+                return;
+            }
+            if (isObject(v1) && isObject(v2)) {
+                var allKeys = new Set([...Object.keys(v1), ...Object.keys(v2)]);
+                allKeys.forEach(function(key) {
+                    compare(v1[key], v2[key], p ? p + '.' + key : key);
+                });
+                return;
+            }
+            addDiff(p, v1, v2);
+        }
+
+        compare(obj1, obj2, path);
+        return diffs;
+    }
+
+    // Generate unified diff HTML with +/- style
+    function generateUnifiedDiff(obj1, obj2, server1Name, server2Name) {
+        var lines1 = JSON.stringify(obj1, null, 2).split('\n');
+        var lines2 = JSON.stringify(obj2, null, 2).split('\n');
+
+        // Simple line-by-line diff
+        var html = '<div class="unified-diff">';
+        html += '<div class="diff-path">@@ ' + escapeHtml(server1Name) + ' → ' + escapeHtml(server2Name) + ' @@</div>';
+
+        var maxLen = Math.max(lines1.length, lines2.length);
+        var diffCount = 0;
+
+        for (var i = 0; i < maxLen; i++) {
+            var line1 = lines1[i] || '';
+            var line2 = lines2[i] || '';
+
+            if (line1 === line2) {
+                // Context line (same in both)
+                html += '<div class="diff-line context">' + escapeHtml(line1) + '</div>';
+            } else {
+                diffCount++;
+                // Show removed line from server1
+                if (line1) {
+                    html += '<div class="diff-line removed">' + escapeHtml(line1) + '</div>';
+                }
+                // Show added line from server2
+                if (line2) {
+                    html += '<div class="diff-line added">' + escapeHtml(line2) + '</div>';
+                }
+            }
+        }
+
+        html += '</div>';
+        return { html: html, count: diffCount };
+    }
+
+    async function executeDiff() {
+        if (!lastRequest) return;
+
+        var diffServer = document.getElementById('diffServer').value;
+        var onlyChanges = document.getElementById('diffOnlyChanges')?.checked || false;
+        var resultsBody = document.getElementById('resultsBody');
+
+        resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
+            '<p style="margin-top: 15px;">Fetching from both servers...</p></div>';
+
+        try {
+            var config = METHODS[currentMethod];
+            var server2 = SERVERS[diffServer];
+            var endpoint2 = server2[config.endpoint || 'rpc'];
+
+            var start2 = Date.now();
+            var response2 = await fetch(endpoint2, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(lastRequest)
+            });
+            var data2 = await response2.json();
+            var elapsed2 = Date.now() - start2;
+
+            var data1 = lastResult.response || { error: lastResult.error };
+
+            var diffInfo = '';
+            var display1, display2;
+
+            var diffHtml;
+            if (onlyChanges) {
+                // Use unified diff view with +/- style
+                var unifiedDiff = generateUnifiedDiff(data1, data2, SERVERS[currentServer].name, server2.name);
+                if (unifiedDiff.count === 0) {
+                    diffInfo = '<div style="text-align: center; padding: 20px; background: #1a3d1a; color: #4ade80; border-radius: 8px; margin-bottom: 15px;">' +
+                        '<i class="fas fa-check-circle"></i> No differences found - responses are identical</div>';
+                } else {
+                    diffInfo = '<div style="text-align: center; padding: 10px; background: #3d2a1a; color: #fbbf24; border-radius: 8px; margin-bottom: 15px;">' +
+                        '<i class="fas fa-exclamation-triangle"></i> ' + unifiedDiff.count + ' line(s) differ</div>';
+                }
+                diffHtml = unifiedDiff.html;
+            } else {
+                // Side-by-side view
+                var display1 = syntaxHighlight(JSON.stringify(data1, null, 2));
+                var display2 = syntaxHighlight(JSON.stringify(data2, null, 2));
+                diffHtml = '<div class="diff-container">' +
+                    '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[currentServer].name) +
+                    ' (' + lastResult.elapsed + 'ms)</div>' +
+                    '<div class="diff-content">' + display1 + '</div></div>' +
+                    '<div class="diff-panel"><div class="diff-header">' + escapeHtml(server2.name) +
+                    ' (' + elapsed2 + 'ms)</div>' +
+                    '<div class="diff-content">' + display2 + '</div></div></div>';
+            }
+
+            resultsBody.innerHTML = '<div class="results-meta">' +
+                '<div>Comparing: ' + escapeHtml(SERVERS[currentServer].name) + ' (' + lastResult.elapsed + 'ms) vs ' +
+                escapeHtml(server2.name) + ' (' + elapsed2 + 'ms)</div>' +
+                '<label style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; cursor: pointer; font-size: 0.85rem;">' +
+                '<input type="checkbox" id="diffOnlyToggle" ' + (onlyChanges ? 'checked' : '') +
+                ' onchange="toggleDiffMode(this.checked)"> Unified diff</label></div>' +
+                diffInfo + diffHtml;
+
+            // Store for toggle
+            window.lastDiffData = { data1: data1, data2: data2, elapsed1: lastResult.elapsed, elapsed2: elapsed2, server1: currentServer, server2: diffServer };
+
+        } catch (error) {
+            showToast('Error fetching from second server: ' + error.message, 'error');
+        }
+    }
+
+    function toggleDiffMode(onlyChanges) {
+        if (!window.lastDiffData) return;
+        var d = window.lastDiffData;
+        var resultsBody = document.getElementById('resultsBody');
+
+        var diffInfo = '';
+        var diffHtml;
+
+        if (onlyChanges) {
+            // Use unified diff view with +/- style
+            var unifiedDiff = generateUnifiedDiff(d.data1, d.data2, SERVERS[d.server1].name, SERVERS[d.server2].name);
+            if (unifiedDiff.count === 0) {
+                diffInfo = '<div style="text-align: center; padding: 20px; background: #1a3d1a; color: #4ade80; border-radius: 8px; margin-bottom: 15px;">' +
+                    '<i class="fas fa-check-circle"></i> No differences found - responses are identical</div>';
+            } else {
+                diffInfo = '<div style="text-align: center; padding: 10px; background: #3d2a1a; color: #fbbf24; border-radius: 8px; margin-bottom: 15px;">' +
+                    '<i class="fas fa-exclamation-triangle"></i> ' + unifiedDiff.count + ' line(s) differ</div>';
+            }
+            diffHtml = unifiedDiff.html;
+        } else {
+            // Side-by-side view
+            var display1 = syntaxHighlight(JSON.stringify(d.data1, null, 2));
+            var display2 = syntaxHighlight(JSON.stringify(d.data2, null, 2));
+            diffHtml = '<div class="diff-container">' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[d.server1].name) +
+                ' (' + d.elapsed1 + 'ms)</div>' +
+                '<div class="diff-content">' + display1 + '</div></div>' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[d.server2].name) +
+                ' (' + d.elapsed2 + 'ms)</div>' +
+                '<div class="diff-content">' + display2 + '</div></div></div>';
+        }
+
+        resultsBody.innerHTML = '<div class="results-meta">' +
+            '<div>Comparing: ' + escapeHtml(SERVERS[d.server1].name) + ' (' + d.elapsed1 + 'ms) vs ' +
+            escapeHtml(SERVERS[d.server2].name) + ' (' + d.elapsed2 + 'ms)</div>' +
+            '<label style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; cursor: pointer; font-size: 0.85rem;">' +
+            '<input type="checkbox" id="diffOnlyToggle" ' + (onlyChanges ? 'checked' : '') +
+            ' onchange="toggleDiffMode(this.checked)"> Unified diff</label></div>' +
+            diffInfo + diffHtml;
+    }
+
+    // Batch results view state
+    var currentBatchViewMode = 'summary';
+    var lastBatchResults = null;
+
+    function renderBatchResults(results, viewMode) {
+        lastBatchResults = results;
+        currentBatchViewMode = viewMode || 'summary';
+
+        var successCount = results.filter(function(r) { return r.success && !r.response?.error; }).length;
+        var errorCount = results.length - successCount;
+
+        // Build server options for compare dropdown (exclude current server)
+        var serverOptions = Object.keys(SERVERS).filter(function(s) { return s !== currentServer; })
+            .map(function(s) { return '<option value="' + s + '">' + escapeHtml(SERVERS[s].name) + '</option>'; }).join('');
+
+        var html = '<div class="results-meta" style="flex-wrap: wrap;">' +
+            '<span style="min-width: auto; margin-bottom: 0;"><strong>' + results.length + '</strong> requests ' +
+            '(<span style="color: var(--success)">' + successCount + ' OK</span>, ' +
+            '<span style="color: var(--error)">' + errorCount + ' err</span>)</span>' +
+            '<div class="batch-view-toggle">' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'summary' ? 'active' : '') + '" onclick="switchBatchView(\'summary\')" title="Summary"><i class="fas fa-table"></i></button>' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'accordion' ? 'active' : '') + '" onclick="switchBatchView(\'accordion\')" title="Details"><i class="fas fa-list"></i></button>' +
+            '</div>' +
+            '<div class="batch-compare-controls">' +
+            '<select id="batchDiffServer" title="Compare with...">' + serverOptions + '</select>' +
+            '<button class="btn btn-outline btn-sm" onclick="executeBatchDiff()" title="Compare"><i class="fas fa-code-compare"></i></button>' +
+            '</div>' +
+            '<div class="batch-export-btns">' +
+            '<button class="btn btn-outline btn-sm" onclick="exportBatchJson()" title="Export JSON"><i class="fas fa-download"></i></button>' +
+            '<button class="btn btn-outline btn-sm" onclick="exportBatchCsv()" title="Export CSV"><i class="fas fa-file-csv"></i></button>' +
+            '</div></div>';
+
+        if (viewMode === 'summary') {
+            html += renderBatchSummaryTable(results);
+        } else {
+            html += renderBatchAccordion(results);
+        }
+        return html;
+    }
+
+    function renderBatchSummaryTable(results) {
+        var html = '<table class="batch-summary-table"><thead><tr>' +
+            '<th style="width: 40px;">#</th><th>Method</th><th style="width: 80px;">Status</th><th style="width: 120px;">Actions</th></tr></thead><tbody>';
+
+        results.forEach(function(r, idx) {
+            var success = r.success && !r.response?.error;
+            var errorMsg = '';
+            if (!success) {
+                errorMsg = r.error || r.response?.error?.message || 'Unknown error';
+                if (errorMsg.length > 50) errorMsg = errorMsg.substring(0, 50) + '...';
+            }
+            html += '<tr>' +
+                '<td>' + (idx + 1) + '</td>' +
+                '<td><code>' + escapeHtml(r.request?.method || 'Request') + '</code>' +
+                (!success ? '<br><small style="color: var(--error);">' + escapeHtml(errorMsg) + '</small>' : '') + '</td>' +
+                '<td><span class="status-badge ' + (success ? 'success' : 'error') + '">' +
+                (success ? '<i class="fas fa-check"></i> OK' : '<i class="fas fa-times"></i> Err') + '</span></td>' +
+                '<td><button class="btn btn-outline btn-sm" onclick="viewBatchDetail(' + idx + ')"><i class="fas fa-eye"></i></button> ' +
+                '<button class="btn btn-outline btn-sm" onclick="copyBatchItem(' + idx + ')"><i class="fas fa-copy"></i></button></td></tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
+    function renderBatchAccordion(results) {
+        return results.map(function(r, idx) {
+            var success = r.success && !r.response?.error;
+            return '<div class="batch-accordion-item">' +
+                '<div class="batch-accordion-header" onclick="toggleBatchAccordion(' + idx + ')" id="batch-header-' + idx + '">' +
+                '<i class="fas fa-chevron-right accordion-icon" id="accordion-icon-' + idx + '"></i>' +
+                '<span class="status-badge ' + (success ? 'success' : 'error') + '">' + (success ? 'OK' : 'Err') + '</span>' +
+                '<code style="font-size: 0.85rem;">' + escapeHtml(r.request?.method || 'Request ' + (idx + 1)) + '</code>' +
+                '<span style="margin-left: auto; color: var(--text-muted); font-size: 0.8rem;">#' + (idx + 1) + '</span></div>' +
+                '<div class="batch-accordion-content" id="accordion-content-' + idx + '">' +
+                '<pre class="json-display">' + syntaxHighlight(JSON.stringify(r.success ? r.response : { error: r.error }, null, 2)) + '</pre></div></div>';
+        }).join('');
+    }
+
+    function switchBatchView(mode) {
+        if (!lastBatchResults) return;
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = renderBatchResults(lastBatchResults, mode);
+    }
+
+    function toggleBatchAccordion(idx) {
+        var header = document.getElementById('batch-header-' + idx);
+        var content = document.getElementById('accordion-content-' + idx);
+        var icon = document.getElementById('accordion-icon-' + idx);
+
+        if (content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            header.classList.remove('expanded');
+        } else {
+            content.classList.add('expanded');
+            header.classList.add('expanded');
+        }
+    }
+
+    function viewBatchDetail(idx) {
+        if (!lastBatchResults || !lastBatchResults[idx]) return;
+        var r = lastBatchResults[idx];
+        var data = r.success ? r.response : { error: r.error };
+
+        // Switch to accordion view and expand this item
+        switchBatchView('accordion');
+        setTimeout(function() {
+            var content = document.getElementById('accordion-content-' + idx);
+            var header = document.getElementById('batch-header-' + idx);
+            if (content && !content.classList.contains('expanded')) {
+                content.classList.add('expanded');
+                header.classList.add('expanded');
+            }
+            content?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+    }
+
+    function copyBatchItem(idx) {
+        if (!lastBatchResults || !lastBatchResults[idx]) return;
+        var r = lastBatchResults[idx];
+        var data = r.success ? r.response : { error: r.error };
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        showToast('Response copied to clipboard');
+    }
+
+    function exportBatchJson() {
+        if (!lastBatchResults) return;
+        var exportData = {
+            timestamp: new Date().toISOString(),
+            server: SERVERS[currentServer].name,
+            totalRequests: lastBatchResults.length,
+            successful: lastBatchResults.filter(function(r) { return r.success && !r.response?.error; }).length,
+            results: lastBatchResults.map(function(r, i) {
+                return {
+                    index: i + 1,
+                    method: r.request?.method,
+                    request: r.request,
+                    response: r.response || { error: r.error },
+                    success: r.success && !r.response?.error
+                };
+            })
+        };
+        downloadFile(JSON.stringify(exportData, null, 2), 'batch-results-' + Date.now() + '.json', 'application/json');
+        showToast('JSON exported');
+    }
+
+    function exportBatchCsv() {
+        if (!lastBatchResults) return;
+        var csv = 'Index,Method,Status,HasError,ErrorMessage\n';
+        lastBatchResults.forEach(function(r, i) {
+            var success = r.success && !r.response?.error;
+            var errorMsg = '';
+            if (!success) {
+                errorMsg = (r.error || r.response?.error?.message || 'Unknown').replace(/"/g, '""');
+            }
+            csv += (i + 1) + ',"' + (r.request?.method || '') + '",' + (success ? 'Success' : 'Error') + ',' + (!success) + ',"' + errorMsg + '"\n';
+        });
+        downloadFile(csv, 'batch-summary-' + Date.now() + '.csv', 'text/csv');
+        showToast('CSV exported');
+    }
+
+    function downloadFile(content, filename, mimeType) {
+        var blob = new Blob([content], { type: mimeType });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Batch diff state
+    var lastBatchDiffData = null;
+    var batchDiffViewMode = 'unified';
+
+    async function executeBatchDiff() {
+        if (!lastBatchResults || lastBatchResults.length === 0) {
+            showToast('No batch results to compare', 'error');
+            return;
+        }
+
+        var diffServerKey = document.getElementById('batchDiffServer')?.value;
+        if (!diffServerKey) {
+            showToast('Select a server to compare with', 'error');
+            return;
+        }
+
+        var server2 = SERVERS[diffServerKey];
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
+            '<p style="margin-top: 15px;">Comparing ' + lastBatchResults.length + ' requests with ' + escapeHtml(server2.name) + '...</p></div>';
+
+        var comparisonResults = [];
+        var startTime = Date.now();
+
+        for (var i = 0; i < lastBatchResults.length; i++) {
+            var original = lastBatchResults[i];
+            var req = original.request;
+
+            // Determine endpoint for this request
+            var endpoint = server2.rpc;
+            if (req.method && req.method === 'circlesV2_findPath') {
+                endpoint = server2.pathfinder;
+            } else if (req.method && req.method.startsWith('eth_')) {
+                endpoint = server2.chainRpc;
+            }
+
+            try {
+                var controller = new AbortController();
+                var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
+
+                var response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                var data2;
+                if (!response.ok) {
+                    data2 = { error: 'HTTP ' + response.status };
+                } else {
+                    var text = await response.text();
+                    data2 = text ? JSON.parse(text) : { error: 'Empty response' };
+                }
+
+                // Compare responses
+                var data1 = original.success ? original.response : { error: original.error };
+                var json1 = JSON.stringify(data1, null, 2);
+                var json2 = JSON.stringify(data2, null, 2);
+                var isIdentical = json1 === json2;
+                var hasError = !original.success || data2.error;
+
+                comparisonResults.push({
+                    request: req,
+                    server1: { data: data1, success: original.success },
+                    server2: { data: data2, success: !data2.error },
+                    identical: isIdentical,
+                    hasError: hasError
+                });
+
+            } catch (e) {
+                comparisonResults.push({
+                    request: req,
+                    server1: { data: original.success ? original.response : { error: original.error }, success: original.success },
+                    server2: { data: { error: e.name === 'AbortError' ? 'Timeout' : e.message }, success: false },
+                    identical: false,
+                    hasError: true
+                });
+            }
+        }
+
+        var elapsed = Date.now() - startTime;
+
+        // Store for view toggling
+        lastBatchDiffData = {
+            results: comparisonResults,
+            server1: currentServer,
+            server2: diffServerKey,
+            elapsed: elapsed
+        };
+
+        resultsBody.innerHTML = renderBatchDiffResults(comparisonResults, diffServerKey, batchDiffViewMode);
+    }
+
+    function renderBatchDiffResults(results, server2Key, viewMode) {
+        batchDiffViewMode = viewMode || 'unified';
+
+        var identicalCount = results.filter(function(r) { return r.identical; }).length;
+        var differentCount = results.filter(function(r) { return !r.identical && !r.hasError; }).length;
+        var errorCount = results.filter(function(r) { return r.hasError && !r.identical; }).length;
+
+        var html = '<div class="results-meta">' +
+            '<span><strong>Batch Diff:</strong> ' + escapeHtml(SERVERS[currentServer].name) + ' vs ' + escapeHtml(SERVERS[server2Key].name) + '</span>' +
+            '<span style="margin-left: 15px;">' +
+            '<span class="diff-summary-badge identical"><i class="fas fa-check"></i> ' + identicalCount + ' identical</span> ' +
+            '<span class="diff-summary-badge different"><i class="fas fa-not-equal"></i> ' + differentCount + ' different</span> ' +
+            '<span class="diff-summary-badge error"><i class="fas fa-times"></i> ' + errorCount + ' errors</span></span>' +
+            '<div class="batch-view-toggle" style="margin-left: auto;">' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'unified' ? 'active' : '') + '" onclick="switchBatchDiffView(\'unified\')"><i class="fas fa-align-left"></i> Unified</button>' +
+            '<button class="btn btn-outline btn-sm ' + (viewMode === 'side' ? 'active' : '') + '" onclick="switchBatchDiffView(\'side\')"><i class="fas fa-columns"></i> Side-by-side</button>' +
+            '</div>' +
+            '<button class="btn btn-outline btn-sm" onclick="switchBatchView(\'summary\')" style="margin-left: 10px;"><i class="fas fa-arrow-left"></i> Back</button>' +
+            '</div>';
+
+        results.forEach(function(r, idx) {
+            var statusClass = r.identical ? 'identical' : (r.hasError ? 'error' : 'different');
+            var statusText = r.identical ? 'Identical' : (r.hasError ? 'Error' : 'Different');
+            var statusIcon = r.identical ? 'check' : (r.hasError ? 'times' : 'not-equal');
+
+            html += '<div class="batch-diff-item">' +
+                '<div class="batch-diff-header ' + statusClass + '" onclick="toggleBatchDiffItem(' + idx + ')" id="diff-header-' + idx + '">' +
+                '<i class="fas fa-chevron-right accordion-icon" id="diff-icon-' + idx + '"></i>' +
+                '<span class="diff-summary-badge ' + statusClass + '"><i class="fas fa-' + statusIcon + '"></i> ' + statusText + '</span>' +
+                '<code style="font-size: 0.85rem;">' + escapeHtml(r.request?.method || 'Request ' + (idx + 1)) + '</code>' +
+                '<span style="margin-left: auto; color: var(--text-muted); font-size: 0.8rem;">#' + (idx + 1) + '</span></div>' +
+                '<div class="batch-diff-content" id="diff-content-' + idx + '">' +
+                renderSingleDiff(r, idx, viewMode) +
+                '</div></div>';
+        });
+
+        return html;
+    }
+
+    function renderSingleDiff(comparison, idx, viewMode) {
+        var data1 = comparison.server1.data;
+        var data2 = comparison.server2.data;
+
+        if (comparison.identical) {
+            return '<div style="text-align: center; padding: 15px; color: var(--success);"><i class="fas fa-check-circle"></i> Responses are identical</div>' +
+                '<pre class="json-display" style="max-height: 200px; overflow: auto;">' + syntaxHighlight(JSON.stringify(data1, null, 2)) + '</pre>';
+        }
+
+        if (viewMode === 'unified') {
+            var unifiedDiff = generateUnifiedDiff(data1, data2, SERVERS[currentServer].name, SERVERS[lastBatchDiffData.server2].name);
+            return unifiedDiff.html;
+        } else {
+            // Side-by-side
+            return '<div class="batch-diff-mini">' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[currentServer].name) + '</div>' +
+                '<div class="diff-content">' + syntaxHighlight(JSON.stringify(data1, null, 2)) + '</div></div>' +
+                '<div class="diff-panel"><div class="diff-header">' + escapeHtml(SERVERS[lastBatchDiffData.server2].name) + '</div>' +
+                '<div class="diff-content">' + syntaxHighlight(JSON.stringify(data2, null, 2)) + '</div></div></div>';
+        }
+    }
+
+    function toggleBatchDiffItem(idx) {
+        var header = document.getElementById('diff-header-' + idx);
+        var content = document.getElementById('diff-content-' + idx);
+        var icon = document.getElementById('diff-icon-' + idx);
+
+        if (content.classList.contains('expanded')) {
+            content.classList.remove('expanded');
+            header.classList.remove('expanded');
+        } else {
+            content.classList.add('expanded');
+            header.classList.add('expanded');
+        }
+    }
+
+    function switchBatchDiffView(mode) {
+        if (!lastBatchDiffData) return;
+        batchDiffViewMode = mode;
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = renderBatchDiffResults(lastBatchDiffData.results, lastBatchDiffData.server2, mode);
+    }
+
+    function addToBatch() {
+        var request = buildRequest();
+        if (!request) return;
+
+        batchQueue.push({
+            method: currentMethod,
+            request: request,
+            status: 'pending'
+        });
+
+        updateBatchUI();
+        document.getElementById('batchCard').style.display = 'block';
+        showToast('Added to batch queue');
+    }
+
+    function updateBatchUI() {
+        var list = document.getElementById('batchList');
+        list.innerHTML = batchQueue.map(function(item, i) {
+            var icon = item.status === 'pending' ? '<i class="fas fa-clock"></i>' :
+                       item.status === 'running' ? '<i class="fas fa-spinner fa-spin"></i>' :
+                       item.status === 'success' ? '<i class="fas fa-check"></i>' :
+                       '<i class="fas fa-times"></i>';
+            return '<div class="batch-item">' +
+                '<span class="status-icon ' + item.status + '">' + icon + '</span>' +
+                '<span class="method">' + escapeHtml(item.method) + '</span>' +
+                '<button class="array-btn remove" onclick="removeBatchItem(' + i + ')">' +
+                '<i class="fas fa-times"></i></button></div>';
+        }).join('');
+    }
+
+    function removeBatchItem(index) {
+        batchQueue.splice(index, 1);
+        updateBatchUI();
+        if (batchQueue.length === 0) {
+            document.getElementById('batchCard').style.display = 'none';
+        }
+    }
+
+    function clearBatch() {
+        batchQueue = [];
+        updateBatchUI();
+        document.getElementById('batchCard').style.display = 'none';
+    }
+
+    async function executeBatch() {
+        if (batchQueue.length === 0) return;
+
+        var results = [];
+        var startTime = Date.now();
+
+        for (var i = 0; i < batchQueue.length; i++) {
+            batchQueue[i].status = 'running';
+            updateBatchUI();
+
+            try {
+                var config = METHODS[batchQueue[i].method];
+                var server = SERVERS[currentServer];
+                var endpoint = server[config.endpoint || 'rpc'];
+
+                var response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(batchQueue[i].request)
+                });
+                var data = await response.json();
+
+                batchQueue[i].status = data.error ? 'error' : 'success';
+                batchQueue[i].result = data;
+                // Use same structure as executeRawJson for consistency
+                results.push({
+                    request: batchQueue[i].request,
+                    response: data,
+                    success: !data.error
+                });
+
+            } catch (error) {
+                batchQueue[i].status = 'error';
+                batchQueue[i].result = { error: error.message };
+                results.push({
+                    request: batchQueue[i].request,
+                    error: error.message,
+                    success: false
+                });
+            }
+
+            updateBatchUI();
+        }
+
+        var elapsed = Date.now() - startTime;
+        lastResult = { batch: true, results: results, elapsed: elapsed };
+        var resultsBody = document.getElementById('resultsBody');
+
+        // Use improved batch display
+        resultsBody.innerHTML = renderBatchResults(results, 'summary');
+        showResultsPanel();
+
+        var successCount = results.filter(function(r) { return r.success && !r.response?.error; }).length;
+        showToast('Batch complete: ' + successCount + '/' + results.length + ' succeeded');
+    }
+
+    function addToHistory(method, server, elapsed, success) {
+        try {
+            // Create a clean copy of the request without any potential circular refs
+            var cleanRequest = lastRequest ? JSON.parse(JSON.stringify(lastRequest)) : null;
+            var item = {
+                method: method,
+                server: server,
+                elapsed: elapsed,
+                success: success,
+                timestamp: new Date().toISOString(),
+                request: cleanRequest
+            };
+
+            history.unshift(item);
+            if (history.length > 50) history.pop();
+
+            saveHistory();
+            renderHistory();
+        } catch (e) {
+            console.error('Failed to add to history:', e);
+        }
+    }
+
+    function renderHistory() {
+        var list = document.getElementById('historyList');
+        if (history.length === 0) {
+            list.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No history yet</p>';
+            return;
+        }
+
+        list.innerHTML = history.slice(0, 10).map(function(item, i) {
+            return '<div class="history-item" onclick="loadFromHistory(' + i + ')">' +
+                '<div class="method">' + escapeHtml(item.method) + '</div>' +
+                '<div class="time">' + new Date(item.timestamp).toLocaleTimeString() + ' - ' + item.elapsed + 'ms</div>' +
+                '<span class="server">' + escapeHtml((SERVERS[item.server] || {}).name || item.server) + '</span></div>';
+        }).join('');
+    }
+
+    function loadFromHistory(index) {
+        var item = history[index];
+        currentMethod = item.method;
+        lastRequest = item.request;
+
+        var methodItem = document.querySelector('.method-item[data-method="' + item.method + '"]');
+        if (methodItem) {
+            selectMethod(item.method, methodItem);
+        }
+    }
+
+    function saveHistory() {
+        try {
+            localStorage.setItem('rpcQueryHistory', JSON.stringify(history));
+        } catch (e) {}
+    }
+
+    function loadHistory() {
+        try {
+            var saved = localStorage.getItem('rpcQueryHistory');
+            if (saved) {
+                history = JSON.parse(saved);
+                // Validate history items
+                history = history.filter(function(item) {
+                    return item && typeof item.method === 'string' && typeof item.server === 'string';
+                });
+            }
+        } catch (e) {
+            console.error('Failed to load history:', e);
+            history = [];
+            localStorage.removeItem('rpcQueryHistory');
+        }
+        renderHistory();
+    }
+
+    function clearAllData() {
+        if (confirm('Clear all history and cached data?')) {
+            history = [];
+            batchQueue = [];
+            localStorage.removeItem('rpcQueryHistory');
+            renderHistory();
+            updateBatchUI();
+            document.getElementById('batchCard').style.display = 'none';
+            showToast('Data cleared');
+        }
+    }
+
+    function copyResult() {
+        var activeTab = document.querySelector('.results-tab.active').dataset.tab;
+        var text = '';
+
+        if (activeTab === 'response' && lastResult) {
+            text = JSON.stringify(lastResult.response || { error: lastResult.error }, null, 2);
+        } else if (activeTab === 'curl') {
+            text = generateCurl();
+        } else if (activeTab === 'fetch') {
+            text = generateFetch();
+        }
+
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('Copied to clipboard');
+        });
+    }
+
+    function copyRequestJson() {
+        var request = buildRequest();
+        if (request) {
+            navigator.clipboard.writeText(JSON.stringify(request, null, 2)).then(function() {
+                showToast('Request JSON copied');
+            });
+        }
+    }
+
+    function showToast(message, type) {
+        type = type || '';
+        var container = document.getElementById('toastContainer');
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        var icon = type === 'error' ? 'exclamation-circle' : type === 'success' ? 'check-circle' : 'info-circle';
+        toast.innerHTML = '<i class="fas fa-' + icon + '"></i> ' + escapeHtml(message);
+        container.appendChild(toast);
+
+        setTimeout(function() {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+    }
+
+    // Raw JSON Modal Functions
+    function openRawJsonModal() {
+        document.getElementById('rawJsonModal').classList.add('visible');
+        document.getElementById('rawJsonInput').focus();
+        // Show current server info
+        var server = SERVERS[currentServer];
+        document.getElementById('rawJsonServerName').textContent = server.name;
+    }
+
+    function closeRawJsonModal() {
+        document.getElementById('rawJsonModal').classList.remove('visible');
+    }
+
+    async function executeRawJson() {
+        var input = document.getElementById('rawJsonInput').value.trim();
+        if (!input) {
+            showToast('Please enter JSON-RPC request', 'error');
+            return;
+        }
+
+        var requests;
+        try {
+            var parsed = JSON.parse(input);
+            // Handle both single request and batch array
+            requests = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (e) {
+            showToast('Invalid JSON: ' + e.message, 'error');
+            return;
+        }
+
+        closeRawJsonModal();
+
+        var server = SERVERS[currentServer];
+        var resultsBody = document.getElementById('resultsBody');
+        resultsBody.innerHTML = '<div class="results-loading"><div class="spinner"></div>' +
+            '<p style="margin-top: 15px; color: var(--text-muted);">Executing ' + requests.length + ' request(s)...</p></div>';
+        showResultsPanel();
+
+        var startTime = Date.now();
+        var results = [];
+
+        for (var i = 0; i < requests.length; i++) {
+            var req = requests[i];
+            // Determine endpoint from method name
+            // circlesV2_findPath goes to pathfinder endpoint
+            // eth_* methods go to chainRpc
+            // Everything else goes to root rpc
+            var endpoint = server.rpc;
+            if (req.method && req.method === 'circlesV2_findPath') {
+                endpoint = server.pathfinder;
+            } else if (req.method && req.method.startsWith('eth_')) {
+                endpoint = server.chainRpc;
+            }
+
+            try {
+                // Add 30 second timeout to prevent infinite loading
+                var controller = new AbortController();
+                var timeoutId = setTimeout(function() { controller.abort(); }, 30000);
+
+                console.log('Raw JSON: sending to', endpoint, req.method);
+                var response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(req),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                console.log('Raw JSON: got response', response.status);
+
+                // Check response status
+                if (!response.ok) {
+                    var errorText = await response.text();
+                    results.push({ request: req, error: 'HTTP ' + response.status + ': ' + (errorText.substring(0, 200) || response.statusText), success: false });
+                    continue;
+                }
+
+                // Try to parse JSON, handle empty or invalid responses
+                var responseText = await response.text();
+                if (!responseText || responseText.trim() === '') {
+                    results.push({ request: req, error: 'Empty response from server', success: false });
+                    continue;
+                }
+
+                var data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseErr) {
+                    results.push({ request: req, error: 'Invalid JSON response: ' + responseText.substring(0, 200), success: false });
+                    continue;
+                }
+
+                console.log('Raw JSON: parsed data', data);
+                results.push({ request: req, response: data, success: true });
+            } catch (e) {
+                console.error('Raw JSON: error', e);
+                var errorMsg = e.name === 'AbortError' ? 'Request timed out (30s)' : e.message;
+                results.push({ request: req, error: errorMsg, success: false });
+            }
+        }
+
+        var elapsed = Date.now() - startTime;
+
+        // Display results
+        if (results.length === 1) {
+            var r = results[0];
+            lastRequest = r.request;
+            lastResponse = r.success ? r.response : { error: r.error };
+            displayResult(lastResponse, elapsed, !lastResponse.error);
+        } else {
+            // Multiple results - use improved batch display with summary/accordion
+            lastResult = { results: results, elapsed: elapsed };
+            resultsBody.innerHTML = renderBatchResults(results, 'summary');
+        }
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeRawJsonModal();
+        }
+    });
+    </script>
+
+    <!-- Raw JSON Modal -->
+    <div class="modal-overlay" id="rawJsonModal" onclick="if(event.target===this)closeRawJsonModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-code" style="margin-right: 8px;"></i>Raw JSON Request</h3>
+                <button class="modal-close" onclick="closeRawJsonModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin: 0 0 10px; color: var(--text-muted); font-size: 0.9rem;">
+                    Paste a JSON-RPC request or an array of requests to execute directly.
+                </p>
+                <div id="rawJsonEndpointInfo" style="margin: 0 0 15px; padding: 8px 12px; background: var(--bg-light); border-radius: 6px; font-size: 0.8rem; color: var(--text-muted);">
+                    <strong>Endpoint routing:</strong> <code>circlesV2_findPath</code> → Pathfinder,
+                    <code>eth_*</code> → Chain RPC, everything else → RPC. Server: <em id="rawJsonServerName"></em>
+                </div>
+                <textarea id="rawJsonInput" class="raw-json-input" placeholder='{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "circles_getTotalBalance",
+  "params": ["0x..."]
+}
+
+Or paste an array for batch execution:
+[
+  {"jsonrpc":"2.0","id":1,"method":"circles_health","params":[]},
+  {"jsonrpc":"2.0","id":2,"method":"circles_tables","params":[]}
+]'></textarea>
+                <div class="raw-json-hint">
+                    <strong>Tip:</strong> Use <code>Copy JSON</code> from the builder to get a template. Supports both single <code>{...}</code> and batch <code>[{...}, {...}]</code> format.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeRawJsonModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="executeRawJson()">
+                    <i class="fas fa-play"></i> Execute
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

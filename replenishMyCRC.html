@@ -22,7 +22,7 @@
       }
 
       button {
-          background: #5c49e4;
+          background: #191568;
           color: white;
           border: none;
           border-radius: 4px;
@@ -251,7 +251,7 @@
             Source: currentAddress,
             Sink: currentAddress, // Send to self
             TargetFlow: amount || parseEth("100000000000").toString(), // Use large number for max flow check
-            WithWrap: false,
+            WithWrap: true,
             ToTokens: [currentAddress], // Specify connected address as return token
         };
 

@@ -6,15 +6,16 @@
   <title>Gnosis Safe Group Creator</title>
   <!-- Load ethers.js from a CDN -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: "DM Sans", sans-serif;
       margin: 20px;
       padding: 0;
-      background: #f7f7f7;
+      background: #fff7f5;
     }
     h1 {
-      color: #333;
+      color: #191568;
       text-align: center;
     }
     form {
@@ -43,21 +44,24 @@
       margin-top: 20px;
       padding: 10px 20px;
       font-size: 16px;
-      background: #5C49E4;
+      background: #191568;
       color: #fff;
-      border: none;
-      border-radius: 4px;
+      border: 1px solid #191568;
+      border-radius: 999px;
       cursor: pointer;
       display: block;
       width: 100%;
+      font-weight: 500;
+      transition: background 0.2s;
     }
     button:hover {
-      background: #4A39CC;
+      background: #251b9f;
+      border-color: #251b9f;
     }
     #status {
       margin-top: 20px;
       font-size: 14px;
-      color: #333;
+      color: #191568;
       text-align: center;
       white-space: pre-wrap;
     }

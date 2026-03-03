@@ -5,20 +5,20 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Circles Checker (v1 & v2)</title>
         <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
             rel="stylesheet"
         />
         <style>
             /* --- Copied from groupChecker.html --- */
             body {
                 margin: 0;
-                font-family: "Inter", Helvetica, Arial, sans-serif;
-                background: #ffffff;
-                color: #333;
+                font-family: "DM Sans", sans-serif;
+                background: #fff7f5;
+                color: #191568;
                 line-height: 1.3;
             }
             header {
-                background: #5c49e4;
+                background: #191568;
                 color: #fff;
                 padding: 20px;
                 text-align: center;
@@ -53,7 +53,7 @@
              #checkButton { /* Specific style for main button */
                  margin-top: 10px;
                  padding: 10px 20px;
-                 background: #5c49e4;
+                 background: #191568;
                  color: #fff;
                  border: none;
                  border-radius: 4px;
@@ -64,13 +64,13 @@
                  width: auto; /* Reset width */
              }
             #checkButton:hover {
-                background: #4A39CC;
+                background: #251b9f;
             }
              .icon-btn { /* General icon button style */
                 margin-top: 0;
                 padding: 6px;
-                background: #f4f4ff;
-                color: #5c49e4;
+                background: #ffede8;
+                color: #191568;
                 border: none;
                 border-radius: 50%;
                 cursor: pointer;
@@ -85,7 +85,7 @@
                 margin-right: 0;
             }
             .icon-btn:hover {
-                background: #e0e0fa;
+                background: #ffe3dc;
             }
             .icon-btn[title] {
                 position: relative;
@@ -118,7 +118,7 @@
                 font-size: 0.98rem;
             }
             .address-link {
-                color: #5c49e4;
+                color: #191568;
                 text-decoration: none;
                 font-weight: 500;
                 cursor: pointer;
@@ -136,7 +136,7 @@
                 border-radius: 8px;
                 overflow: hidden;
                 border: 1px solid #eee;
-                box-shadow: 0 2px 12px 0 rgba(92,73,228,0.07);
+                box-shadow: 0 2px 12px 0 rgba(25,21,104,0.07);
                 margin-left: 0;
             }
             th,
@@ -147,7 +147,7 @@
                 vertical-align: middle;
             }
             th {
-                background: #f9f9fc;
+                background: #e5e3fb;
                 font-weight: 600;
                 border-bottom: 1px solid #eee;
             }
@@ -156,10 +156,10 @@
                 border-radius: 8px; /* May not work with collapse: separate */
             }
             tr:nth-child(even) {
-                background: #f6f6fb;
+                background: #fff7f5;
             }
             tr:hover td {
-                background: #f3f3f7;
+                background: #ffede8;
             }
             td {
                 border-bottom: 1px solid #eee;
@@ -193,7 +193,7 @@
               font-family: monospace;
               font-size: 0.97em;
               color: #222;
-              background: #f4f4ff;
+              background: #ffede8;
               border-radius: 4px;
               padding: 2px 6px;
             }
@@ -202,7 +202,7 @@
             }
             .loader {
                 border: 4px solid #f3f3f3;
-                border-top: 4px solid #5c49e4;
+                border-top: 4px solid #191568;
                 border-radius: 50%;
                 width: 24px;
                 height: 24px;
@@ -429,7 +429,21 @@
                         summaryHtml += `<div class="info"><strong>[V2] Total Supply:</strong> ${ethers.utils.formatUnits(v2Data.totalSupply, 18)}</div>`;
                     }
                     summaryHtml += `<div class="info"><strong>ERC20 (static):</strong> ${mainERC20 && mainERC20 !== ethers.constants.AddressZero ? mainERC20 : 'N/A'}</div>`;
-                    summaryHtml += `<div class="info"><strong>[V2] Trusted Connections Count:</strong> ${trustedAddressesData.length}</div>`;
+                    
+                    // Filter out expired trusts for the count
+                    const indefiniteValBN = ethers.BigNumber.from("79228162514264337593543950335");
+                    const nowMs = Date.now();
+
+                    const activeTrustedAddresses = trustedAddressesData.filter(trust => {
+                        const expiryBN = ethers.BigNumber.from(trust.expiry);
+                        if (expiryBN.eq(indefiniteValBN)) {
+                            return true; // Indefinite trusts are always active
+                        }
+                        const expiryMs = Number(trust.expiry) * 1000;
+                        return expiryMs >= nowMs; // Active if expiry is in the future or now
+                    });
+
+                    summaryHtml += `<div class="info"><strong>[V2] Trusted Connections Count:</strong> ${activeTrustedAddresses.length}</div>`;
                     resultDiv.innerHTML = summaryHtml;
 
                     // Async update main user name and price
@@ -437,7 +451,7 @@
                     getPrice(mainERC20).then(price => { document.getElementById('main-user-price').textContent = price; });
 
                     // 5) Display trusted addresses table
-                    if (trustedAddressesData.length > 0) {
+                    if (activeTrustedAddresses.length > 0) {
                         const table = document.createElement("table");
                         const thead = document.createElement("thead");
                         const headerRow = document.createElement("tr");
@@ -451,8 +465,8 @@
                         table.appendChild(thead);
 
                         const tbody = document.createElement("tbody");
-                        for (let i = 0; i < trustedAddressesData.length; i++) {
-                            const addrData = trustedAddressesData[i];
+                        for (let i = 0; i < activeTrustedAddresses.length; i++) {
+                            const addrData = activeTrustedAddresses[i];
                             const row = document.createElement("tr");
                             const trustedAddr = addrData.trustedAddress;
                             const trustedErc20 = erc20Map[trustedAddr.toLowerCase()]?.demurragedERC20;
@@ -476,18 +490,18 @@
                             const copyBtnAddr = document.createElement('button');
                             copyBtnAddr.className = 'icon-btn';
                             copyBtnAddr.title = 'Copy Address';
-                            copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#5c49e4" stroke-width="1.5"/></svg>`;
+                            copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`;
                             copyBtnAddr.onclick = () => {
                                 navigator.clipboard.writeText(trustedAddr);
-                                copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#5c49e4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-                                setTimeout(() => { copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#5c49e4" stroke-width="1.5"/></svg>`; }, 1500);
+                                copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#191568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                                setTimeout(() => { copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`; }, 1500);
                             };
                             addrMain.appendChild(copyBtnAddr);
                             // Add Profile checker link button
                             const profileBtn = document.createElement("button");
                             profileBtn.className = "icon-btn";
                             profileBtn.title = "Open Profile";
-                            profileBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="6.5" r="3.5" stroke="#5c49e4" stroke-width="1.5"/><path d="M2.5 15c0-2.485 2.91-4.5 6.5-4.5s6.5 2.015 6.5 4.5" stroke="#5c49e4" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+                            profileBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="6.5" r="3.5" stroke="#191568" stroke-width="1.5"/><path d="M2.5 15c0-2.485 2.91-4.5 6.5-4.5s6.5 2.015 6.5 4.5" stroke="#191568" stroke-width="1.5" stroke-linecap="round"/></svg>`;
                             profileBtn.onclick = (e) => {
                                 e.preventDefault();
                                 // Open self in new tab
@@ -513,8 +527,8 @@
 
                             // Expiry (use expiry from next row, or N/A for last row)
                             let expiryValue;
-                            if (i < trustedAddressesData.length - 1) {
-                                expiryValue = trustedAddressesData[i + 1].expiry;
+                            if (i < activeTrustedAddresses.length - 1) {
+                                expiryValue = activeTrustedAddresses[i + 1].expiry;
                             } else {
                                 expiryValue = 0; // Last row gets N/A
                             }
@@ -557,11 +571,11 @@
                                 const copyBtnErc20 = document.createElement('button');
                                 copyBtnErc20.className = 'icon-btn';
                                 copyBtnErc20.title = 'Copy Address';
-                                copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#5c49e4" stroke-width="1.5"/></svg>`;
+                                copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`;
                                 copyBtnErc20.onclick = () => {
                                     navigator.clipboard.writeText(trustedErc20);
-                                    copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#5c49e4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-                                    setTimeout(() => { copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#5c49e4" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#5c49e4" stroke-width="1.5"/></svg>`; }, 1500);
+                                    copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#191568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                                    setTimeout(() => { copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`; }, 1500);
                                 };
                                 erc20Container.appendChild(copyBtnErc20);
                                 // CowSwap button
@@ -633,4 +647,4 @@
             });
         </script>
     </body>
-</html> 
+</html>

@@ -1,0 +1,1563 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Group CRC Purchase Helper</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <style>
+            body {
+                margin: 0;
+                font-family: "DM Sans", sans-serif;
+                background: #fff7f5;
+                color: #191568;
+                line-height: 1.3;
+            }
+            header {
+                background: #191568;
+                color: #fff;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.5rem;
+            }
+            p {
+                margin: 0.5rem 0 0;
+                font-weight: 400;
+            }
+            .container {
+                max-width: 900px;
+                margin: 40px auto;
+                padding: 0 20px;
+            }
+            .card {
+                background: #fff;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 2px 12px 0 rgba(92, 73, 228, 0.07);
+                border: 1px solid #eee;
+                margin-bottom: 20px;
+            }
+            .step-indicator {
+                background: #191568;
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 8px;
+                font-weight: 600;
+                font-size: 0.9rem;
+            }
+            h2 {
+                font-size: 1.25rem;
+                font-weight: 600;
+                margin-top: 0;
+                margin-bottom: 15px;
+                display: flex;
+                align-items: center;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+            }
+            input[type="text"],
+            input[type="number"] {
+                padding: 10px;
+                width: 100%;
+                max-width: 500px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                font-size: 1rem;
+            }
+            .search-container {
+                position: relative;
+                max-width: 500px;
+            }
+            .search-results {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                max-height: 200px;
+                overflow-y: auto;
+                background: white;
+                border: 1px solid #ddd;
+                border-top: none;
+                border-radius: 0 0 4px 4px;
+                z-index: 10;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+            .search-result-item {
+                padding: 10px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+            }
+            .search-result-item:hover {
+                background: #f5f5ff;
+            }
+            .search-result-name {
+                font-weight: 600;
+                display: block;
+                margin-bottom: 3px;
+            }
+            .search-result-address {
+                font-size: 0.85rem;
+                color: #666;
+                word-break: break-all;
+            }
+            .checkbox-container {
+                display: flex;
+                align-items: center;
+                margin-top: 10px;
+                margin-bottom: 20px;
+            }
+            .checkbox-container input[type="checkbox"] {
+                margin-right: 8px;
+            }
+            .checkbox-label {
+                font-size: 0.95rem;
+                color: #555;
+            }
+            button {
+                margin-top: 10px;
+                padding: 10px 16px;
+                background: #191568;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: 500;
+                transition: background 0.2s;
+            }
+            button:hover {
+                background: #251b9f;
+            }
+            .action-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin-right: 10px;
+                margin-bottom: 10px;
+            }
+            .action-btn i {
+                font-size: 1.1rem;
+            }
+            .result-container {
+                margin-top: 20px;
+                padding: 20px;
+                background: #e5e3fb;
+                border-radius: 8px;
+                border: 1px solid #eee;
+            }
+            .result-section {
+                margin-bottom: 20px;
+            }
+            .result-heading {
+                font-weight: 600;
+                margin-bottom: 12px;
+                color: #191568;
+            }
+            .result-value {
+                font-size: 1.2rem;
+                color: #191568;
+                margin-bottom: 5px;
+            }
+            .amount-action-container {
+                display: flex;
+                align-items: center;
+                margin-bottom: 15px;
+                gap: 12px;
+            }
+            .result-subtext {
+                font-size: 0.9rem;
+                color: #666;
+            }
+            .help-text {
+                font-size: 0.9rem;
+                color: #666;
+                margin-top: 5px;
+            }
+            .token-info {
+                display: flex;
+                align-items: center;
+                margin-bottom: 15px;
+                background: #f0f0f8;
+                padding: 10px;
+                border-radius: 6px;
+                border-left: 3px solid #191568;
+            }
+            .token-icon {
+                width: 32px;
+                height: 32px;
+                background: #191568;
+                border-radius: 50%;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 12px;
+                flex-shrink: 0;
+            }
+            .token-details {
+                flex-grow: 1;
+            }
+            .token-name {
+                font-weight: 600;
+                margin-bottom: 3px;
+            }
+            .token-address {
+                font-size: 0.85rem;
+                color: #666;
+                word-break: break-all;
+            }
+            .actions-container {
+                margin-top: 15px;
+            }
+            .note {
+                background: #fff5e6;
+                border-left: 3px solid #ff9800;
+                padding: 12px;
+                margin-top: 10px;
+                font-size: 0.9rem;
+                color: #555;
+                line-height: 1.4;
+                border-radius: 4px;
+            }
+            .info-box {
+                background: #f0f8ff;
+                border-left: 3px solid #4a90e2;
+                padding: 12px;
+                margin: 10px 0;
+                font-size: 0.9rem;
+                color: #555;
+                line-height: 1.4;
+                border-radius: 4px;
+            }
+            .hidden {
+                display: none;
+            }
+            .steps-container {
+                position: relative;
+                margin-left: 12px;
+                padding-left: 20px;
+                margin-bottom: 30px;
+            }
+            .steps-container:before {
+                content: "";
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 2px;
+                background: #ddd;
+                z-index: 1;
+            }
+            .step {
+                position: relative;
+                padding-bottom: 20px;
+            }
+            .step:last-child {
+                padding-bottom: 0;
+            }
+            .step:before {
+                content: "";
+                position: absolute;
+                left: -25px;
+                top: 0;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: white;
+                border: 2px solid #191568;
+                z-index: 2;
+            }
+            .step.completed:before {
+                background: #191568;
+            }
+            .step-title {
+                font-weight: 600;
+                margin-bottom: 8px;
+                color: #191568;
+            }
+            .step-content {
+                color: #555;
+                margin-bottom: 10px;
+            }
+            .address-container {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin: 5px 0;
+            }
+            .copy-btn {
+                background: #ffede8;
+                color: #191568;
+                border: none;
+                border-radius: 50%;
+                cursor: pointer;
+                width: 24px;
+                height: 24px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.9rem;
+                margin: 0;
+                padding: 0;
+            }
+            .copy-btn:hover {
+                background: #ffe3dc;
+            }
+            .target-display {
+                background: #f0f0f8;
+                border-radius: 6px;
+                padding: 12px 15px;
+                margin-bottom: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .target-label {
+                font-weight: 600;
+                color: #555;
+            }
+            .target-value {
+                font-weight: 600;
+                color: #191568;
+                font-size: 1.1rem;
+            }
+            .edit-target-btn {
+                background: #ffede8;
+                color: #191568;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                padding: 4px 8px;
+                margin: 0 0 0 10px;
+            }
+            .edit-target-btn:hover {
+                background: #ffe3dc;
+            }
+            .loader {
+                border: 3px solid #f3f3f3;
+                border-radius: 50%;
+                border-top: 3px solid #191568;
+                width: 24px;
+                height: 24px;
+                animation: spin 1s linear infinite;
+                display: inline-block;
+                margin-left: 10px;
+            }
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+            .purchase-option {
+                background: white;
+                border: 1px solid #eee;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 15px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }
+            .purchase-option-title {
+                font-weight: 600;
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .purchase-option-icon {
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.9rem;
+            }
+            .purchase-option-amount {
+                font-size: 1.2rem;
+                color: #191568;
+                margin-bottom: 12px;
+            }
+            .purchase-option-desc {
+                font-size: 0.9rem;
+                color: #666;
+                margin-bottom: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Group CRC Purchase Helper</h1>
+            <p>Calculate how many group CRC tokens you need to purchase</p>
+        </header>
+
+        <div class="container">
+            <!-- Step 1: Select Group -->
+            <div class="card" id="step1Card">
+                <h2><span class="step-indicator">1</span>Select a Group</h2>
+                <div class="form-group">
+                    <label for="groupSearch">Search Groups:</label>
+                    <div class="search-container">
+                        <input
+                            type="text"
+                            id="groupSearch"
+                            placeholder="Enter group name"
+                        />
+                        <div
+                            id="searchResults"
+                            class="search-results"
+                            style="display: none"
+                        ></div>
+                    </div>
+                </div>
+                <div
+                    id="selectedGroupInfo"
+                    style="display: none"
+                    class="token-info"
+                ></div>
+                <button id="nextToStep2" disabled>Next Step</button>
+            </div>
+
+            <!-- Step 2: Set Target Amount -->
+            <div class="card hidden" id="step2Card">
+                <h2><span class="step-indicator">2</span>Set Target Amount</h2>
+                <div class="token-info" id="groupInfoStep2"></div>
+
+                <div class="form-group">
+                    <label for="targetAmount"
+                        >Target Amount (from Metri):</label
+                    >
+                    <input
+                        type="text"
+                        id="targetAmount"
+                        placeholder="Enter desired amount"
+                        min="0"
+                    />
+                    <p class="help-text">
+                        Enter the total amount of tokens you want to have
+                    </p>
+                </div>
+
+                <div class="info-box">
+                    <strong>Note:</strong> By default, we're using the Metri
+                    format (demurraged CRC). This is what you see in the Metri
+                    wallet and what's used for direct transfers.
+                </div>
+
+                <div class="checkbox-container">
+                    <input type="checkbox" id="useAmmSwitch" />
+                    <label for="useAmmSwitch" class="checkbox-label"
+                        >I need tokens for AMM liquidity or DEX trading</label
+                    >
+                </div>
+
+                <div id="ammInfoBox" class="info-box hidden">
+                    <strong>AMM Mode Enabled:</strong> Using token format for
+                    AMMs and DEXes like CowSwap. These platforms use the
+                    "static" token format which preserves value over time.
+                </div>
+
+                <button id="backToStep1">Back</button>
+                <button id="nextToStep3">Next Step</button>
+            </div>
+
+            <!-- Step 3: Check Current Limit -->
+            <div class="card hidden" id="step3Card">
+                <h2>
+                    <span class="step-indicator">3</span>Check Your Current
+                    Limit
+                </h2>
+                <div class="token-info" id="groupInfoStep3"></div>
+
+                <div class="target-display">
+                    <div>
+                        <span class="target-label">Target Amount:</span>
+                        <span
+                            id="targetDisplayStep3"
+                            class="target-value"
+                        ></span>
+                    </div>
+                    <button id="editTargetBtn" class="edit-target-btn">
+                        Edit
+                    </button>
+                </div>
+
+                <p>
+                    To determine how many tokens you need to purchase, we need
+                    to know your current sending limit.
+                </p>
+
+                <div class="steps-container">
+                    <div class="step">
+                        <div class="step-title">Visit Metri</div>
+                        <div class="step-content">
+                            Click the button below to open Metri in a new tab.
+                            Sign in if needed.
+                        </div>
+                        <button id="openMetriBtn" class="action-btn">
+                            <i class="fas fa-external-link-alt"></i> Open Metri
+                        </button>
+                    </div>
+                    <div class="step">
+                        <div class="step-title">Check Your Limit</div>
+                        <div class="step-content">
+                            On Metri, look for your send limit with this group's
+                            token. It will be displayed in a format like
+                            "1,234.56".
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-title">Enter Your Current Limit</div>
+                        <div class="form-group">
+                            <label for="currentLimit"
+                                >Current Send Limit (from Metri):</label
+                            >
+                            <input
+                                type="text"
+                                id="currentLimit"
+                                placeholder="Enter your current limit (e.g. 1,234.56)"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <button id="backToStep2">Back</button>
+                <button id="calculateNeeded">Calculate Tokens Needed</button>
+            </div>
+
+            <!-- Results -->
+            <div class="card hidden" id="resultsCard">
+                <h2>
+                    <span class="step-indicator">✓</span>Purchase Recommendation
+                </h2>
+                <div class="token-info" id="groupInfoResults"></div>
+
+                <div class="target-display">
+                    <div>
+                        <span class="target-label">Target Amount:</span>
+                        <span
+                            id="targetDisplayResults"
+                            class="target-value"
+                        ></span>
+                    </div>
+                    <button id="editTargetFromResults" class="edit-target-btn">
+                        Edit
+                    </button>
+                </div>
+
+                <div class="result-container">
+                    <div class="result-heading">You Need to Purchase:</div>
+
+                    <div class="purchase-option">
+                        <div class="purchase-option-title">
+                            <div class="purchase-option-icon">
+                                <i class="fas fa-wallet"></i>
+                            </div>
+                            Option 1: Purchase through Metri
+                        </div>
+                        <div
+                            class="purchase-option-amount"
+                            id="demurragedNeeded"
+                        >
+                            0 CRC
+                        </div>
+                        <div class="purchase-option-desc">
+                            This is the format used in the Metri wallet and for
+                            direct transfers.
+                        </div>
+                        <button
+                            id="buyMetriBtn"
+                            class="action-btn"
+                            disabled
+                            style="
+                                background-color: #a9a9a9;
+                                cursor: not-allowed;
+                            "
+                        >
+                            <i class="fas fa-plus-circle"></i> Buy via Metri
+                        </button>
+                        <div
+                            style="
+                                margin-top: 8px;
+                                font-size: 0.85rem;
+                                color: #888;
+                            "
+                        >
+                            <i class="fas fa-info-circle"></i> Direct purchase
+                            through Metri will be available soon.
+                        </div>
+                    </div>
+
+                    <div class="purchase-option">
+                        <div class="purchase-option-title">
+                            <div class="purchase-option-icon">
+                                <i class="fas fa-exchange-alt"></i>
+                            </div>
+                            Option 2: Purchase through DEX (CowSwap)
+                        </div>
+                        <div class="purchase-option-amount" id="staticNeeded">
+                            0 CRC
+                        </div>
+                        <div class="purchase-option-desc">
+                            This is the format used on decentralized exchanges
+                            and AMMs like CowSwap.
+                        </div>
+                        <button id="buyCowswapBtn" class="action-btn">
+                            <i class="fas fa-exchange-alt"></i> Buy on CowSwap
+                        </button>
+                    </div>
+
+                    <div class="note">
+                        <strong>Important:</strong> The two amounts above
+                        represent the same value but in different formats.
+                        Choose the option that matches where you plan to
+                        purchase the tokens.
+                    </div>
+                </div>
+
+                <button id="startOver">Start Over</button>
+            </div>
+        </div>
+
+        <!-- Ethers.js UMD build -->
+        <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+        <script>
+            // Define RPC URL as a constant
+            const RPC_URL = "https://rpc.aboutcircles.com";
+
+            // Initialize ethers provider
+            const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+
+            // Token ABI for conversion functions
+            const tokenAbi = [
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_timestamp",
+                            type: "uint256",
+                        },
+                    ],
+                    name: "day",
+                    outputs: [
+                        { internalType: "uint64", name: "", type: "uint64" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_inflationaryValue",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint64",
+                            name: "_day",
+                            type: "uint64",
+                        },
+                    ],
+                    name: "convertInflationaryToDemurrageValue",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "pure",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_demurrageValue",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint64",
+                            name: "_dayUpdated",
+                            type: "uint64",
+                        },
+                    ],
+                    name: "convertDemurrageToInflationaryValue",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "pure",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "name",
+                    outputs: [
+                        { internalType: "string", name: "", type: "string" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "symbol",
+                    outputs: [
+                        { internalType: "string", name: "", type: "string" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+            ];
+
+            // GroupInfoGetter contract address and ABI (from groupChecker.html)
+            const groupGetterAddress =
+                "0x3cd1c2be7ce9fc45b4c9a97ac9ef534fa85fc19d";
+            const groupGetterAbi = [
+                {
+                    inputs: [
+                        {
+                            internalType: "address[]",
+                            name: "groupAddresses",
+                            type: "address[]",
+                        },
+                    ],
+                    name: "getGroupsInfo",
+                    outputs: [
+                        {
+                            components: [
+                                {
+                                    internalType: "address",
+                                    name: "owner",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "service",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "feeCollection",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address[]",
+                                    name: "membershipConditions",
+                                    type: "address[]",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "baseMintHandler",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "baseMintPolicy",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "baseTreasury",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "hub",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "staticERC20",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "demurragedERC20",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "address",
+                                    name: "nameRegistry",
+                                    type: "address",
+                                },
+                                {
+                                    internalType: "uint256",
+                                    name: "maxConditions",
+                                    type: "uint256",
+                                },
+                                {
+                                    internalType: "uint256",
+                                    name: "erc1155TotalSupply",
+                                    type: "uint256",
+                                },
+                                {
+                                    internalType: "uint256",
+                                    name: "staticERC20TotalSupply",
+                                    type: "uint256",
+                                },
+                                {
+                                    internalType: "uint256",
+                                    name: "demurragedERC20TotalSupply",
+                                    type: "uint256",
+                                },
+                                {
+                                    internalType: "uint256",
+                                    name: "balance",
+                                    type: "uint256",
+                                },
+                            ],
+                            internalType: "struct GroupInfoGetter.GroupInfo[]",
+                            name: "",
+                            type: "tuple[]",
+                        },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+            ];
+            const groupGetterContract = new ethers.Contract(
+                groupGetterAddress,
+                groupGetterAbi,
+                provider,
+            );
+
+            // UI elements
+            const groupSearchInput = document.getElementById("groupSearch");
+            const searchResults = document.getElementById("searchResults");
+            const selectedGroupInfo =
+                document.getElementById("selectedGroupInfo");
+            const useAmmSwitch = document.getElementById("useAmmSwitch");
+            const ammInfoBox = document.getElementById("ammInfoBox");
+            const targetAmount = document.getElementById("targetAmount");
+            const currentLimit = document.getElementById("currentLimit");
+            const staticNeeded = document.getElementById("staticNeeded");
+            const demurragedNeeded =
+                document.getElementById("demurragedNeeded");
+            const targetDisplayStep3 =
+                document.getElementById("targetDisplayStep3");
+            const targetDisplayResults = document.getElementById(
+                "targetDisplayResults",
+            );
+            const buyCowswapBtn = document.getElementById("buyCowswapBtn");
+            const buyMetriBtn = document.getElementById("buyMetriBtn");
+            const openMetriBtn = document.getElementById("openMetriBtn");
+            const editTargetBtn = document.getElementById("editTargetBtn");
+            const editTargetFromResults = document.getElementById(
+                "editTargetFromResults",
+            );
+
+            // Step navigation buttons
+            const nextToStep2 = document.getElementById("nextToStep2");
+            const backToStep1 = document.getElementById("backToStep1");
+            const nextToStep3 = document.getElementById("nextToStep3");
+            const backToStep2 = document.getElementById("backToStep2");
+            const calculateNeeded = document.getElementById("calculateNeeded");
+            const startOver = document.getElementById("startOver");
+
+            // Step cards
+            const step1Card = document.getElementById("step1Card");
+            const step2Card = document.getElementById("step2Card");
+            const step3Card = document.getElementById("step3Card");
+            const resultsCard = document.getElementById("resultsCard");
+
+            // Group info displays for each step
+            const groupInfoStep2 = document.getElementById("groupInfoStep2");
+            const groupInfoStep3 = document.getElementById("groupInfoStep3");
+            const groupInfoResults =
+                document.getElementById("groupInfoResults");
+
+            // State management
+            let selectedGroup = null;
+            let isAmmMode = false;
+            let trustedGroups = [];
+
+            // Fetch trusted groups on load
+            async function fetchTrustedGroups() {
+                try {
+                    // Using the Metri truster org address
+                    const trusterAddress =
+                        "0x0afd8899bca011bb95611409f09c8efbf6b169cf";
+
+                    // First fetch trust relations to get trusted groups
+                    const requestBody = {
+                        jsonrpc: "2.0",
+                        id: 1,
+                        method: "circles_query",
+                        params: [
+                            {
+                                Namespace: "V_CrcV2",
+                                Table: "TrustRelations",
+                                Columns: [],
+                                Filter: [
+                                    {
+                                        Type: "FilterPredicate",
+                                        FilterType: "Equals",
+                                        Column: "truster",
+                                        Value: trusterAddress,
+                                    },
+                                ],
+                            },
+                        ],
+                    };
+
+                    const response = await fetch(
+                        "https://rpc.aboutcircles.com/",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(requestBody),
+                        },
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(
+                            `HTTP error! status: ${response.status}`,
+                        );
+                    }
+
+                    const data = await response.json();
+                    if (data.error) {
+                        throw new Error(`RPC error: ${data.error.message}`);
+                    }
+
+                    // Extract unique trustee addresses (trustee is at index 5)
+                    const addresses = new Set(
+                        data.result.rows.map((row) => row[5]),
+                    );
+                    const groupAddresses = Array.from(addresses);
+
+                    // Create basic group objects with addresses
+                    const groups = groupAddresses.map((address) => ({
+                        address,
+                        name: `Group ${formatAddress(address)}`,
+                        symbol: "CRC",
+                    }));
+
+                    // Now try to fetch profiles only for these addresses
+                    try {
+                        // Loop through addresses in smaller batches to avoid too-large requests
+                        const batchSize = 10;
+                        for (let i = 0; i < groups.length; i += batchSize) {
+                            const batch = groups.slice(i, i + batchSize);
+                            const addressQueries = batch.map((group) =>
+                                fetch(
+                                    `https://rpc.aboutcircles.com/profiles/search?address=${group.address}`,
+                                )
+                                    .then((response) =>
+                                        response.ok ? response.json() : [],
+                                    )
+                                    .then((profiles) => {
+                                        if (profiles && profiles.length > 0) {
+                                            const matchingProfile =
+                                                profiles.find(
+                                                    (p) =>
+                                                        p.address &&
+                                                        p.address.toLowerCase() ===
+                                                            group.address.toLowerCase(),
+                                                );
+                                            if (
+                                                matchingProfile &&
+                                                matchingProfile.name
+                                            ) {
+                                                group.name =
+                                                    matchingProfile.name;
+                                            }
+                                        }
+                                    })
+                                    .catch((err) =>
+                                        console.warn(
+                                            `Failed to fetch profile for ${group.address}:`,
+                                            err,
+                                        ),
+                                    ),
+                            );
+
+                            // Wait for all profile queries in this batch
+                            await Promise.all(addressQueries);
+                        }
+                    } catch (profileError) {
+                        // If profile lookup fails, just continue with address-based names
+                        console.warn("Error fetching profiles:", profileError);
+                    }
+
+                    return groups;
+                } catch (error) {
+                    console.error("Error fetching trusted groups:", error);
+                    return [];
+                }
+            }
+
+            // Helper function to format addresses
+            function formatAddress(address) {
+                return `${address.slice(0, 6)}...${address.slice(-4)}`;
+            }
+
+            // Helper function to parse input with commas
+            function parseAmountInput(input) {
+                if (!input) return "0";
+
+                // Remove commas and other non-numeric characters except decimal point
+                const cleaned = input.replace(/[^\d.]/g, "");
+
+                // Return as a string that can be parsed by ethers
+                return cleaned;
+            }
+
+            // Initialize the page
+            async function initPage() {
+                try {
+                    const loadingMessage = document.createElement("div");
+                    loadingMessage.innerHTML =
+                        'Loading groups... <div class="loader"></div>';
+                    step1Card.appendChild(loadingMessage);
+
+                    // Fetch trusted groups
+                    trustedGroups = await fetchTrustedGroups();
+
+                    // Remove loading message
+                    step1Card.removeChild(loadingMessage);
+
+                    // Setup search functionality
+                    setupGroupSearch();
+
+                    // Setup navigation between steps
+                    setupNavigation();
+
+                    // Setup AMM mode toggle
+                    setupAmmModeToggle();
+
+                    // Setup edit target functionality
+                    setupEditTargetButtons();
+                } catch (error) {
+                    console.error("Error initializing page:", error);
+                    step1Card.innerHTML += `<p style="color: red;">Error loading groups: ${error.message}</p>`;
+                }
+            }
+
+            // Setup group search functionality
+            function setupGroupSearch() {
+                groupSearchInput.addEventListener("input", (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    if (searchTerm.length < 2) {
+                        searchResults.style.display = "none";
+                        return;
+                    }
+
+                    // Filter groups by name
+                    const filtered = trustedGroups.filter(
+                        (group) =>
+                            group.name.toLowerCase().includes(searchTerm) ||
+                            group.symbol.toLowerCase().includes(searchTerm),
+                    );
+
+                    // Display results
+                    displaySearchResults(filtered);
+                });
+
+                // Close search results when clicking elsewhere
+                document.addEventListener("click", (e) => {
+                    if (!e.target.closest(".search-container")) {
+                        searchResults.style.display = "none";
+                    }
+                });
+            }
+
+            function updateResultsView(hasSufficientLimit, amounts) {
+                const resultContainer =
+                    document.querySelector(".result-container");
+
+                if (hasSufficientLimit) {
+                    // Scenario 1: User has sufficient limit, just need to use it
+                    resultContainer.innerHTML = `
+                        <div class="result-heading">Good news! You already have sufficient limit.</div>
+
+                        <div class="purchase-option">
+                            <div class="purchase-option-title">
+                                <div class="purchase-option-icon"><i class="fas fa-check-circle" style="color: #28a745;"></i></div>
+                                Next Step: Send directly using Metri
+                            </div>
+                            <div class="purchase-option-desc">
+                                Your current limit (${parseFloat(ethers.utils.formatEther(amounts.currentLimitValue)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC)
+                                is sufficient to send your target amount (${parseFloat(ethers.utils.formatEther(amounts.targetDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC).
+                            </div>
+                            <div class="purchase-option-desc">
+                                Simply go to Metri and send ${parseFloat(ethers.utils.formatEther(amounts.targetDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
+                                to the group's mint handler.
+                            </div>
+                            <button id="openMetriSendBtn" class="action-btn">
+                                <i class="fas fa-paper-plane"></i> Open Metri to Send
+                            </button>
+                        </div>
+                    `;
+
+                    // Set up the send button
+                    document.getElementById("openMetriSendBtn").onclick =
+                        () => {
+                            window.open(
+                                `https://app.metri.xyz/transfer/${selectedGroup.baseMintHandler}/crc`,
+                                "_blank",
+                            );
+                        };
+                } else {
+                    // Scenario 2: User needs to first use their limit and then purchase more
+                    resultContainer.innerHTML = `
+                        <div class="result-heading">You need to take two steps:</div>
+
+                        <div class="purchase-option">
+                            <div class="purchase-option-title">
+                                <div class="purchase-option-icon"><i class="fas fa-paper-plane"></i></div>
+                                Step 1: Use your current limit
+                            </div>
+                            <div class="purchase-option-desc">
+                                First, send your maximum available limit (${parseFloat(ethers.utils.formatEther(amounts.currentLimitValue)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC)
+                                to the group's mint handler.
+                            </div>
+                            <button id="openMetriMaxBtn" class="action-btn">
+                                <i class="fas fa-paper-plane"></i> Open Metri to Send Max
+                            </button>
+                        </div>
+
+                        <div class="purchase-option">
+                            <div class="purchase-option-title">
+                                <div class="purchase-option-icon"><i class="fas fa-plus-circle"></i></div>
+                                Step 2: Purchase additional tokens
+                            </div>
+                            <div class="purchase-option-desc">
+                                Then, purchase the remaining amount: There are two ways to do this. Either, you purchase
+                            </div>
+                            <div class="purchase-option-amount">
+                                ${parseFloat(ethers.utils.formatEther(amounts.neededStatic)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
+                            </div>
+                            <div class="purchase-option-desc">
+                            using a Dex:
+                            </div>
+                            <div class="purchase-options-container" style="display: flex; gap: 10px; margin-top: 10px;">
+                                <button id="buyCowswapBtn" class="action-btn">
+                                    <i class="fas fa-exchange-alt"></i> Buy on CowSwap
+                                </button>
+                            </div>
+
+                            <div class="purchase-option-desc">
+                            Alternatively, you purchase
+                            </div>
+                            <div class="purchase-option-amount">
+                                ${parseFloat(ethers.utils.formatEther(amounts.neededDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
+                            </div>
+                            <div class="purchase-option-desc">
+                            using Metri. To do so, first set the target group as your affiliate group and then navigate to the Swap menu.
+                            </div>
+                            <div class="purchase-options-container" style="display: flex; gap: 10px; margin-top: 10px;">
+                                <button id="setMetriAffiliateBtn" class="action-btn">
+                                    <i class="fas fa-link"></i> Open group in Metri
+                                </button>
+                            </div>
+                            <div class="purchase-option-desc">
+                            Note that both of these result in the same target amount, the difference in values is because DEXes read CRC values differently from Metri.
+                            </div>
+                        </div>
+                    `;
+
+                    // Set up the buttons
+                    document.getElementById("openMetriMaxBtn").onclick = () => {
+                        window.open(
+                            `https://app.metri.xyz/transfer/${selectedGroup.baseMintHandler}/crc`,
+                            "_blank",
+                        );
+                    };
+
+                    document.getElementById("buyCowswapBtn").onclick = () => {
+                        window.open(
+                            `https://swap.cow.fi/#/100/swap/WXDAI/${selectedGroup.staticTokenAddress}`,
+                            "_blank",
+                        );
+                    };
+
+                    document.getElementById("setMetriAffiliateBtn").onclick =
+                        () => {
+                            window.open(
+                                `https://app.metri.xyz/${selectedGroup.address}`,
+                                "_blank",
+                            );
+                        };
+                }
+            }
+
+            // Display search results
+            function displaySearchResults(groups) {
+                searchResults.innerHTML = "";
+
+                if (groups.length === 0) {
+                    searchResults.innerHTML =
+                        '<div class="search-result-item">No groups found</div>';
+                    searchResults.style.display = "block";
+                    return;
+                }
+
+                groups.forEach((group) => {
+                    const item = document.createElement("div");
+                    item.className = "search-result-item";
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "search-result-name";
+                    nameSpan.textContent = group.name;
+                    const addrSpan = document.createElement("span");
+                    addrSpan.className = "search-result-address";
+                    addrSpan.textContent = formatAddress(group.address);
+                    item.append(nameSpan, addrSpan);
+                    item.addEventListener("click", () => {
+                        selectGroup(group);
+                        searchResults.style.display = "none";
+                        groupSearchInput.value = group.name;
+                    });
+                    searchResults.appendChild(item);
+                });
+
+                searchResults.style.display = "block";
+            }
+
+            // Select a group
+            async function selectGroup(group) {
+                // Show loading state
+                selectedGroupInfo.innerHTML = `
+                    <div class="token-icon"><i class="fas fa-spinner fa-spin"></i></div>
+                    <div class="token-details">
+                        <div class="token-name">Loading ${group.name} details...</div>
+                    </div>
+                `;
+                selectedGroupInfo.style.display = "flex";
+                nextToStep2.disabled = true;
+
+                try {
+                    // Only fetch the minimal required details
+                    const groupInfo = await groupGetterContract.getGroupsInfo([
+                        group.address,
+                    ]);
+                    if (!groupInfo || !groupInfo[0]) {
+                        throw new Error("Failed to fetch group info");
+                    }
+
+                    const info = groupInfo[0];
+
+                    // Update the group object with only what we need
+                    group.staticTokenAddress = info.demurragedERC20;
+                    group.demurragedTokenAddress = info.staticERC20;
+                    group.baseMintHandler = info.baseMintHandler;
+                    selectedGroup = group;
+
+                    // Update UI to show selected group
+                    selectedGroupInfo.innerHTML = `
+                        <div class="token-icon"><i class="fas fa-users"></i></div>
+                        <div class="token-details">
+                            <div class="token-name">${group.name}</div>
+                            <div class="address-container">
+                                <span class="token-address">${formatAddress(group.address)}</span>
+                                <button class="copy-btn" title="Copy Address" aria-label="Copy group address to clipboard" onclick="copyToClipboard('${group.address}')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Update group info in other steps
+                    groupInfoStep2.innerHTML = selectedGroupInfo.innerHTML;
+                    groupInfoStep3.innerHTML = selectedGroupInfo.innerHTML;
+                    groupInfoResults.innerHTML = selectedGroupInfo.innerHTML;
+
+                    // Enable next button
+                    nextToStep2.disabled = false;
+
+                    // Setup Metri link
+                    openMetriBtn.onclick = () => {
+                        window.open(
+                            `https://app.metri.xyz/transfer/${group.baseMintHandler}/crc`,
+                            "_blank",
+                        );
+                    };
+
+                    // Setup CowSwap buy link (Metri disabled for now)
+                    buyCowswapBtn.onclick = () => {
+                        window.open(
+                            `https://swap.cow.fi/#/100/swap/WXDAI/${group.staticTokenAddress}`,
+                            "_blank",
+                        );
+                    };
+
+                    // Metri buy button is disabled in HTML
+                } catch (error) {
+                    console.error("Error selecting group:", error);
+                    selectedGroupInfo.innerHTML = `
+                        <div class="token-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="token-details">
+                            <div class="token-name">Error loading group details</div>
+                            <div class="token-address">${error.message}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // Setup AMM mode toggle
+            function setupAmmModeToggle() {
+                useAmmSwitch.addEventListener("change", () => {
+                    isAmmMode = useAmmSwitch.checked;
+                    ammInfoBox.classList.toggle("hidden", !isAmmMode);
+                });
+            }
+
+            // Setup edit target buttons
+            function setupEditTargetButtons() {
+                // Edit from step 3
+                editTargetBtn.addEventListener("click", () => {
+                    step3Card.classList.add("hidden");
+                    step2Card.classList.remove("hidden");
+                });
+
+                // Edit from results
+                editTargetFromResults.addEventListener("click", () => {
+                    resultsCard.classList.add("hidden");
+                    step2Card.classList.remove("hidden");
+                });
+            }
+
+            // Update target amount displays
+            function updateTargetDisplays() {
+                const parsedAmount = parseAmountInput(targetAmount.value);
+                const formattedAmount = parseFloat(parsedAmount).toLocaleString(
+                    undefined,
+                    {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                    },
+                );
+
+                const unitLabel = isAmmMode ? "static CRC" : "CRC";
+                targetDisplayStep3.textContent = `${formattedAmount} ${unitLabel}`;
+                targetDisplayResults.textContent = `${formattedAmount} ${unitLabel}`;
+            }
+
+            // Setup navigation between steps
+            function setupNavigation() {
+                // Step 1 to Step 2
+                nextToStep2.addEventListener("click", () => {
+                    step1Card.classList.add("hidden");
+                    step2Card.classList.remove("hidden");
+                });
+
+                // Step 2 back to Step 1
+                backToStep1.addEventListener("click", () => {
+                    step2Card.classList.add("hidden");
+                    step1Card.classList.remove("hidden");
+                });
+
+                // Step 2 to Step 3
+                nextToStep3.addEventListener("click", () => {
+                    if (!targetAmount.value.trim()) {
+                        alert("Please enter a valid target amount");
+                        return;
+                    }
+
+                    try {
+                        // Parse the input to make sure it's valid
+                        const parsedAmount = parseAmountInput(
+                            targetAmount.value,
+                        );
+                        if (
+                            isNaN(parsedAmount) ||
+                            parseFloat(parsedAmount) <= 0
+                        ) {
+                            throw new Error("Invalid amount");
+                        }
+
+                        // Update target displays
+                        updateTargetDisplays();
+
+                        step2Card.classList.add("hidden");
+                        step3Card.classList.remove("hidden");
+                    } catch (error) {
+                        alert("Please enter a valid positive number");
+                    }
+                });
+
+                // Step 3 back to Step 2
+                backToStep2.addEventListener("click", () => {
+                    step3Card.classList.add("hidden");
+                    step2Card.classList.remove("hidden");
+                });
+
+                // Calculate and show results
+                calculateNeeded.addEventListener("click", async () => {
+                    if (!currentLimit.value.trim()) {
+                        alert("Please enter your current limit");
+                        return;
+                    }
+
+                    calculateNeeded.innerHTML =
+                        'Calculating... <div class="loader"></div>';
+                    calculateNeeded.disabled = true;
+
+                    try {
+                        await calculateTokensNeeded();
+                        step3Card.classList.add("hidden");
+                        resultsCard.classList.remove("hidden");
+                    } catch (error) {
+                        console.error("Calculation error:", error);
+                        alert(
+                            "Error calculating tokens needed: " + error.message,
+                        );
+                    } finally {
+                        calculateNeeded.innerHTML = "Calculate Tokens Needed";
+                        calculateNeeded.disabled = false;
+                    }
+                });
+
+                // Start over
+                startOver.addEventListener("click", () => {
+                    resultsCard.classList.add("hidden");
+                    step1Card.classList.remove("hidden");
+                    // Clear inputs
+                    targetAmount.value = "";
+                    currentLimit.value = "";
+                    useAmmSwitch.checked = false;
+                    ammInfoBox.classList.add("hidden");
+                    isAmmMode = false;
+                });
+            }
+
+            // Calculate tokens needed
+            async function calculateTokensNeeded() {
+                if (
+                    !selectedGroup ||
+                    !targetAmount.value ||
+                    !currentLimit.value
+                ) {
+                    throw new Error("Missing required information");
+                }
+
+                // Get the token contract
+                const tokenContract = new ethers.Contract(
+                    selectedGroup.demurragedTokenAddress,
+                    tokenAbi,
+                    provider,
+                );
+
+                // Get current day
+                const currentTimestamp = Math.floor(Date.now() / 1000);
+                const currentDay = await tokenContract.day(currentTimestamp);
+                console.log("Current day:", currentDay.toString());
+
+                // Parse input values
+                const parsedTarget = parseAmountInput(targetAmount.value);
+                const parsedLimit = parseAmountInput(currentLimit.value);
+
+                const targetAmountValue = ethers.utils.parseEther(parsedTarget);
+                const currentLimitValue = ethers.utils.parseEther(parsedLimit);
+
+                let targetStatic, targetDemurraged, currentLimitStatic;
+
+                // Convert values based on input mode
+                if (isAmmMode) {
+                    // Target is in static/AMM, need to convert to demurraged
+                    targetStatic = targetAmountValue;
+                    targetDemurraged =
+                        await tokenContract.convertInflationaryToDemurrageValue(
+                            targetAmountValue,
+                            currentDay,
+                        );
+                } else {
+                    // Target is in demurraged, need to convert to static
+                    targetDemurraged = targetAmountValue;
+                    targetStatic =
+                        await tokenContract.convertDemurrageToInflationaryValue(
+                            targetAmountValue,
+                            currentDay,
+                        );
+                }
+
+                // Current limit is in demurraged, convert to static
+                currentLimitStatic =
+                    await tokenContract.convertDemurrageToInflationaryValue(
+                        currentLimitValue,
+                        currentDay,
+                    );
+
+                // Calculate how many more tokens are needed
+                const neededStatic = targetStatic.gt(currentLimitStatic)
+                    ? targetStatic.sub(currentLimitStatic)
+                    : ethers.BigNumber.from(0);
+
+                const neededDemurraged = targetDemurraged.gt(currentLimitValue)
+                    ? targetDemurraged.sub(currentLimitValue)
+                    : ethers.BigNumber.from(0);
+
+                // Determine if we have sufficient limit or need to purchase
+                const hasSufficientLimit =
+                    targetDemurraged.lte(currentLimitValue);
+
+                // Update the results container based on scenario
+                updateResultsView(hasSufficientLimit, {
+                    targetDemurraged,
+                    currentLimitValue,
+                    neededDemurraged,
+                    neededStatic,
+                });
+
+                // Update target displays
+                updateTargetDisplays();
+
+                return {
+                    neededStatic,
+                    neededDemurraged,
+                    hasSufficientLimit,
+                };
+            }
+
+            // Helper function to copy to clipboard
+            window.copyToClipboard = function (text) {
+                navigator.clipboard
+                    .writeText(text)
+                    .then(() => {
+                        // Find and update the clicked button
+                        const buttons = document.querySelectorAll(".copy-btn");
+                        buttons.forEach((btn) => {
+                            if (
+                                btn.getAttribute("onclick") ===
+                                `copyToClipboard('${text}')`
+                            ) {
+                                const icon = btn.querySelector("i");
+                                icon.className = "fas fa-check";
+                                setTimeout(() => {
+                                    icon.className = "fas fa-copy";
+                                }, 1500);
+                            }
+                        });
+                    })
+                    .catch((err) => {
+                        console.error("Error copying text: ", err);
+                    });
+            };
+
+            // Initialize the page on load
+            document.addEventListener("DOMContentLoaded", initPage);
+        </script>
+    </body>
+</html>

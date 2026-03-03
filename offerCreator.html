@@ -1,0 +1,1929 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Offer Creator - Circles Tools</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            body {
+                margin: 0;
+                font-family: "Inter", Helvetica, Arial, sans-serif;
+                background: #ffffff;
+                color: #333;
+                line-height: 1.3;
+            }
+            header {
+                background: #5c49e4;
+                color: #fff;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.5rem;
+            }
+            p {
+                margin: 0.5rem 0 0;
+                font-weight: 400;
+            }
+            .container {
+                max-width: 800px;
+                margin: 40px auto;
+                padding: 0 20px;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 5px;
+                font-weight: 600;
+            }
+            input,
+            select {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-family: inherit;
+                box-sizing: border-box;
+            }
+            button {
+                background: #5c49e4;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: 600;
+                margin-right: 10px;
+                margin-bottom: 10px;
+            }
+            button:hover {
+                background: #4a3bc4;
+            }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            .status {
+                margin-top: 20px;
+                padding: 10px;
+                border-radius: 4px;
+                display: none;
+            }
+            .status.success {
+                background: #e6ffe6;
+                color: #006600;
+                display: block;
+            }
+            .status.error {
+                background: #ffe6e6;
+                color: #cc0000;
+                display: block;
+            }
+            .status.info {
+                background: #e6f3ff;
+                color: #0066cc;
+                display: block;
+            }
+            .connection-status {
+                margin: 20px 0;
+                padding: 10px;
+                border-radius: 4px;
+                background: #f0f0f0;
+            }
+            .connection-status.connected {
+                background: #e6ffe6;
+                color: #006600;
+            }
+            .connection-status.disconnected {
+                background: #ffe6e6;
+                color: #cc0000;
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+            .stat-card {
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 8px;
+                border-left: 4px solid #5c49e4;
+            }
+            .stat-label {
+                font-weight: 600;
+                margin-bottom: 5px;
+                color: #666;
+                font-size: 0.9rem;
+            }
+            .stat-value {
+                font-size: 1.2rem;
+                font-weight: 600;
+            }
+            .wizard-step {
+                background: #f8f9fa;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            .wizard-step h3 {
+                margin-top: 0;
+                color: #5c49e4;
+            }
+            .wizard-step.disabled {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+            .note {
+                background: #fff3cd;
+                border: 1px solid #ffeaa7;
+                color: #856404;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 15px;
+                font-size: 0.9rem;
+            }
+            .loading {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border: 2px solid #f3f3f3;
+                border-radius: 50%;
+                border-top: 2px solid #5c49e4;
+                animation: spin 1s linear infinite;
+                vertical-align: middle;
+                margin-left: 10px;
+            }
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Offer Creator</h1>
+            <p>Create new offers for the Circles ecosystem</p>
+        </header>
+
+        <div class="container">
+            <div id="connectionStatus" class="connection-status disconnected">
+                Not connected to MetaMask
+            </div>
+
+            <!-- Current Offer Stats -->
+            <div id="statsSection">
+                <h2>Current Offer Status</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <!-- Stats will be populated here -->
+                </div>
+            </div>
+
+            <!-- Admin Check -->
+            <div id="adminCheckSection" class="wizard-step disabled">
+                <h3>Step 1: Admin Verification</h3>
+                <p>
+                    Verifying that you are the admin of this offer contract...
+                </p>
+                <div id="adminStatus"></div>
+            </div>
+
+            <!-- Next Offer Check -->
+            <div id="nextOfferCheckSection" class="wizard-step disabled">
+                <h3>Step 2: Next Offer Status</h3>
+                <div id="nextOfferStatus"></div>
+            </div>
+
+            <!-- Create Offer Form -->
+            <div id="createOfferSection" class="wizard-step disabled">
+                <h3>Step 3: Create New Offer</h3>
+                <form id="createOfferForm">
+                    <div class="form-group">
+                        <label for="tokenPrice"
+                            >Token Price (CRC per 1 GNO):</label
+                        >
+                        <div class="note">
+                            This is the discounted price. Enter the amount of
+                            CRC (in 18 decimals) that buys 1 GNO.
+                            <br /><br />
+                            <strong>Helpful Tools:</strong><br />
+                            •
+                            <a
+                                href="https://swap.cow.fi/#/100/swap/0x7147A7405fCFe5CFa30c6d5363f9f357a317d082/GNO"
+                                target="_blank"
+                                >Check CRC/GNO price on CowSwap</a
+                            ><br />
+                            •
+                            <a
+                                href="https://aboutcircles.github.io/CirclesTools/crcConverter.html"
+                                target="_blank"
+                                >CRC Converter</a
+                            >
+                            - Convert between CRC formats<br />
+                            <br />
+                            <strong>Price Calculator:</strong>
+                        </div>
+
+                        <div
+                            style="
+                                background: #f8f9fa;
+                                padding: 15px;
+                                border-radius: 8px;
+                                margin: 10px 0;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: grid;
+                                    grid-template-columns: 1fr 1fr 1fr;
+                                    gap: 10px;
+                                    align-items: end;
+                                "
+                            >
+                                <div>
+                                    <label
+                                        for="marketPrice"
+                                        style="font-size: 0.9em"
+                                        >Market Price (CRC per GNO):</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="marketPrice"
+                                        placeholder="e.g., 100"
+                                        step="0.01"
+                                        style="width: 100%"
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        for="discountPercent"
+                                        style="font-size: 0.9em"
+                                        >Discount (%):</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="discountPercent"
+                                        placeholder="e.g., 20"
+                                        step="0.1"
+                                        style="width: 100%"
+                                    />
+                                </div>
+                                <div>
+                                    <button
+                                        type="button"
+                                        id="calculatePrice"
+                                        style="margin: 0; width: 100%"
+                                    >
+                                        Calculate
+                                    </button>
+                                </div>
+                            </div>
+                            <div
+                                id="calculatedPrice"
+                                style="
+                                    margin-top: 10px;
+                                    font-weight: 600;
+                                    color: #5c49e4;
+                                "
+                            ></div>
+                        </div>
+
+                        <input
+                            type="text"
+                            id="tokenPrice"
+                            placeholder="e.g., 1000000000000000000 (for 1 CRC per GNO)"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="offerLimit">Offer Limit (CRC):</label>
+                        <input
+                            type="text"
+                            id="offerLimit"
+                            value="250000000000000000000"
+                            required
+                        />
+                        <small>Default: 250 CRC</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Accepted CRC Tokens:</label>
+                        <div class="note">
+                            The list of accepted CRC tokens will be loaded
+                            automatically from acceptedCRCs.txt
+                        </div>
+                        <div id="acceptedCRCsStatus">
+                            Loading accepted CRCs...
+                        </div>
+                    </div>
+
+                    <button type="submit" id="createOfferBtn" disabled>
+                        Create Offer
+                    </button>
+                </form>
+            </div>
+
+            <!-- Set Account Weights -->
+            <div id="setWeightsSection" class="wizard-step disabled">
+                <h3>Step 4: Set Account Weights</h3>
+                <div class="note">
+                    Weight calculation: weight = (desired_limit_CRC / 250_CRC) ×
+                    10000<br />
+                    Examples: For 250 CRC limit → weight 10000, For 70 CRC limit
+                    → weight 2800
+                </div>
+
+                <div class="form-group">
+                    <label for="batchSize">Batch Size:</label>
+                    <input
+                        type="number"
+                        id="batchSize"
+                        value="180"
+                        min="1"
+                        max="500"
+                    />
+                    <small
+                        >Number of addresses to process in each transaction
+                        (default: 180)</small
+                    >
+                </div>
+
+                <div
+                    style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 20px;
+                        margin: 20px 0;
+                    "
+                >
+                    <div
+                        style="
+                            border: 1px solid #ddd;
+                            padding: 15px;
+                            border-radius: 8px;
+                        "
+                    >
+                        <h4>Backers</h4>
+                        <div class="form-group">
+                            <label for="backersWeight"
+                                >Weight for Backers:</label
+                            >
+                            <input
+                                type="number"
+                                id="backersWeight"
+                                value="28000"
+                                step="1"
+                            />
+                        </div>
+                        <div id="backersStatus">Not loaded</div>
+                        <button type="button" id="loadBackersBtn">
+                            Load Backers
+                        </button>
+                        <button
+                            type="button"
+                            id="setBackersWeightsBtn"
+                            disabled
+                        >
+                            Set Backers Weights
+                        </button>
+                    </div>
+
+                    <div
+                        style="
+                            border: 1px solid #ddd;
+                            padding: 15px;
+                            border-radius: 8px;
+                        "
+                    >
+                        <h4>Extended Backers</h4>
+                        <div class="form-group">
+                            <label for="extendedBackersWeight"
+                                >Weight for Extended Backers:</label
+                            >
+                            <input
+                                type="number"
+                                id="extendedBackersWeight"
+                                value="10000"
+                                step="1"
+                            />
+                        </div>
+                        <div id="extendedBackersStatus">Not loaded</div>
+                        <button type="button" id="loadExtendedBackersBtn">
+                            Load Extended Backers
+                        </button>
+                        <button
+                            type="button"
+                            id="setExtendedBackersWeightsBtn"
+                            disabled
+                        >
+                            Set Extended Backers Weights
+                        </button>
+                    </div>
+                </div>
+
+                <div id="weightsProgress" class="status"></div>
+                <div id="batchSelector" style="display: none">
+                    <h4>Select Batches to Process:</h4>
+                    <div id="batchList"></div>
+                    <div style="margin-top: 15px">
+                        <button type="button" id="selectAllBatches">
+                            Select All
+                        </button>
+                        <button type="button" id="deselectAllBatches">
+                            Deselect All
+                        </button>
+                        <button
+                            type="button"
+                            id="processSelectedBatches"
+                            disabled
+                        >
+                            Process Selected Batches
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Token Deposit Section -->
+            <div id="depositSection" class="wizard-step disabled">
+                <h3>Step 5: Token Deposit</h3>
+                <div class="note">
+                    After setting account weights, you need to deposit the
+                    required GNO tokens for the offer.
+                </div>
+
+                <div id="tokenRequirementStatus">
+                    Loading token requirements...
+                </div>
+
+                <div id="depositControls" style="display: none">
+                    <button type="button" id="depositTokensBtn">
+                        Deposit Required Tokens
+                    </button>
+                </div>
+
+                <div id="depositStatus" class="status"></div>
+            </div>
+
+            <div id="status" class="status"></div>
+        </div>
+
+        <!-- Offer Management - Always Available -->
+        <div class="container" style="margin-top: 0; padding-top: 0">
+            <div class="wizard-step" style="border-color: #5c49e4">
+                <h3 style="color: #5c49e4">Offer Management</h3>
+                <div class="note">
+                    These functions can be used anytime to manage offers.
+                </div>
+
+                <div
+                    style="
+                        display: grid;
+                        grid-template-columns: repeat(
+                            auto-fit,
+                            minmax(200px, 1fr)
+                        );
+                        gap: 15px;
+                        margin: 20px 0;
+                    "
+                >
+                    <div>
+                        <button type="button" id="syncTrustBtn">
+                            Sync Offer Trust
+                        </button>
+                        <p
+                            style="
+                                font-size: 0.9em;
+                                color: #666;
+                                margin-top: 5px;
+                            "
+                        >
+                            Synchronize trust relationships for the current
+                            offer
+                        </p>
+                    </div>
+
+                    <div>
+                        <label for="withdrawOfferId"
+                            >Offer ID to withdraw:</label
+                        >
+                        <input
+                            type="number"
+                            id="withdrawOfferId"
+                            placeholder="Enter offer ID"
+                            min="0"
+                            style="margin-bottom: 10px"
+                        />
+                        <button type="button" id="withdrawTokensBtn">
+                            Withdraw Unclaimed Tokens
+                        </button>
+                        <p
+                            style="
+                                font-size: 0.9em;
+                                color: #666;
+                                margin-top: 5px;
+                            "
+                        >
+                            Withdraw unclaimed tokens from a past offer
+                        </p>
+                    </div>
+                </div>
+
+                <div id="managementStatus" class="status"></div>
+            </div>
+        </div>
+
+        <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+        <script>
+            // Contract configuration
+            const OFFER_CONTRACT_ADDRESS =
+                "0xB3129372E52B910B6994EAEF77BbC1892EA48779";
+
+            // Contract ABI
+            const OFFER_CONTRACT_ABI = [
+                {
+                    inputs: [
+                        {
+                            internalType: "address",
+                            name: "admin",
+                            type: "address",
+                        },
+                        {
+                            internalType: "address",
+                            name: "offerToken",
+                            type: "address",
+                        },
+                        {
+                            internalType: "uint256",
+                            name: "offersStart",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint256",
+                            name: "offerDuration",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "bool",
+                            name: "enableSoftLock",
+                            type: "bool",
+                        },
+                        {
+                            internalType: "string",
+                            name: "offerName",
+                            type: "string",
+                        },
+                        {
+                            internalType: "string",
+                            name: "orgName",
+                            type: "string",
+                        },
+                    ],
+                    stateMutability: "nonpayable",
+                    type: "constructor",
+                },
+                {
+                    inputs: [],
+                    name: "NextOfferTokensAreAlreadyDeposited",
+                    type: "error",
+                },
+                { inputs: [], name: "OnlyAdmin", type: "error" },
+                { inputs: [], name: "OnlyHub", type: "error" },
+                { inputs: [], name: "SoftLock", type: "error" },
+                {
+                    anonymous: false,
+                    inputs: [
+                        {
+                            indexed: true,
+                            internalType: "address",
+                            name: "admin",
+                            type: "address",
+                        },
+                        {
+                            indexed: true,
+                            internalType: "address",
+                            name: "accountWeightProvider",
+                            type: "address",
+                        },
+                        {
+                            indexed: true,
+                            internalType: "address",
+                            name: "offerToken",
+                            type: "address",
+                        },
+                        {
+                            indexed: false,
+                            internalType: "uint256",
+                            name: "offersStart",
+                            type: "uint256",
+                        },
+                        {
+                            indexed: false,
+                            internalType: "uint256",
+                            name: "offerDuration",
+                            type: "uint256",
+                        },
+                        {
+                            indexed: false,
+                            internalType: "bool",
+                            name: "softLockEnabled",
+                            type: "bool",
+                        },
+                    ],
+                    name: "CycleConfiguration",
+                    type: "event",
+                },
+                {
+                    anonymous: false,
+                    inputs: [
+                        {
+                            indexed: true,
+                            internalType: "address",
+                            name: "nextOffer",
+                            type: "address",
+                        },
+                        {
+                            indexed: true,
+                            internalType: "uint256",
+                            name: "tokenPriceInCRC",
+                            type: "uint256",
+                        },
+                        {
+                            indexed: true,
+                            internalType: "uint256",
+                            name: "offerLimitInCRC",
+                            type: "uint256",
+                        },
+                        {
+                            indexed: false,
+                            internalType: "address[]",
+                            name: "acceptedCRC",
+                            type: "address[]",
+                        },
+                    ],
+                    name: "NextOfferCreated",
+                    type: "event",
+                },
+                {
+                    inputs: [],
+                    name: "ADMIN",
+                    outputs: [
+                        { internalType: "address", name: "", type: "address" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "address[]",
+                            name: "accounts",
+                            type: "address[]",
+                        },
+                        {
+                            internalType: "uint256[]",
+                            name: "weights",
+                            type: "uint256[]",
+                        },
+                    ],
+                    name: "setNextOfferAccountWeights",
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "OFFERS_START",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "OFFER_DURATION",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "tokenPriceInCRC",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint256",
+                            name: "offerLimitInCRC",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "address[]",
+                            name: "_acceptedCRC",
+                            type: "address[]",
+                        },
+                    ],
+                    name: "createNextOffer",
+                    outputs: [
+                        {
+                            internalType: "address",
+                            name: "nextOffer",
+                            type: "address",
+                        },
+                    ],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "currentOffer",
+                    outputs: [
+                        {
+                            internalType: "contract IERC20TokenOffer",
+                            name: "offer",
+                            type: "address",
+                        },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "currentOfferId",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "getClaimantCount",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "getTotalEligibleAccounts",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "getNextOfferAndRequiredTokenAmount",
+                    outputs: [
+                        {
+                            internalType: "contract IERC20TokenOffer",
+                            name: "nextOffer",
+                            type: "address",
+                        },
+                        {
+                            internalType: "uint256",
+                            name: "requiredTokenAmount",
+                            type: "uint256",
+                        },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "depositNextOfferTokens",
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "offerId",
+                            type: "uint256",
+                        },
+                    ],
+                    name: "withdrawUnclaimedOfferTokens",
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "syncOfferTrust",
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                    type: "function",
+                },
+                {
+                    inputs: [],
+                    name: "isOfferAvailable",
+                    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    name: "offers",
+                    outputs: [
+                        {
+                            internalType: "contract IERC20TokenOffer",
+                            name: "",
+                            type: "address",
+                        },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+            ];
+
+            let provider;
+            let signer;
+            let contract;
+            let acceptedCRCs = [];
+            let backersAddresses = [];
+            let extendedBackersAddresses = [];
+
+            // Wait for ethers to be available
+            window.addEventListener("load", async function () {
+                if (typeof ethers === "undefined") {
+                    console.error("ethers.js failed to load");
+                    return;
+                }
+
+                await checkConnection();
+                await loadAcceptedCRCs();
+                await loadOfferStats();
+
+                // Handle account changes
+                if (window.ethereum) {
+                    window.ethereum.on("accountsChanged", function (accounts) {
+                        checkConnection();
+                    });
+                }
+            });
+
+            async function checkConnection() {
+                const connectionStatus =
+                    document.getElementById("connectionStatus");
+
+                if (typeof window.ethereum === "undefined") {
+                    connectionStatus.textContent = "MetaMask is not installed";
+                    connectionStatus.className =
+                        "connection-status disconnected";
+                    return false;
+                }
+
+                try {
+                    const accounts = await window.ethereum.request({
+                        method: "eth_requestAccounts",
+                    });
+                    const account = accounts[0];
+                    connectionStatus.textContent = `Connected: ${account}`;
+                    connectionStatus.className = "connection-status connected";
+
+                    // Initialize provider and contract
+                    provider = new ethers.providers.Web3Provider(
+                        window.ethereum,
+                    );
+                    signer = provider.getSigner();
+                    contract = new ethers.Contract(
+                        OFFER_CONTRACT_ADDRESS,
+                        OFFER_CONTRACT_ABI,
+                        provider,
+                    );
+
+                    // Check admin status
+                    await checkAdminStatus();
+
+                    return true;
+                } catch (error) {
+                    connectionStatus.textContent =
+                        "Failed to connect to MetaMask";
+                    connectionStatus.className =
+                        "connection-status disconnected";
+                    return false;
+                }
+            }
+
+            async function loadAcceptedCRCs() {
+                const statusElement =
+                    document.getElementById("acceptedCRCsStatus");
+
+                try {
+                    const response = await fetch("acceptedCRCs.txt");
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to load acceptedCRCs.txt: ${response.status}`,
+                        );
+                    }
+
+                    const text = await response.text();
+                    // Parse the array-like string format
+                    const addressesMatch = text.match(/\[(.*)\]/s);
+                    if (addressesMatch) {
+                        const addressesString = addressesMatch[1];
+                        acceptedCRCs = addressesString
+                            .split(",")
+                            .map((addr) => addr.trim().replace(/['"]/g, ""))
+                            .filter((addr) => addr.startsWith("0x"));
+                    }
+
+                    statusElement.textContent = `Loaded ${acceptedCRCs.length} accepted CRC tokens`;
+                    statusElement.className = "status success";
+
+                    // Enable the create offer button if other conditions are met
+                    updateCreateOfferButton();
+                } catch (error) {
+                    console.error("Error loading accepted CRCs:", error);
+                    statusElement.textContent = `Error loading accepted CRCs: ${error.message}`;
+                    statusElement.className = "status error";
+                }
+            }
+
+            async function loadOfferStats() {
+                const statsGrid = document.getElementById("statsGrid");
+                statsGrid.innerHTML = "<div>Loading stats...</div>";
+
+                try {
+                    if (!contract) {
+                        provider = new ethers.providers.JsonRpcProvider(
+                            "https://rpc.gnosischain.com",
+                        );
+                        contract = new ethers.Contract(
+                            OFFER_CONTRACT_ADDRESS,
+                            OFFER_CONTRACT_ABI,
+                            provider,
+                        );
+                    }
+
+                    // Get basic stats
+                    const [
+                        offersStart,
+                        offerDuration,
+                        totalEligibleAccounts,
+                        claimantCount,
+                        isOfferAvailable,
+                        currentOffer,
+                        currentOfferId,
+                    ] = await Promise.all([
+                        contract.OFFERS_START(),
+                        contract.OFFER_DURATION(),
+                        contract.getTotalEligibleAccounts(),
+                        contract.getClaimantCount(),
+                        contract.isOfferAvailable(),
+                        contract.currentOffer(),
+                        contract.currentOfferId(),
+                    ]);
+
+                    // Calculate offer times
+                    const startTime = new Date(offersStart.toNumber() * 1000);
+                    const endTime = new Date(
+                        (offersStart.toNumber() + offerDuration.toNumber()) *
+                            1000,
+                    );
+
+                    // Create stats cards
+                    const stats = [
+                        {
+                            label: "Current Offer Start",
+                            value: startTime.toLocaleString(),
+                        },
+                        {
+                            label: "Current Offer End",
+                            value: endTime.toLocaleString(),
+                        },
+                        {
+                            label: "Total Eligible Accounts",
+                            value: totalEligibleAccounts.toString(),
+                        },
+                        {
+                            label: "Claimant Count",
+                            value: claimantCount.toString(),
+                        },
+                        {
+                            label: "Offer Available",
+                            value: isOfferAvailable ? "Yes" : "No",
+                        },
+                        {
+                            label: "Current Offer Address",
+                            value:
+                                currentOffer === ethers.constants.AddressZero
+                                    ? "None"
+                                    : currentOffer,
+                        },
+                        {
+                            label: "Current Offer ID",
+                            value: currentOfferId.toString(),
+                        },
+                    ];
+
+                    statsGrid.innerHTML = stats
+                        .map(
+                            (stat) => `
+                        <div class="stat-card">
+                            <div class="stat-label">${stat.label}</div>
+                            <div class="stat-value">${stat.value}</div>
+                        </div>
+                    `,
+                        )
+                        .join("");
+                } catch (error) {
+                    console.error("Error loading offer stats:", error);
+                    statsGrid.innerHTML = `<div class="status error">Error loading stats: ${error.message}</div>`;
+                }
+            }
+
+            async function checkAdminStatus() {
+                const adminCheckSection =
+                    document.getElementById("adminCheckSection");
+                const adminStatus = document.getElementById("adminStatus");
+
+                adminCheckSection.classList.remove("disabled");
+                adminStatus.innerHTML =
+                    'Checking admin status... <div class="loading"></div>';
+
+                try {
+                    if (!contract) return;
+
+                    const adminAddress = await contract.ADMIN();
+                    const connectedAddress = await signer.getAddress();
+
+                    const isAdmin =
+                        adminAddress.toLowerCase() ===
+                        connectedAddress.toLowerCase();
+
+                    if (isAdmin) {
+                        adminStatus.innerHTML = `<div class="status success">✓ You are the admin of this contract</div>`;
+                        // Enable next step
+                        await checkNextOfferStatus();
+                    } else {
+                        adminStatus.innerHTML = `
+                            <div class="status error">✗ You are not the admin of this contract</div>
+                            <p>Admin address: ${adminAddress}</p>
+                            <p>Your address: ${connectedAddress}</p>
+                        `;
+                    }
+                } catch (error) {
+                    console.error("Error checking admin status:", error);
+                    adminStatus.innerHTML = `<div class="status error">Error checking admin status: ${error.message}</div>`;
+                }
+            }
+
+            async function checkNextOfferStatus() {
+                const nextOfferCheckSection = document.getElementById(
+                    "nextOfferCheckSection",
+                );
+                const nextOfferStatus =
+                    document.getElementById("nextOfferStatus");
+
+                nextOfferCheckSection.classList.remove("disabled");
+                nextOfferStatus.innerHTML =
+                    'Checking next offer status... <div class="loading"></div>';
+
+                try {
+                    const currentOfferId = await contract.currentOfferId();
+                    const nextOfferId = currentOfferId.add(1);
+
+                    // Check if next offer exists
+                    const nextOfferAddress = await contract.offers(nextOfferId);
+                    const nextOfferExists =
+                        nextOfferAddress !== ethers.constants.AddressZero;
+
+                    if (nextOfferExists) {
+                        nextOfferStatus.innerHTML = `
+                            <div class="status info">Next offer already exists at address: ${nextOfferAddress}</div>
+                            <p>You can proceed to set account weights for this offer.</p>
+                        `;
+                        // Enable weights setting since offer exists
+                        document
+                            .getElementById("setWeightsSection")
+                            .classList.remove("disabled");
+
+                        // Enable deposit section
+                        document
+                            .getElementById("depositSection")
+                            .classList.remove("disabled");
+
+                        // Load token requirements
+                        await checkTokenRequirements();
+                    } else {
+                        nextOfferStatus.innerHTML = `<div class="status success">No next offer exists. You can create a new one.</div>`;
+                        // Enable create offer form
+                        document
+                            .getElementById("createOfferSection")
+                            .classList.remove("disabled");
+                        updateCreateOfferButton();
+                    }
+                } catch (error) {
+                    console.error("Error checking next offer status:", error);
+                    nextOfferStatus.innerHTML = `<div class="status error">Error checking next offer status: ${error.message}</div>`;
+                }
+            }
+
+            function updateCreateOfferButton() {
+                const createOfferBtn =
+                    document.getElementById("createOfferBtn");
+                const hasAcceptedCRCs = acceptedCRCs.length > 0;
+                const formEnabled = !document
+                    .getElementById("createOfferSection")
+                    .classList.contains("disabled");
+
+                createOfferBtn.disabled = !hasAcceptedCRCs || !formEnabled;
+            }
+
+            // Form submission handler
+            document
+                .getElementById("createOfferForm")
+                .addEventListener("submit", async function (e) {
+                    e.preventDefault();
+
+                    const status = document.getElementById("status");
+                    const tokenPrice =
+                        document.getElementById("tokenPrice").value;
+                    const offerLimit =
+                        document.getElementById("offerLimit").value;
+
+                    if (!tokenPrice || !offerLimit) {
+                        status.textContent =
+                            "Please fill in all required fields";
+                        status.className = "status error";
+                        return;
+                    }
+
+                    if (acceptedCRCs.length === 0) {
+                        status.textContent = "Accepted CRCs not loaded yet";
+                        status.className = "status error";
+                        return;
+                    }
+
+                    try {
+                        status.textContent =
+                            "Creating offer... This may take some time if you are using a Safe wallet.";
+                        status.className = "status info";
+
+                        // Convert inputs to proper format
+                        const tokenPriceBN = ethers.BigNumber.from(tokenPrice);
+                        const offerLimitBN = ethers.BigNumber.from(offerLimit);
+
+                        // Create the offer
+                        const contractWithSigner = contract.connect(signer);
+                        const tx = await contractWithSigner.createNextOffer(
+                            tokenPriceBN,
+                            offerLimitBN,
+                            acceptedCRCs,
+                        );
+
+                        status.textContent =
+                            "Transaction sent! Waiting for confirmation...";
+                        status.className = "status info";
+
+                        const receipt = await tx.wait();
+
+                        // Find the NextOfferCreated event
+                        const nextOfferCreatedEvent = receipt.events?.find(
+                            (e) => e.event === "NextOfferCreated",
+                        );
+
+                        if (nextOfferCreatedEvent) {
+                            const nextOfferAddress =
+                                nextOfferCreatedEvent.args.nextOffer;
+                            status.innerHTML = `
+                            <div class="status success">
+                                ✓ Offer created successfully!<br>
+                                Next offer address: ${nextOfferAddress}<br>
+                                Transaction hash: ${receipt.transactionHash}
+                            </div>
+                        `;
+
+                            // Reload stats and check next offer status
+                            await loadOfferStats();
+                            await checkNextOfferStatus();
+
+                            // Enable weights setting
+                            document
+                                .getElementById("setWeightsSection")
+                                .classList.remove("disabled");
+
+                            // Enable deposit section
+                            document
+                                .getElementById("depositSection")
+                                .classList.remove("disabled");
+
+                            // Load token requirements
+                            await checkTokenRequirements();
+                        } else {
+                            status.textContent =
+                                "Transaction successful but no NextOfferCreated event found";
+                            status.className = "status success";
+                        }
+                    } catch (error) {
+                        console.error("Error creating offer:", error);
+                        let errorMessage = error.message;
+
+                        // Handle common errors
+                        if (errorMessage.includes("user rejected")) {
+                            errorMessage = "Transaction was rejected by user";
+                        } else if (errorMessage.includes("OnlyAdmin")) {
+                            errorMessage = "Only the admin can create offers";
+                        } else if (
+                            errorMessage.includes(
+                                "NextOfferTokensAreAlreadyDeposited",
+                            )
+                        ) {
+                            errorMessage =
+                                "Next offer tokens are already deposited";
+                        }
+
+                        status.textContent = `Error creating offer: ${errorMessage}`;
+                        status.className = "status error";
+                    }
+                });
+
+            // Load backers addresses
+            async function loadBackers() {
+                const backersStatus = document.getElementById("backersStatus");
+                const loadBackersBtn =
+                    document.getElementById("loadBackersBtn");
+                const setBackersWeightsBtn = document.getElementById(
+                    "setBackersWeightsBtn",
+                );
+
+                try {
+                    backersStatus.textContent = "Loading...";
+                    loadBackersBtn.disabled = true;
+
+                    const response = await fetch("backers_061125.csv");
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to load backers file: ${response.status}`,
+                        );
+                    }
+
+                    const csvText = await response.text();
+                    const lines = csvText.trim().split("\n");
+                    // Skip header row and filter out empty lines
+                    backersAddresses = lines
+                        .slice(1)
+                        .map((line) => line.trim())
+                        .filter((line) => line && line.startsWith("0x"));
+
+                    backersStatus.textContent = `Loaded ${backersAddresses.length} backer addresses`;
+                    backersStatus.className = "status success";
+                    setBackersWeightsBtn.disabled = false;
+                } catch (error) {
+                    console.error("Error loading backers:", error);
+                    backersStatus.textContent = `Error: ${error.message}`;
+                    backersStatus.className = "status error";
+                } finally {
+                    loadBackersBtn.disabled = false;
+                }
+            }
+
+            // Load extended backers addresses
+            async function loadExtendedBackers() {
+                const extendedBackersStatus = document.getElementById(
+                    "extendedBackersStatus",
+                );
+                const loadExtendedBackersBtn = document.getElementById(
+                    "loadExtendedBackersBtn",
+                );
+                const setExtendedBackersWeightsBtn = document.getElementById(
+                    "setExtendedBackersWeightsBtn",
+                );
+
+                try {
+                    extendedBackersStatus.textContent = "Loading...";
+                    loadExtendedBackersBtn.disabled = true;
+
+                    const response = await fetch("extended_backers_061125.csv");
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to load extended backers file: ${response.status}`,
+                        );
+                    }
+
+                    const csvText = await response.text();
+                    const lines = csvText.trim().split("\n");
+                    // Skip header row and filter out empty lines
+                    extendedBackersAddresses = lines
+                        .slice(1)
+                        .map((line) => line.trim())
+                        .filter((line) => line && line.startsWith("0x"));
+
+                    extendedBackersStatus.textContent = `Loaded ${extendedBackersAddresses.length} extended backer addresses`;
+                    extendedBackersStatus.className = "status success";
+                    setExtendedBackersWeightsBtn.disabled = false;
+                } catch (error) {
+                    console.error("Error loading extended backers:", error);
+                    extendedBackersStatus.textContent = `Error: ${error.message}`;
+                    extendedBackersStatus.className = "status error";
+                } finally {
+                    loadExtendedBackersBtn.disabled = false;
+                }
+            }
+
+            // Global variables for batch processing
+            let currentBatchData = {
+                addresses: [],
+                weight: 0,
+                typeName: "",
+                batches: [],
+                selectedBatches: new Set(),
+            };
+
+            // Prepare batches for selection
+            function prepareBatchSelection(addresses, weight, typeName) {
+                const batchSize = parseInt(
+                    document.getElementById("batchSize").value,
+                );
+                const batches = [];
+
+                for (let i = 0; i < addresses.length; i += batchSize) {
+                    const batch = addresses.slice(i, i + batchSize);
+                    batches.push({
+                        id: Math.floor(i / batchSize) + 1,
+                        startIndex: i,
+                        endIndex: Math.min(i + batchSize, addresses.length),
+                        addresses: batch,
+                        count: batch.length,
+                        status: "pending", // pending, processing, completed, failed
+                    });
+                }
+
+                currentBatchData = {
+                    addresses,
+                    weight,
+                    typeName,
+                    batches,
+                    selectedBatches: new Set(),
+                };
+
+                displayBatchSelector(batches);
+            }
+
+            // Display batch selector UI
+            function displayBatchSelector(batches) {
+                const batchSelector = document.getElementById("batchSelector");
+                const batchList = document.getElementById("batchList");
+
+                batchList.innerHTML = batches
+                    .map(
+                        (batch) => `
+                    <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 4px;" id="batch-${batch.id}">
+                        <input type="checkbox" id="checkbox-${batch.id}" value="${batch.id}" style="margin-right: 10px;" onchange="toggleBatchSelection(${batch.id})">
+                        <label for="checkbox-${batch.id}" style="flex: 1; margin: 0;">
+                            <strong>Batch ${batch.id}</strong>: Addresses ${batch.startIndex + 1}-${batch.endIndex} (${batch.count} addresses)
+                        </label>
+                        <span id="status-${batch.id}" class="batch-status">Pending</span>
+                    </div>
+                `,
+                    )
+                    .join("");
+
+                batchSelector.style.display = "block";
+                updateProcessButton();
+            }
+
+            // Toggle batch selection
+            function toggleBatchSelection(batchId) {
+                const checkbox = document.getElementById(`checkbox-${batchId}`);
+                if (checkbox.checked) {
+                    currentBatchData.selectedBatches.add(batchId);
+                } else {
+                    currentBatchData.selectedBatches.delete(batchId);
+                }
+                updateProcessButton();
+            }
+
+            // Update process button state
+            function updateProcessButton() {
+                const processBtn = document.getElementById(
+                    "processSelectedBatches",
+                );
+                processBtn.disabled =
+                    currentBatchData.selectedBatches.size === 0;
+                processBtn.textContent = `Process Selected Batches (${currentBatchData.selectedBatches.size})`;
+            }
+
+            // Select/deselect all batches
+            function selectAllBatches() {
+                currentBatchData.batches.forEach((batch) => {
+                    const checkbox = document.getElementById(
+                        `checkbox-${batch.id}`,
+                    );
+                    if (batch.status === "pending") {
+                        checkbox.checked = true;
+                        currentBatchData.selectedBatches.add(batch.id);
+                    }
+                });
+                updateProcessButton();
+            }
+
+            function deselectAllBatches() {
+                currentBatchData.batches.forEach((batch) => {
+                    const checkbox = document.getElementById(
+                        `checkbox-${batch.id}`,
+                    );
+                    checkbox.checked = false;
+                });
+                currentBatchData.selectedBatches.clear();
+                updateProcessButton();
+            }
+
+            // Process selected batches
+            async function processSelectedBatches() {
+                const progressElement =
+                    document.getElementById("weightsProgress");
+                const selectedBatches = Array.from(
+                    currentBatchData.selectedBatches,
+                );
+
+                if (selectedBatches.length === 0) {
+                    progressElement.textContent = "No batches selected";
+                    progressElement.className = "status error";
+                    return;
+                }
+
+                try {
+                    const contractWithSigner = contract.connect(signer);
+                    let successfulBatches = 0;
+                    let totalSelected = selectedBatches.length;
+
+                    progressElement.innerHTML = `Processing ${totalSelected} selected batches for ${currentBatchData.typeName} addresses...`;
+                    progressElement.className = "status info";
+
+                    for (const batchId of selectedBatches) {
+                        const batch = currentBatchData.batches.find(
+                            (b) => b.id === batchId,
+                        );
+                        if (!batch || batch.status !== "pending") continue;
+
+                        try {
+                            // Update UI
+                            const statusElement = document.getElementById(
+                                `status-${batchId}`,
+                            );
+                            const checkboxElement = document.getElementById(
+                                `checkbox-${batchId}`,
+                            );
+
+                            statusElement.innerHTML =
+                                'Processing... <div class="loading" style="display: inline-block; width: 12px; height: 12px;"></div>';
+                            statusElement.className = "batch-status processing";
+                            checkboxElement.disabled = true;
+                            batch.status = "processing";
+
+                            progressElement.innerHTML = `Processing batch ${batchId}/${currentBatchData.batches.length} (${batch.count} addresses)... <div class="loading"></div>`;
+
+                            const weights = new Array(
+                                batch.addresses.length,
+                            ).fill(currentBatchData.weight);
+                            const tx =
+                                await contractWithSigner.setNextOfferAccountWeights(
+                                    batch.addresses,
+                                    weights,
+                                );
+
+                            progressElement.innerHTML = `Batch ${batchId} sent, waiting for confirmation... <div class="loading"></div>`;
+
+                            await tx.wait();
+
+                            // Mark as completed
+                            statusElement.textContent = "✓ Completed";
+                            statusElement.className = "batch-status completed";
+                            batch.status = "completed";
+                            successfulBatches++;
+                        } catch (batchError) {
+                            console.error(
+                                `Error in batch ${batchId}:`,
+                                batchError,
+                            );
+
+                            const statusElement = document.getElementById(
+                                `status-${batchId}`,
+                            );
+                            const checkboxElement = document.getElementById(
+                                `checkbox-${batchId}`,
+                            );
+
+                            statusElement.textContent = "❌ Failed";
+                            statusElement.className = "batch-status failed";
+                            checkboxElement.disabled = false;
+                            batch.status = "failed";
+
+                            progressElement.innerHTML = `❌ Error in batch ${batchId}: ${batchError.message}<br>You can retry failed batches by selecting them again.`;
+                            progressElement.className = "status error";
+                        }
+                    }
+
+                    if (successfulBatches === totalSelected) {
+                        progressElement.innerHTML = `✓ Successfully processed all ${successfulBatches} selected batches for ${currentBatchData.typeName} addresses!`;
+                        progressElement.className = "status success";
+                    } else {
+                        progressElement.innerHTML = `Completed ${successfulBatches}/${totalSelected} selected batches. You can retry failed batches.`;
+                        progressElement.className = "status info";
+                    }
+
+                    // Update selected batches (remove completed ones)
+                    currentBatchData.selectedBatches = new Set(
+                        Array.from(currentBatchData.selectedBatches).filter(
+                            (id) => {
+                                const batch = currentBatchData.batches.find(
+                                    (b) => b.id === id,
+                                );
+                                return batch && batch.status !== "completed";
+                            },
+                        ),
+                    );
+                    updateProcessButton();
+                } catch (error) {
+                    console.error("Error processing selected batches:", error);
+                    progressElement.textContent = `Error processing batches: ${error.message}`;
+                    progressElement.className = "status error";
+                }
+            }
+
+            // Legacy function for backwards compatibility - now shows batch selector
+            async function setAccountWeights(
+                addresses,
+                weight,
+                progressElementId,
+                typeName,
+            ) {
+                const progressElement =
+                    document.getElementById(progressElementId);
+
+                if (!addresses.length) {
+                    progressElement.textContent = "No addresses to process";
+                    progressElement.className = "status error";
+                    return;
+                }
+
+                prepareBatchSelection(addresses, weight, typeName);
+                progressElement.innerHTML = `Ready to process ${addresses.length} ${typeName} addresses. Select batches above to continue.`;
+                progressElement.className = "status info";
+            }
+
+            // Event listeners for buttons
+            document
+                .getElementById("loadBackersBtn")
+                .addEventListener("click", loadBackers);
+            document
+                .getElementById("loadExtendedBackersBtn")
+                .addEventListener("click", loadExtendedBackers);
+
+            document
+                .getElementById("setBackersWeightsBtn")
+                .addEventListener("click", async function () {
+                    const weight = parseInt(
+                        document.getElementById("backersWeight").value,
+                    );
+                    await setAccountWeights(
+                        backersAddresses,
+                        weight,
+                        "weightsProgress",
+                        "backer",
+                    );
+                });
+
+            document
+                .getElementById("setExtendedBackersWeightsBtn")
+                .addEventListener("click", async function () {
+                    const weight = parseInt(
+                        document.getElementById("extendedBackersWeight").value,
+                    );
+                    await setAccountWeights(
+                        extendedBackersAddresses,
+                        weight,
+                        "weightsProgress",
+                        "extended backer",
+                    );
+                });
+
+            // Check token requirements for deposit
+            async function checkTokenRequirements() {
+                const tokenRequirementStatus = document.getElementById(
+                    "tokenRequirementStatus",
+                );
+                const depositControls =
+                    document.getElementById("depositControls");
+
+                try {
+                    tokenRequirementStatus.innerHTML =
+                        'Loading token requirements... <div class="loading"></div>';
+
+                    const result =
+                        await contract.getNextOfferAndRequiredTokenAmount();
+                    const nextOfferAddress = result.nextOffer;
+                    const requiredTokenAmount = result.requiredTokenAmount;
+
+                    if (nextOfferAddress === ethers.constants.AddressZero) {
+                        tokenRequirementStatus.innerHTML =
+                            '<div class="status error">No next offer found</div>';
+                        return;
+                    }
+
+                    const requiredGNO =
+                        ethers.utils.formatEther(requiredTokenAmount);
+
+                    tokenRequirementStatus.innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-label">Next Offer Address</div>
+                            <div class="stat-value" style="font-size: 1rem; word-break: break-all;">${nextOfferAddress}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Required GNO Tokens</div>
+                            <div class="stat-value">${requiredGNO} GNO</div>
+                        </div>
+                    `;
+
+                    depositControls.style.display = "block";
+                } catch (error) {
+                    console.error("Error checking token requirements:", error);
+                    tokenRequirementStatus.innerHTML = `<div class="status error">Error loading token requirements: ${error.message}</div>`;
+                }
+            }
+
+            // Deposit tokens
+            async function depositTokens() {
+                const depositStatus = document.getElementById("depositStatus");
+                const depositBtn = document.getElementById("depositTokensBtn");
+
+                try {
+                    depositBtn.disabled = true;
+                    depositStatus.textContent =
+                        "Depositing tokens... This may take some time if you are using a Safe wallet.";
+                    depositStatus.className = "status info";
+
+                    const contractWithSigner = contract.connect(signer);
+                    const tx =
+                        await contractWithSigner.depositNextOfferTokens();
+
+                    depositStatus.textContent =
+                        "Transaction sent! Waiting for confirmation...";
+
+                    const receipt = await tx.wait();
+
+                    depositStatus.innerHTML = `
+                        <div class="status success">
+                            ✓ Tokens deposited successfully!<br>
+                            Transaction hash: ${receipt.transactionHash}
+                        </div>
+                    `;
+
+                    // Refresh token requirements to show updated status
+                    await checkTokenRequirements();
+                } catch (error) {
+                    console.error("Error depositing tokens:", error);
+                    let errorMessage = error.message;
+
+                    if (errorMessage.includes("user rejected")) {
+                        errorMessage = "Transaction was rejected by user";
+                    } else if (
+                        errorMessage.includes(
+                            "NextOfferTokensAreAlreadyDeposited",
+                        )
+                    ) {
+                        errorMessage =
+                            "Next offer tokens are already deposited";
+                    } else if (errorMessage.includes("OnlyAdmin")) {
+                        errorMessage = "Only the admin can deposit tokens";
+                    }
+
+                    depositStatus.textContent = `Error depositing tokens: ${errorMessage}`;
+                    depositStatus.className = "status error";
+                } finally {
+                    depositBtn.disabled = false;
+                }
+            }
+
+            // Sync offer trust
+            async function syncOfferTrust() {
+                const managementStatus =
+                    document.getElementById("managementStatus");
+                const syncTrustBtn = document.getElementById("syncTrustBtn");
+
+                try {
+                    syncTrustBtn.disabled = true;
+                    managementStatus.textContent = "Syncing offer trust...";
+                    managementStatus.className = "status info";
+
+                    const contractWithSigner = contract.connect(signer);
+                    const tx = await contractWithSigner.syncOfferTrust();
+
+                    managementStatus.textContent =
+                        "Transaction sent! Waiting for confirmation...";
+
+                    const receipt = await tx.wait();
+
+                    managementStatus.innerHTML = `
+                        <div class="status success">
+                            ✓ Offer trust synced successfully!<br>
+                            Transaction hash: ${receipt.transactionHash}
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error("Error syncing trust:", error);
+                    let errorMessage = error.message;
+
+                    if (errorMessage.includes("user rejected")) {
+                        errorMessage = "Transaction was rejected by user";
+                    } else if (errorMessage.includes("OnlyAdmin")) {
+                        errorMessage = "Only the admin can sync offer trust";
+                    }
+
+                    managementStatus.textContent = `Error syncing trust: ${errorMessage}`;
+                    managementStatus.className = "status error";
+                } finally {
+                    syncTrustBtn.disabled = false;
+                }
+            }
+
+            // Withdraw unclaimed tokens
+            async function withdrawUnclaimedTokens() {
+                const managementStatus =
+                    document.getElementById("managementStatus");
+                const withdrawBtn =
+                    document.getElementById("withdrawTokensBtn");
+                const offerId =
+                    document.getElementById("withdrawOfferId").value;
+
+                if (!offerId) {
+                    managementStatus.textContent = "Please enter an offer ID";
+                    managementStatus.className = "status error";
+                    return;
+                }
+
+                try {
+                    withdrawBtn.disabled = true;
+                    managementStatus.textContent = `Withdrawing unclaimed tokens from offer ${offerId}...`;
+                    managementStatus.className = "status info";
+
+                    const contractWithSigner = contract.connect(signer);
+                    const tx =
+                        await contractWithSigner.withdrawUnclaimedOfferTokens(
+                            offerId,
+                        );
+
+                    managementStatus.textContent =
+                        "Transaction sent! Waiting for confirmation...";
+
+                    const receipt = await tx.wait();
+
+                    managementStatus.innerHTML = `
+                        <div class="status success">
+                            ✓ Unclaimed tokens withdrawn successfully from offer ${offerId}!<br>
+                            Transaction hash: ${receipt.transactionHash}
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error("Error withdrawing tokens:", error);
+                    let errorMessage = error.message;
+
+                    if (errorMessage.includes("user rejected")) {
+                        errorMessage = "Transaction was rejected by user";
+                    } else if (errorMessage.includes("OnlyAdmin")) {
+                        errorMessage = "Only the admin can withdraw tokens";
+                    }
+
+                    managementStatus.textContent = `Error withdrawing tokens: ${errorMessage}`;
+                    managementStatus.className = "status error";
+                } finally {
+                    withdrawBtn.disabled = false;
+                }
+            }
+
+            // Add CSS for batch status
+            const style = document.createElement("style");
+            style.textContent = `
+                .batch-status {
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 0.8em;
+                    font-weight: 600;
+                    min-width: 80px;
+                    text-align: center;
+                }
+                .batch-status.pending {
+                    background-color: #f8f9fa;
+                    color: #6c757d;
+                }
+                .batch-status.processing {
+                    background-color: #fff3cd;
+                    color: #856404;
+                }
+                .batch-status.completed {
+                    background-color: #d4edda;
+                    color: #155724;
+                }
+                .batch-status.failed {
+                    background-color: #f8d7da;
+                    color: #721c24;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Price calculator functionality
+            function calculateDiscountedPrice() {
+                const marketPrice = parseFloat(
+                    document.getElementById("marketPrice").value,
+                );
+                const discountPercent = parseFloat(
+                    document.getElementById("discountPercent").value,
+                );
+                const calculatedPriceDiv =
+                    document.getElementById("calculatedPrice");
+
+                if (!marketPrice || !discountPercent) {
+                    calculatedPriceDiv.textContent =
+                        "Please enter both market price and discount percentage";
+                    calculatedPriceDiv.style.color = "#dc3545";
+                    return;
+                }
+
+                if (
+                    marketPrice <= 0 ||
+                    discountPercent < 0 ||
+                    discountPercent > 100
+                ) {
+                    calculatedPriceDiv.textContent =
+                        "Please enter valid values (market price > 0, discount 0-100%)";
+                    calculatedPriceDiv.style.color = "#dc3545";
+                    return;
+                }
+
+                const discountedPrice =
+                    marketPrice * (1 - discountPercent / 100);
+                const priceInWei = ethers.utils.parseEther(
+                    discountedPrice.toString(),
+                );
+
+                calculatedPriceDiv.innerHTML = `
+                    <div>Discounted Price: ${discountedPrice.toFixed(4)} CRC per GNO</div>
+                    <div style="font-size: 0.9em; color: #666;">In 18 decimals: ${priceInWei.toString()}</div>
+                `;
+                calculatedPriceDiv.style.color = "#5c49e4";
+
+                // Auto-fill the token price input
+                document.getElementById("tokenPrice").value =
+                    priceInWei.toString();
+            }
+
+            // Global functions for batch selection (need to be global for onclick handlers)
+            window.toggleBatchSelection = toggleBatchSelection;
+
+            // Event listeners for price calculator
+            document
+                .getElementById("calculatePrice")
+                .addEventListener("click", calculateDiscountedPrice);
+
+            // Event listeners for batch selector buttons
+            document
+                .getElementById("selectAllBatches")
+                .addEventListener("click", selectAllBatches);
+            document
+                .getElementById("deselectAllBatches")
+                .addEventListener("click", deselectAllBatches);
+            document
+                .getElementById("processSelectedBatches")
+                .addEventListener("click", processSelectedBatches);
+
+            // Event listeners for new buttons
+            document
+                .getElementById("depositTokensBtn")
+                .addEventListener("click", depositTokens);
+
+            document
+                .getElementById("syncTrustBtn")
+                .addEventListener("click", syncOfferTrust);
+
+            document
+                .getElementById("withdrawTokensBtn")
+                .addEventListener("click", withdrawUnclaimedTokens);
+        </script>
+    </body>
+</html>

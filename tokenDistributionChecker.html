@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Token Distribution Checker</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* --- Styling based on profileChecker.html --- */
+            body {
+                margin: 0;
+                font-family: "DM Sans", sans-serif;
+                background: #fff7f5;
+                color: #191568;
+                line-height: 1.3;
+            }
+            header {
+                background: #191568;
+                color: #fff;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.5rem;
+            }
+            p {
+                margin: 0.5rem 0 0;
+                font-weight: 400;
+            }
+            .container {
+                max-width: 900px;
+                margin: 40px 0 40px 0; /* Remove auto centering */
+                padding: 0 20px; /* Add some padding */
+            }
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+            }
+            input {
+                padding: 10px;
+                width: 100%;
+                max-width: 600px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                font-size: 1rem;
+            }
+            #checkButton { /* Specific style for main button */
+                margin-top: 10px;
+                padding: 10px 20px;
+                background: #191568;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: 600;
+                display: inline-block; /* Align with input */
+                width: auto; /* Reset width */
+            }
+            #checkButton:hover {
+                background: #251b9f;
+            }
+            .icon-btn { /* General icon button style */
+                margin-top: 0;
+                padding: 6px;
+                background: #ffede8;
+                color: #191568;
+                border: none;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 1.1rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s;
+                width: 32px;
+                height: 32px;
+                margin-left: 2px;
+                margin-right: 0;
+            }
+            .icon-btn:hover {
+                background: #ffe3dc;
+            }
+            .icon-btn[title] {
+                position: relative;
+            }
+            .icon-btn[title]:hover:after {
+                content: attr(title);
+                position: absolute;
+                left: 50%;
+                top: 110%;
+                transform: translateX(-50%);
+                background: #222;
+                color: #fff;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                white-space: nowrap;
+                z-index: 10;
+            }
+            #result {
+                margin-top: 20px;
+                padding: 20px;
+                border-radius: 8px;
+                background: #fafafa;
+                border: 1px solid #eee;
+                min-height: 100px; /* Adjusted */
+            }
+            .info {
+                margin: 0.5rem 0; /* Increased margin */
+                line-height: 1.4; /* Increased line height */
+                font-size: 0.98rem;
+            }
+            .address-link {
+                color: #191568;
+                text-decoration: none;
+                font-weight: 500;
+                cursor: pointer;
+            }
+            .address-link:hover {
+                text-decoration: underline;
+            }
+            table {
+                border-collapse: collapse;
+                margin-top: 20px;
+                width: 100%;
+                font-size: 0.97rem;
+                background: #fff;
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid #eee;
+                box-shadow: 0 2px 12px 0 rgba(25,21,104,0.07);
+            }
+            
+            tbody tr {
+                display: table-row;
+            }
+            
+            th,
+            td {
+                text-align: left;
+                padding: 12px 10px;
+                vertical-align: middle;
+                border-bottom: 1px solid #eee;
+            }
+            
+            /* Balance column formatting */
+            td:nth-child(2) {
+                font-family: monospace;
+                white-space: nowrap;
+                max-width: 200px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            th {
+                background: #e5e3fb;
+                font-weight: 600;
+                border-bottom: 1px solid #eee;
+                position: relative; /* Add position relative */
+                z-index: 1; /* Ensure headers are above other elements */
+            }
+            thead {
+                display: table-header-group; /* Ensure thead is properly displayed */
+            }
+            
+            tr {
+                background: #fff;
+                border-radius: 8px; /* May not work with collapse: separate */
+            }
+            tr:nth-child(even) {
+                background: #fff7f5;
+            }
+            tr:hover td {
+                background: #ffede8;
+            }
+            td {
+                border-bottom: 1px solid #eee;
+            }
+            /* Cell for Address + Name + Actions */
+            .address-cell-container {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2px;
+            }
+            .address-cell-main {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                width: 100%;
+            }
+            .address-cell-name {
+                font-weight: 600;
+                color: #222;
+                font-size: 1em;
+            }
+            strong {
+                font-weight: 600;
+            }
+            .loader {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #191568;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+                animation: spin 1s linear infinite;
+                display: inline-block;
+                vertical-align: middle;
+                margin-left: 10px;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            /* Debug Panel Styles */
+            #debugPanel {
+                margin-top: 20px;
+                padding: 15px;
+                border-radius: 8px;
+                background: #f0f0ff;
+                border: 1px solid #ddd;
+                display: none;
+            }
+            .debug-section {
+                margin-bottom: 15px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #ddd;
+            }
+            .debug-section h3 {
+                margin-top: 0;
+                margin-bottom: 10px;
+                font-size: 1.1rem;
+                color: #191568;
+            }
+            .debug-data {
+                background: #fff;
+                padding: 10px;
+                border-radius: 4px;
+                border: 1px solid #eee;
+                max-height: 300px;
+                overflow: auto;
+                font-family: monospace;
+                font-size: 0.9rem;
+                white-space: pre-wrap;
+            }
+            .verify-btn {
+                margin-top: 10px;
+                padding: 8px 16px;
+                background: #191568;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                font-weight: 600;
+            }
+            .verify-btn:hover {
+                background: #251b9f;
+            }
+            
+            /* Chart and Table Specific Styles */
+            #chartContainer {
+                margin-top: 20px;
+                display: flex; /* Use flexbox for layout */
+                flex-direction: row; /* Arrange items horizontally */
+                align-items: flex-start; /* Align items to the top */
+                gap: 20px; /* Space between chart and legend */
+                margin-bottom: 40px; /* Space before the table */
+            }
+            
+            #chartWrapper {
+                flex: 1; /* Take up available space */
+                height: 400px; /* Fixed height for the chart */
+                max-width: 500px; /* Limit width to leave room for legend */
+            }
+            
+            .pagination {
+                display: flex;
+                justify-content: center;
+                margin-top: 20px;
+            }
+            
+            .pagination button {
+                margin: 0 5px;
+                padding: 5px 10px;
+                background: #ffede8;
+                color: #191568;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            
+            .pagination button.active {
+                background: #191568;
+                color: #fff;
+            }
+            
+            .export-options {
+                margin-top: 20px;
+            }
+            
+            .chart-legend {
+                padding: 15px;
+                background: #e5e3fb;
+                border-radius: 8px;
+                border: 1px solid #eee;
+                min-width: 200px; /* Minimum width for the legend */
+                max-width: 300px; /* Maximum width for the legend */
+                display: flex;
+                flex-direction: column; /* Stack legend items vertically */
+                gap: 10px;
+                align-self: stretch; /* Stretch to match chart height */
+                max-height: 400px; /* Match chart height */
+                overflow-y: auto; /* Add scrolling if many items */
+            }
+            
+            /* Add spacing to the table container */
+            #tableContainer {
+                margin-top: 20px; /* Space after the chart container */
+                clear: both; /* Ensure it starts below the chart */
+            }
+            
+            .legend-item {
+                display: flex;
+                align-items: center;
+                font-size: 0.9rem;
+                padding: 4px 0;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            
+            .legend-color {
+                width: 12px;
+                height: 12px;
+                margin-right: 8px;
+                border-radius: 2px;
+                flex-shrink: 0; /* Prevent color box from shrinking */
+            }
+            
+            /* Responsive adjustments */
+            @media (max-width: 768px) {
+                #chartContainer {
+                    flex-direction: column; /* Stack vertically on small screens */
+                }
+                
+                #chartWrapper, .chart-legend {
+                    max-width: 100%; /* Full width on small screens */
+                }
+                
+                .chart-legend {
+                    margin-top: 20px;
+                    max-height: 200px; /* Limit height on mobile */
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Token Distribution Checker</h1>
+            <p>Check where ERC1155 tokens are located for a given Circles address.</p>
+        </header>
+
+        <div class="container">
+            <label for="tokenAddressInput">Token Address:</label>
+            <input type="text" id="tokenAddressInput" value="0x42cedde51198d1773590311e2a340dc06b24cb37" />
+            <button id="checkButton">Check Distribution</button>
+            
+            <div id="result">
+                <!-- Results will be displayed here -->
+            </div>
+            
+            <!-- Table container for detailed data -->
+            <div id="tableContainer" style="display:none;">
+                <!-- Table will be generated here -->
+            </div>
+
+            <!-- Chart container -->
+            <div id="chartContainer" style="display:none;">
+                <div id="chartWrapper">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+                <!-- Legend will be added here -->
+            </div>
+            
+           
+            
+            <!-- Debug panel (hidden by default) -->
+            <div id="debugPanel" style="display:none;">
+                <!-- Debug information will be displayed here -->
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button id="exportDataButton" class="verify-btn" style="display:none;">Export Data</button>
+                <button id="verifyDataButton" class="verify-btn">Verify Data</button>
+            </div>
+        </div>
+
+        <!-- External libraries -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+        
+        <!-- Main JavaScript -->
+        <script>
+            // Provider (Gnosis chain)
+            const provider = new ethers.providers.JsonRpcProvider("https://rpc.aboutcircles.com");
+
+            // Elements
+            const checkButton = document.getElementById("checkButton");
+            const resultDiv = document.getElementById("result");
+            const tokenAddressInput = document.getElementById("tokenAddressInput");
+            const chartContainer = document.getElementById("chartContainer");
+            const tableContainer = document.getElementById("tableContainer");
+            const debugPanel = document.getElementById("debugPanel");
+            const exportDataButton = document.getElementById("exportDataButton");
+            const verifyDataButton = document.getElementById("verifyDataButton");
+
+            // Chart instance (will be initialized later)
+            let distributionChart = null;
+
+            // Current data (for export and debugging)
+            let currentData = null;
+
+            // Pagination variables
+            const itemsPerPage = 10;
+            let currentPage = 1;
+            let totalPages = 1;
+
+            // Utility Functions
+            
+            // Format address for display
+            function truncateAddress(address) {
+                if (!address) return '';
+                return address.slice(0, 6) + '...' + address.slice(-4);
+            }
+
+            // Format token amount (from wei to ether)
+            function formatTokenAmount(amount) {
+                try {
+                    return ethers.utils.formatUnits(amount, 18);
+                } catch (error) {
+                    console.error("Error formatting token amount:", error);
+                    return "Error";
+                }
+            }
+
+            // Calculate percentage of total
+            function calculatePercentage(amount, total) {
+                if (total.eq(0)) return "0%";
+                return (parseFloat(formatTokenAmount(amount)) / parseFloat(formatTokenAmount(total)) * 100).toFixed(2) + "%";
+            }
+
+            // Get profile name for an address
+            async function getProfileName(address) {
+                if (!address || address === ethers.constants.AddressZero) return "None";
+                try {
+                    // Always use lowercase for API calls
+                    // Note: Our tests show the API is case-insensitive, but using lowercase is a good practice for consistency
+                    const queryAddress = address.toLowerCase();
+                    console.log("Getting profile for address:", queryAddress);
+                    
+                    const url = `https://rpc.aboutcircles.com/profiles/search?address=${queryAddress}`;
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) return "No name";
+                    
+                    const data = await response.json();
+                    if (Array.isArray(data)) {
+                        // Use lowercase for comparison to ensure case-insensitive matching
+                        const profile = data.find(entry => entry.address.toLowerCase() === queryAddress);
+                        return profile?.name || "No name";
+                    }
+                    return "No name";   
+                } catch (error) {
+                    console.warn("Error fetching profile for", address, error);
+                    return "Fetch error";
+                }
+            }
+
+            // API Functions
+            
+            // Fetch token distribution data
+            async function fetchTokenDistribution(tokenAddress) {
+                try {
+                    console.log("Original address:", tokenAddress);
+                    
+                    // Always use lowercase for API calls
+                    // Note: Our tests show the API is case-insensitive and works with both mixed-case and lowercase addresses,
+                    // but using lowercase is a good practice for consistency
+                    const normalizedAddress = tokenAddress.toLowerCase();
+                    console.log("Using lowercase address for API call:", normalizedAddress);
+                    
+                    // For display purposes, try to get the checksummed address
+                    try {
+                        const checksummedAddress = ethers.utils.getAddress(tokenAddress);
+                        console.log("Checksummed address (for display only):", checksummedAddress);
+                    } catch (error) {
+                        console.warn("Checksum conversion failed:", error);
+                    }
+                    
+                    const response = await fetch("https://rpc.aboutcircles.com/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: 1,
+                            method: "circles_query",
+                            params: [
+                                {
+                                    Namespace: "V_CrcV2",
+                                    Table: "BalancesByAccountAndToken",
+                                    Columns: [],
+                                    Filter: [{
+                                        Type: "FilterPredicate",
+                                        FilterType: "Equals",
+                                        Column: "tokenAddress",
+                                        Value: normalizedAddress
+                                    }],
+                                    Order: [{
+                                        Column: "demurragedTotalBalance",
+                                        SortOrder: "DESC"
+                                    }]
+                                }
+                            ]
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(`API error: ${data.error.message || JSON.stringify(data.error)}`);
+                    }
+                    
+                    return data.result;
+                } catch (error) {
+                    console.error("Error fetching token distribution:", error);
+                    throw error;
+                }
+            }
+
+            // Process the raw data from the API
+            function processTokenDistribution(rawData) {
+                // Extract rows from the result
+                const rows = rawData.rows || [];
+                const columns = rawData.columns || [];
+                
+                // Find column indices
+                const accountAddressIndex = columns.indexOf("accountAddress");
+                const tokenAddressIndex = columns.indexOf("tokenAddress");
+                const demurragedBalanceIndex = columns.indexOf("demurragedTotalBalance");
+                
+                // Map to a more usable format
+                return rows.map(row => {
+                    return {
+                        accountAddress: row[accountAddressIndex !== -1 ? accountAddressIndex : 0],
+                        tokenAddress: row[tokenAddressIndex !== -1 ? tokenAddressIndex : 1],
+                        demurragedBalance: row[demurragedBalanceIndex !== -1 ? demurragedBalanceIndex : 2],
+                        // Add more fields as needed
+                    };
+                });
+            }
+
+            // Chart Functions
+            
+            // Prepare data for the chart
+            function prepareChartData(processedData, maxSlices = 10) {
+                // Sort by balance (should already be sorted from API, but just in case)
+                const sortedData = [...processedData].sort((a, b) => 
+                    ethers.BigNumber.from(b.demurragedBalance).sub(ethers.BigNumber.from(a.demurragedBalance))
+                );
+                
+                // Calculate total balance
+                const totalBalance = sortedData.reduce((total, holder) => 
+                    total.add(ethers.BigNumber.from(holder.demurragedBalance)), 
+                    ethers.BigNumber.from(0)
+                );
+                
+                // Take top N holders
+                const topHolders = sortedData.slice(0, maxSlices - 1);
+                
+                // Combine the rest as "Others"
+                const others = sortedData.slice(maxSlices - 1);
+                const othersTotal = others.reduce((total, holder) => 
+                    total.add(ethers.BigNumber.from(holder.demurragedBalance)), 
+                    ethers.BigNumber.from(0)
+                );
+                
+                // Prepare chart data
+                const labels = [
+                    ...topHolders.map(holder => truncateAddress(holder.accountAddress)),
+                    others.length > 0 ? 'Others' : null
+                ].filter(Boolean);
+                
+                const values = [
+                    ...topHolders.map(holder => parseFloat(formatTokenAmount(holder.demurragedBalance))),
+                    others.length > 0 ? parseFloat(formatTokenAmount(othersTotal)) : null
+                ].filter(value => value !== null);
+                
+                // Generate colors
+                const colors = generateChartColors(labels.length);
+                
+                return { 
+                    labels, 
+                    values, 
+                    colors,
+                    topHolders,
+                    others,
+                    totalBalance
+                };
+            }
+
+            // Generate colors for the chart
+            function generateChartColors(count) {
+                const baseColors = [
+                    '#191568', '#4a39cc', '#7869e8', '#9589ec', '#b2a9f0',
+                    '#3498db', '#2980b9', '#1abc9c', '#16a085', '#2ecc71',
+                    '#27ae60', '#f1c40f', '#f39c12', '#e67e22', '#d35400'
+                ];
+                
+                // If we have more slices than base colors, generate additional colors
+                if (count <= baseColors.length) {
+                    return baseColors.slice(0, count);
+                }
+                
+                // Generate additional colors
+                const colors = [...baseColors];
+                for (let i = baseColors.length; i < count; i++) {
+                    const hue = (i * 137.5) % 360; // Use golden angle approximation for distribution
+                    colors.push(`hsl(${hue}, 70%, 60%)`);
+                }
+                
+                return colors;
+            }
+
+            // Create the chart
+            function createChart(chartData) {
+                // Destroy existing chart if it exists
+                if (distributionChart) {
+                    distributionChart.destroy();
+                }
+                
+                // Get the canvas context
+                const ctx = document.getElementById('distributionChart').getContext('2d');
+                
+                // Create the chart
+                distributionChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{
+                            data: chartData.values,
+                            backgroundColor: chartData.colors,
+                            borderColor: '#ffffff',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false // We'll create our own legend
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(2) + '%';
+                                        return `${context.label}: ${value.toFixed(4)} (${percentage})`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Create custom legend
+                createCustomLegend(chartData);
+            }
+
+            // Create a custom legend
+            function createCustomLegend(chartData) {
+                // Create the legend container
+                const legendContainer = document.createElement('div');
+                legendContainer.className = 'chart-legend';
+                legendContainer.title = 'Token Distribution Legend';
+                
+                // Add a title to the legend
+                const legendTitle = document.createElement('div');
+                legendTitle.style.fontWeight = 'bold';
+                legendTitle.style.marginBottom = '10px';
+                legendTitle.style.borderBottom = '1px solid #ddd';
+                legendTitle.style.paddingBottom = '5px';
+                legendTitle.textContent = 'Token Distribution';
+                legendContainer.appendChild(legendTitle);
+                
+                // Add legend items
+                chartData.labels.forEach((label, index) => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item';
+                    
+                    const colorBox = document.createElement('div');
+                    colorBox.className = 'legend-color';
+                    colorBox.style.backgroundColor = chartData.colors[index];
+                    
+                    const labelText = document.createElement('span');
+                    labelText.textContent = `${label}: ${chartData.values[index].toFixed(4)} (${((chartData.values[index] / chartData.values.reduce((a, b) => a + b, 0)) * 100).toFixed(2)}%)`;
+                    
+                    legendItem.appendChild(colorBox);
+                    legendItem.appendChild(labelText);
+                    legendContainer.appendChild(legendItem);
+                });
+                
+                // Remove any existing legend
+                const existingLegend = document.querySelector('.chart-legend');
+                if (existingLegend) {
+                    existingLegend.remove();
+                }
+                
+                // Add the legend container directly to the chart container
+                chartContainer.appendChild(legendContainer);
+            }
+
+            // Table Functions
+            
+            // Create the data table
+            async function createDataTable(processedData, totalBalance) {
+                tableContainer.innerHTML = '';
+                
+                // Calculate total pages
+                totalPages = Math.ceil(processedData.length / itemsPerPage);
+                
+                // Create table
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                
+                // Add headers
+                const headers = ['Holder Address', 'Balance', 'Percentage', 'Actions'];
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+                
+                // Create table body
+                const tbody = document.createElement('tbody');
+                
+                // Calculate start and end indices for current page
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, processedData.length);
+                
+                // Add rows for current page
+                for (let i = startIndex; i < endIndex; i++) {
+                    const holder = processedData[i];
+                    const row = document.createElement('tr');
+                    
+                    // Holder Address Cell (Name + Address + Copy/Link)
+                    const addressCell = document.createElement('td');
+                    const addrContainer = document.createElement('div');
+                    addrContainer.className = 'address-cell-container';
+                    
+                    const addrMain = document.createElement('div');
+                    addrMain.className = 'address-cell-main';
+                    
+                    const addrLink = document.createElement('a');
+                    addrLink.href = `https://gnosisscan.io/address/${holder.accountAddress}`;
+                    addrLink.target = '_blank';
+                    addrLink.rel = 'noopener noreferrer';
+                    addrLink.textContent = truncateAddress(holder.accountAddress);
+                    addrLink.className = 'address-link';
+                    addrLink.title = holder.accountAddress;
+                    addrLink.onclick = (e) => { e.stopPropagation(); };
+                    addrMain.appendChild(addrLink);
+                    
+                    // Copy button
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'icon-btn';
+                    copyBtn.title = 'Copy Address';
+                    copyBtn.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`;
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(holder.accountAddress);
+                        copyBtn.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#191568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                        setTimeout(() => { 
+                            copyBtn.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`; 
+                        }, 1500);
+                    };
+                    addrMain.appendChild(copyBtn);
+                    
+                    // Profile checker link
+                    const profileBtn = document.createElement('button');
+                    profileBtn.className = 'icon-btn';
+                    profileBtn.title = 'Open Profile';
+                    profileBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="6.5" r="3.5" stroke="#191568" stroke-width="1.5"/><path d="M2.5 15c0-2.485 2.91-4.5 6.5-4.5s6.5 2.015 6.5 4.5" stroke="#191568" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+                    profileBtn.onclick = (e) => {
+                        e.preventDefault();
+                        window.open(`profileChecker.html?address=${holder.accountAddress}`, '_blank');
+                    };
+                    addrMain.appendChild(profileBtn);
+                    
+                    addrContainer.appendChild(addrMain);
+                    
+                    // Name Span (updated async)
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'address-cell-name';
+                    nameSpan.textContent = 'Loading...';
+                    addrContainer.appendChild(nameSpan);
+                    
+                    addressCell.appendChild(addrContainer);
+                    row.appendChild(addressCell);
+                    
+                    // Async update name
+                    getProfileName(holder.accountAddress).then(name => { 
+                        nameSpan.textContent = name; 
+                    });
+                    
+                    // Balance Cell
+                    const balanceCell = document.createElement('td');
+                    balanceCell.textContent = formatTokenAmount(holder.demurragedBalance);
+                    row.appendChild(balanceCell);
+                    
+                    // Percentage Cell
+                    const percentageCell = document.createElement('td');
+                    percentageCell.textContent = calculatePercentage(holder.demurragedBalance, totalBalance);
+                    row.appendChild(percentageCell);
+                    
+                    // Actions Cell
+                    const actionsCell = document.createElement('td');
+                    
+                    // Add "Check Distribution" button
+                    const checkDistBtn = document.createElement('button');
+                    checkDistBtn.className = 'icon-btn';
+                    checkDistBtn.title = 'Check Token Distribution';
+                    checkDistBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="#191568" stroke-width="1.5"/><path d="M6 9h6M9 6v6" stroke="#191568" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+                    checkDistBtn.onclick = (e) => {
+                        e.preventDefault();
+                        // Set the input value to this holder's address
+                        tokenAddressInput.value = holder.accountAddress;
+                        // Check the distribution for this address
+                        checkTokenDistribution(holder.accountAddress);
+                        // Scroll to top
+                        window.scrollTo(0, 0);
+                    };
+                    actionsCell.appendChild(checkDistBtn);
+                    
+                    row.appendChild(actionsCell);
+                    
+                    tbody.appendChild(row);
+                }
+                
+                table.appendChild(tbody);
+                tableContainer.appendChild(table);
+                
+                // Add pagination controls if needed
+                if (totalPages > 1) {
+                    createPaginationControls();
+                }
+            }
+
+            // Create pagination controls
+            function createPaginationControls() {
+                const paginationDiv = document.createElement('div');
+                paginationDiv.className = 'pagination';
+                
+                // Previous button
+                const prevButton = document.createElement('button');
+                prevButton.textContent = '←';
+                prevButton.disabled = currentPage === 1;
+                prevButton.onclick = () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        refreshTable();
+                    }
+                };
+                paginationDiv.appendChild(prevButton);
+                
+                // Page buttons
+                const maxPageButtons = 5;
+                const startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
+                const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageButton = document.createElement('button');
+                    pageButton.textContent = i;
+                    pageButton.className = i === currentPage ? 'active' : '';
+                    pageButton.onclick = () => {
+                        currentPage = i;
+                        refreshTable();
+                    };
+                    paginationDiv.appendChild(pageButton);
+                }
+                
+                // Next button
+                const nextButton = document.createElement('button');
+                nextButton.textContent = '→';
+                nextButton.disabled = currentPage === totalPages;
+                nextButton.onclick = () => {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        refreshTable();
+                    }
+                };
+                paginationDiv.appendChild(nextButton);
+                
+                tableContainer.appendChild(paginationDiv);
+            }
+
+            // Refresh the table (for pagination)
+            function refreshTable() {
+                if (currentData) {
+                    createDataTable(currentData.processedData, currentData.totalBalance);
+                }
+            }
+
+            // Main function to check token distribution
+            async function checkTokenDistribution(tokenAddress) {
+                console.log("checkTokenDistribution called with:", tokenAddress);
+                
+                // Validate address
+                if (!ethers.utils.isAddress(tokenAddress)) {
+                    console.error("Invalid address:", tokenAddress);
+                    resultDiv.innerHTML = "<p style='color:red;'>Invalid address</p>";
+                    return;
+                }
+                
+                // Try to convert the address to checksummed format for display
+                let displayAddress;
+                try {
+                    displayAddress = ethers.utils.getAddress(tokenAddress);
+                    console.log("Checksummed address for display:", displayAddress);
+                } catch (error) {
+                    console.warn("Checksum conversion failed for display:", error);
+                    displayAddress = tokenAddress; // Use as-is if checksum fails
+                }
+                
+                // Update URL parameter with the checksummed address
+                window.history.replaceState(null, "", "?address=" + displayAddress);
+                
+                // Clear previous results
+                resultDiv.innerHTML = "";
+                chartContainer.style.display = "none";
+                tableContainer.style.display = "none";
+                exportDataButton.style.display = "none";
+                
+                // Show loader
+                const loader = document.createElement("div");
+                loader.className = "loader";
+                const loadingText = document.createElement("span");
+                loadingText.textContent = "Fetching data...";
+                resultDiv.appendChild(loadingText);
+                resultDiv.appendChild(loader);
+                
+                try {
+                    // Fetch data
+                    const rawData = await fetchTokenDistribution(tokenAddress);
+                    
+                    // Process data
+                    const processedData = processTokenDistribution(rawData);
+                    
+                    // Store current data for export and debugging
+                    currentData = {
+                        rawData,
+                        processedData,
+                        tokenAddress
+                    };
+                    
+                    // Remove loader
+                    resultDiv.innerHTML = "";
+                    
+                    // Check if we have data
+                    if (processedData.length === 0) {
+                        resultDiv.innerHTML = "<p>No token distribution data found for this address.</p>";
+                        return;
+                    }
+                    
+                    // Calculate total balance
+                    const totalBalance = processedData.reduce((total, holder) => 
+                        total.add(ethers.BigNumber.from(holder.demurragedBalance)), 
+                        ethers.BigNumber.from(0)
+                    );
+                    
+                    // Store total balance
+                    currentData.totalBalance = totalBalance;
+                    
+                    // Display summary
+                    let summaryHtml = '';
+                    summaryHtml += `<div class="info"><strong>Token Address:</strong> ${displayAddress}</div>`;
+                    summaryHtml += `<div class="info"><strong>Total Holders:</strong> ${processedData.length}</div>`;
+                    summaryHtml += `<div class="info"><strong>Total Supply:</strong> ${formatTokenAmount(totalBalance)}</div>`;
+                    resultDiv.innerHTML = summaryHtml;
+                    
+                    // Prepare chart data
+                    const chartData = prepareChartData(processedData);
+                    
+                    // Create chart
+                    chartContainer.style.display = "block";
+                    createChart(chartData);
+                    
+                    // Create data table
+                    tableContainer.style.display = "block";
+                    await createDataTable(processedData, totalBalance);
+                    
+                    // Show export button
+                    exportDataButton.style.display = "inline-block";
+                    
+                } catch (error) {
+                    console.error("Error in checkTokenDistribution:", error);
+                    resultDiv.innerHTML = `<p style='color:red;'>Error: ${error.message || 'Failed to fetch data.'}</p>`;
+                }
+            }
+
+            // Export data to CSV
+            function exportToCSV() {
+                if (!currentData || !currentData.processedData) {
+                    alert("No data to export");
+                    return;
+                }
+                
+                // Create CSV content
+                let csvContent = "data:text/csv;charset=utf-8,";
+                
+                // Add headers
+                csvContent += "Holder Address,Balance,Percentage\n";
+                
+                // Add rows
+                currentData.processedData.forEach(holder => {
+                    const balance = formatTokenAmount(holder.demurragedBalance);
+                    const percentage = calculatePercentage(holder.demurragedBalance, currentData.totalBalance);
+                    csvContent += `${holder.accountAddress},${balance},${percentage}\n`;
+                });
+                
+                // Create download link
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `token_distribution_${truncateAddress(currentData.tokenAddress)}.csv`);
+                document.body.appendChild(link);
+                
+                // Trigger download
+                link.click();
+                
+                // Clean up
+                document.body.removeChild(link);
+            }
+
+            // Toggle debug panel
+            function toggleDebugPanel() {
+                if (debugPanel.style.display === "none") {
+                    // Show debug panel
+                    debugPanel.style.display = "block";
+                    
+                    // Populate debug panel
+                    if (currentData) {
+                        debugPanel.innerHTML = `
+                            <h2>Debug Information</h2>
+                            <div class="debug-section">
+                                <h3>Raw API Response</h3>
+                                <div class="debug-data">${JSON.stringify(currentData.rawData, null, 2)}</div>
+                            </div>
+                        `;
+                    } else {
+                        debugPanel.innerHTML = "<p>No data available for debugging</p>";
+                    }
+                } else {
+                    // Hide debug panel
+                    debugPanel.style.display = "none";
+                }
+            }
+
+            // Event listeners
+            checkButton.addEventListener("click", () => {
+                const addr = tokenAddressInput.value.trim();
+                checkTokenDistribution(addr);
+            });
+
+            // Allow pressing Enter in the input field
+            tokenAddressInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") {
+                    checkButton.click();
+                }
+            });
+
+            // Export button
+            exportDataButton.addEventListener("click", exportToCSV);
+
+            // Verify button
+            verifyDataButton.addEventListener("click", toggleDebugPanel);
+
+            // Load address from URL parameter on page load
+            window.addEventListener("load", () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const addr = urlParams.get("address");
+                if (addr && ethers.utils.isAddress(addr)) {
+                    tokenAddressInput.value = addr;
+                    checkTokenDistribution(addr);
+                }
+            });
+        </script>
+    </body>
+</html>

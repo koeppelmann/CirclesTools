@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Trust Score Explorer</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            body {
+                margin: 0;
+                font-family: "Inter", Helvetica, Arial, sans-serif;
+                background: #ffffff;
+                color: #333;
+                line-height: 1.6;
+            }
+            header {
+                background: #5c49e4;
+                color: #fff;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.5rem;
+            }
+            p {
+                margin: 0.5rem 0 0;
+                font-weight: 400;
+            }
+            .container {
+                max-width: 900px;
+                margin: 40px auto;
+                padding: 0 20px;
+            }
+            .input-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+            }
+            input {
+                padding: 10px;
+                width: 100%;
+                max-width: 600px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                font-size: 1rem;
+                box-sizing: border-box;
+            }
+            button {
+                margin-top: 10px;
+                padding: 12px 24px;
+                background: #5c49e4;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: 600;
+                transition: background 0.2s;
+            }
+            button:hover {
+                background: #4a38c2;
+            }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+            #result {
+                margin-top: 30px;
+            }
+            .score-card {
+                background: #f8f9fa;
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 20px;
+                border: 1px solid #e0e0e0;
+            }
+            .score-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+            }
+            .score-value {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #5c49e4;
+            }
+            .score-label {
+                font-size: 0.9rem;
+                color: #666;
+                margin-top: 5px;
+            }
+            .metrics-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-top: 20px;
+            }
+            .metric-item {
+                background: white;
+                padding: 15px;
+                border-radius: 6px;
+                border: 1px solid #e0e0e0;
+            }
+            .metric-label {
+                font-size: 0.85rem;
+                color: #666;
+                margin-bottom: 5px;
+            }
+            .metric-value {
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: #333;
+            }
+            .toggle-details {
+                margin-top: 20px;
+                padding: 10px 20px;
+                background: #f0f0f0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                cursor: pointer;
+                text-align: center;
+                font-weight: 600;
+                transition: background 0.2s;
+            }
+            .toggle-details:hover {
+                background: #e0e0e0;
+            }
+            .details-section {
+                margin-top: 20px;
+                display: none;
+            }
+            .details-section.visible {
+                display: block;
+            }
+            .details-header {
+                font-weight: 600;
+                font-size: 1.1rem;
+                margin-bottom: 10px;
+                color: #333;
+            }
+            .hop-details {
+                background: white;
+                padding: 12px;
+                border-radius: 6px;
+                margin-bottom: 10px;
+                border-left: 4px solid #5c49e4;
+            }
+            .hop-label {
+                font-weight: 600;
+                color: #5c49e4;
+                margin-bottom: 5px;
+            }
+            .hop-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 10px;
+                margin-top: 8px;
+            }
+            .hop-stat {
+                font-size: 0.9rem;
+            }
+            .hop-stat-label {
+                color: #666;
+            }
+            .hop-stat-value {
+                font-weight: 600;
+                color: #333;
+            }
+            .error {
+                background: #fee;
+                border: 1px solid #fcc;
+                color: #c33;
+                padding: 15px;
+                border-radius: 4px;
+                margin-top: 20px;
+            }
+            .loading {
+                display: inline-block;
+                margin-left: 10px;
+                color: #5c49e4;
+            }
+            .info-box {
+                background: #e8f4fd;
+                border: 1px solid #b3d9f2;
+                border-radius: 6px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            .info-box p {
+                margin: 5px 0;
+            }
+            .timestamp {
+                font-size: 0.85rem;
+                color: #999;
+                margin-top: 10px;
+            }
+            .help-buttons {
+                margin-top: 20px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .help-btn {
+                padding: 8px 16px;
+                background: #e8f4fd;
+                color: #5c49e4;
+                border: 1px solid #b3d9f2;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                font-weight: 600;
+                transition: background 0.2s;
+            }
+            .help-btn:hover {
+                background: #d0e8f7;
+            }
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0,0,0,0.4);
+            }
+            .modal-content {
+                background-color: #fefefe;
+                margin: 5% auto;
+                padding: 30px;
+                border: 1px solid #888;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 700px;
+                max-height: 80vh;
+                overflow-y: auto;
+            }
+            .modal-header {
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 20px;
+                color: #5c49e4;
+            }
+            .close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+                line-height: 20px;
+            }
+            .close:hover,
+            .close:focus {
+                color: #000;
+            }
+            .formula {
+                background: #f5f5f5;
+                padding: 15px;
+                border-radius: 4px;
+                font-family: monospace;
+                margin: 15px 0;
+                overflow-x: auto;
+            }
+            .modal-content h3 {
+                color: #333;
+                margin-top: 20px;
+                margin-bottom: 10px;
+            }
+            .modal-content p {
+                line-height: 1.8;
+                margin: 10px 0;
+            }
+            .modal-content ul {
+                margin: 10px 0;
+                padding-left: 25px;
+            }
+            .modal-content li {
+                margin: 5px 0;
+            }
+            .modal-content a {
+                color: #5c49e4;
+                text-decoration: none;
+                font-weight: 600;
+            }
+            .modal-content a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Trust Score Explorer</h1>
+            <p>Inspect your trust score</p>
+        </header>
+
+        <div class="container">
+            <div class="info-box">
+                <p><strong>What is this?</strong></p>
+                <p>This tool calculates the Backers' Trust Score, which is a measure of how well-connected a Circles account is to the <strong>Backers group</strong>. It can be used as a proxy measure of trustworthiness and non-sybilhood of Circles profiles.</p>
+            </div>
+
+            <div class="input-group">
+                <label for="addressInput">Circles Address or Username</label>
+                <input
+                    type="text"
+                    id="addressInput"
+                    placeholder="0x... or username"
+                    value=""
+                />
+                <div id="searchSuggestions" style="display: none; margin-top: 5px; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;"></div>
+            </div>
+
+            <button id="calculateBtn" onclick="calculateTrustScore()">
+                Calculate Trust Score
+            </button>
+            <span id="loadingIndicator" class="loading" style="display: none;">
+                Calculating...
+            </span>
+
+            <div class="help-buttons">
+                <button class="help-btn" onclick="showCalculationModal()">
+                    📊 How is this calculated?
+                </button>
+                <button class="help-btn" onclick="showUsefulnessModal()">
+                    💡 Why is this useful?
+                </button>
+            </div>
+
+            <div id="result"></div>
+        </div>
+
+        <!-- Calculation Modal -->
+        <div id="calculationModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('calculationModal')">&times;</span>
+                <div class="modal-header">How is the Trust Score Calculated?</div>
+
+                <p>The <strong>Relative Trust Score</strong> measures how well-connected an address is to a target set (by default, the Backers group members) through the Circles trust network.</p>
+
+                <h3>Formula</h3>
+                <div class="formula">
+relative_score = (penetration × 0.2 + quality × 0.8) × 100
+                </div>
+
+                <h3>Components</h3>
+
+                <p></p><strong>Penetration Rate:</strong> What percentage of the target set can be reached?</p>
+                <div class="formula">
+penetration = targets_reached / total_targets
+                </div>
+
+                <p><strong>Quality Score:</strong> How close are the connections? Closer connections (fewer hops) are weighted higher.</p>
+                <div class="formula">
+quality = Σ(targets_at_hop_h × decay_factor_h) / targets_reached
+                </div>
+
+                <h3>Hop Decay Factors</h3>
+                <p></p>Connections at different distances are weighted differently:</p>
+                <ul>
+                    <li><strong>Hop 0:</strong> 1.0 (direct connection)</li>
+                    <li><strong>Hop 1:</strong> 0.9 (one step away)</li>
+                    <li><strong>Hop 2:</strong> 0.8 (two steps away)</li>
+                    <li><strong>Hop 3:</strong> 0.6 (three steps away)</li>
+                    <li><strong>Hop 4:</strong> 0.4 (four steps away)</li>
+                    <li><strong>Hop 5:</strong> 0.2 (five steps away)</li>
+                </ul>
+
+                <h3>Custom Target Sets</h3>
+                <p>Want to calculate trust scores against a different group? You can specify your own target set using the API directly:</p>
+                <p></p><a href="https://squid-app-3gxnl.ondigitalocean.app/aboutcircles-advanced-analytics2/docs#/Scoring/relative_trust_score_scoring_relative_trustscore_post" target="_blank">View API Documentation →</a></p>
+            </div>
+        </div>
+
+        <!-- Usefulness Modal -->
+        <div id="usefulnessModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal('usefulnessModal')">&times;</span>
+                <div class="modal-header">Why is this useful?</div>
+
+                <p>The Relative Trust Score helps us identify well-connected and trusted members of the Circles community.</p>
+
+                <h3>Gnosis Group Membership</h3>
+                <p>We use the trust score relative to the <strong>Backers group</strong> as one of the key criteria for determining membership in the <strong>Gnosis group</strong>.</p>
+
+                <p>Members with higher trust scores demonstrate:</p>
+                <ul>
+                    <li><strong>Strong network integration:</strong> They're connected to many Backers group members</li>
+                    <li><strong>Quality connections:</strong> Their connections are direct or through few intermediaries</li>
+                    <li><strong>Community trust:</strong> They've built trust relationships with established members</li>
+                </ul>
+
+                <h3>Other Use Cases</h3>
+                <ul>
+                    <li><strong>Reputation assessment:</strong> Understand how well-established an address is in the network</li>
+                    <li><strong>Network analysis:</strong> Identify well-connected hubs and communities</li>
+                    <li><strong>Trust verification:</strong> Evaluate the trustworthiness of new connections</li>
+                </ul>
+
+                <p>One example in action is a Sepolia ETH faucet that limits availability to users with a trust score above 50. Check it out:</p>
+                <p><a href="http://sepolia-faucet.aboutcircles.com/" target="_blank">Sepolia ETH Faucet →</a></p>
+            </div>
+        </div>
+
+        <script>
+            const BACKERS_GROUP = '0x1aca75e38263c79d9d4f10df0635cc6fcfe6f026';
+            const RPC_URL = 'https://rpc.aboutcircles.com/';
+            const ANALYTICS_API = 'https://squid-app-3gxnl.ondigitalocean.app/aboutcircles-advanced-analytics2';
+            const PROFILES_API = 'https://rpc.aboutcircles.com/profiles';
+
+            let backersMembers = null;
+            let searchTimeout = null;
+
+            // Fetch Backers group members
+            async function fetchBackersMembers() {
+                try {
+                    console.log('Fetching Backers group members from RPC...');
+                    const response = await fetch(RPC_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0',
+                            id: 1,
+                            method: 'circles_query',
+                            params: [{
+                                Namespace: 'V_CrcV2',
+                                Table: 'GroupMemberships',
+                                Filter: [{
+                                    Type: 'FilterPredicate',
+                                    FilterType: 'Equals',
+                                    Column: 'group',
+                                    Value: BACKERS_GROUP
+                                }],
+                                Order: [{ Column: 'member', SortOrder: 'Asc' }],
+                                Limit: 10000
+                            }]
+                        })
+                    });
+
+                    console.log('RPC Response status:', response.status, response.statusText);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('RPC Error Response:', errorText);
+                        throw new Error(`RPC request failed: ${response.status} ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('RPC Response data:', data);
+
+                    if (data.result && data.result.rows) {
+                        // Extract member addresses from the rows
+                        // Each row is an array, member address is at index 6
+                        backersMembers = data.result.rows.map(row => row[6]);
+                        console.log(`Loaded ${backersMembers.length} Backers group members`);
+                        console.log('Sample members:', backersMembers.slice(0, 3));
+
+                        // Validate addresses are in correct format
+                        const validMembers = backersMembers.filter(addr =>
+                            addr && typeof addr === 'string' && /^0x[a-fA-F0-9]{40}$/.test(addr)
+                        );
+
+                        if (validMembers.length !== backersMembers.length) {
+                            console.warn(`Filtered ${backersMembers.length - validMembers.length} invalid addresses`);
+                        }
+
+                        backersMembers = validMembers;
+                        return backersMembers;
+                    } else {
+                        console.error('Unexpected response format:', data);
+                        throw new Error('Invalid response format from RPC');
+                    }
+                } catch (error) {
+                    console.error('Error fetching Backers members:', error);
+                    console.error('Error details:', error.message, error.stack);
+                    throw new Error(`Failed to fetch Backers members: ${error.message}`);
+                }
+            }
+
+            // Search profiles by name or address
+            async function searchProfile(query) {
+                if (!query || query.trim().length === 0) {
+                    document.getElementById('searchSuggestions').style.display = 'none';
+                    return;
+                }
+
+                // If it's already a valid address, don't search
+                if (/^0x[a-fA-F0-9]{40}$/.test(query)) {
+                    document.getElementById('searchSuggestions').style.display = 'none';
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${PROFILES_API}/search?name=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    console.log('Profile search response:', data);
+
+                    const profiles = data.data || data;
+                    const suggestionsDiv = document.getElementById('searchSuggestions');
+
+                    if (profiles && profiles.length > 0) {
+                        let html = '<div style="font-weight: 600; margin-bottom: 5px;">Found profiles:</div>';
+                        profiles.slice(0, 5).forEach(profile => {
+                            const name = profile.name || 'Unnamed';
+                            // Try different possible address fields
+                            const addr = profile.circlesAddress || profile.address || profile.avatarAddress || 'No address';
+                            html += `<div style="padding: 5px; cursor: pointer; border-radius: 3px; margin: 2px 0;"
+                                          onmouseover="this.style.background='#e0e0e0'"
+                                          onmouseout="this.style.background='transparent'"
+                                          onclick="selectProfile('${addr}', '${name.replace(/'/g, "\\'")}')">
+                                        <strong>${name}</strong><br>
+                                        <small style="color: #666;">${addr}</small>
+                                     </div>`;
+                        });
+                        suggestionsDiv.innerHTML = html;
+                        suggestionsDiv.style.display = 'block';
+                    } else {
+                        suggestionsDiv.innerHTML = '<div style="color: #666;">No profiles found</div>';
+                        suggestionsDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error searching profiles:', error);
+                }
+            }
+
+            // Select a profile from search results
+            function selectProfile(address, name) {
+                document.getElementById('addressInput').value = address;
+                document.getElementById('searchSuggestions').style.display = 'none';
+            }
+
+            // Calculate trust score
+            async function calculateTrustScore() {
+                let addressInput = document.getElementById('addressInput').value.trim();
+                const resultDiv = document.getElementById('result');
+                const calculateBtn = document.getElementById('calculateBtn');
+                const loadingIndicator = document.getElementById('loadingIndicator');
+
+                // Validate input
+                if (!addressInput) {
+                    resultDiv.innerHTML = '<div class="error">Please enter a Circles address or username</div>';
+                    return;
+                }
+
+                // If not an address, try to search for profile
+                if (!/^0x[a-fA-F0-9]{40}$/.test(addressInput)) {
+                    try {
+                        const response = await fetch(`${PROFILES_API}/search?name=${encodeURIComponent(addressInput)}`);
+                        const data = await response.json();
+                        const profiles = data.data || data;
+
+                        if (profiles && profiles.length > 0) {
+                            // Try different possible address fields
+                            const addr = profiles[0].circlesAddress || profiles[0].address || profiles[0].avatarAddress;
+                            if (addr) {
+                                addressInput = addr;
+                            } else {
+                                resultDiv.innerHTML = '<div class="error">Profile found but no address available. Please enter a valid Ethereum address.</div>';
+                                return;
+                            }
+                        } else {
+                            resultDiv.innerHTML = '<div class="error">No profile found with that name. Please enter a valid Ethereum address.</div>';
+                            return;
+                        }
+                    } catch (error) {
+                        resultDiv.innerHTML = '<div class="error">Invalid input. Please enter a valid Ethereum address or username.</div>';
+                        return;
+                    }
+                }
+
+                // Final validation
+                if (!/^0x[a-fA-F0-9]{40}$/.test(addressInput)) {
+                    resultDiv.innerHTML = '<div class="error">Invalid Ethereum address format</div>';
+                    return;
+                }
+
+                // Show loading state
+                calculateBtn.disabled = true;
+                loadingIndicator.style.display = 'inline-block';
+                resultDiv.innerHTML = '';
+
+                try {
+                    // Fetch Backers members if not already loaded
+                    if (!backersMembers) {
+                        console.log('Fetching Backers group members...');
+                        await fetchBackersMembers();
+                    }
+
+                    if (!backersMembers || backersMembers.length === 0) {
+                        throw new Error('Could not load Backers group members. The group may have no members or there was an error fetching the data.');
+                    }
+
+                    console.log(`Using ${backersMembers.length} Backers members as target set`);
+
+                    // Call the relative trust score API
+                    const requestBody = {
+                        avatars: [addressInput.toLowerCase()],
+                        target_set: backersMembers,
+                        include_details: true
+                    };
+                    console.log('Request body:', {
+                        avatars: requestBody.avatars,
+                        target_set_count: requestBody.target_set.length,
+                        target_set_sample: requestBody.target_set.slice(0, 3)
+                    });
+
+                    const response = await fetch(`${ANALYTICS_API}/scoring/relative_trustscore`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API Error Response:', errorText);
+                        let errorData;
+                        try {
+                            errorData = JSON.parse(errorText);
+                        } catch (e) {
+                            errorData = { message: errorText };
+                        }
+                        throw new Error(errorData.message || errorData.detail || `API error: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('API Response:', data);
+                    displayResults(data, addressInput);
+
+                } catch (error) {
+                    console.error('Error calculating trust score:', error);
+                    resultDiv.innerHTML = `<div class="error"><strong>Error:</strong> ${error.message}</div>`;
+                } finally {
+                    calculateBtn.disabled = false;
+                    loadingIndicator.style.display = 'none';
+                }
+            }
+
+            // Display results
+            function displayResults(data, address) {
+                const resultDiv = document.getElementById('result');
+
+                // Find the result for our address
+                const addressLower = address.toLowerCase();
+                const result = data.results && data.results.find(r => r.address.toLowerCase() === addressLower);
+
+                if (!result) {
+                    resultDiv.innerHTML = '<div class="error">No results found for this address</div>';
+                    return;
+                }
+
+                let html = '<div class="score-card">';
+
+                // Main score display
+                html += '<div class="score-header">';
+                html += '<div>';
+                html += `<div class="score-value">${result.relative_score.toFixed(2)}</div>`;
+                html += '<div class="score-label">Relative Trust Score</div>';
+                html += '</div>';
+                html += '</div>';
+
+                // Toggle button for details
+                html += '<div class="toggle-details" onclick="toggleDetails()">▼ Show Advanced Details</div>';
+
+                // Advanced details section
+                html += '<div class="details-section" id="advancedDetails">';
+
+                // Address display
+                html += '<div class="details-header">Address Details</div>';
+                html += '<div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #5c49e4;">';
+                html += `<div style="font-family: monospace; font-size: 0.85rem; word-break: break-all;">${result.address}</div>`;
+                html += '</div>';
+
+                // Coverage metrics
+                html += '<div class="details-header">Coverage Metrics</div>';
+                html += '<div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #5c49e4;">';
+                html += '<div class="hop-stats">';
+                html += `<div class="hop-stat"><span class="hop-stat-label">Targets Reached:</span> <span class="hop-stat-value">${result.targets_reached} / ${result.total_targets}</span></div>`;
+                html += `<div class="hop-stat"><span class="hop-stat-label">Penetration Rate:</span> <span class="hop-stat-value">${(result.penetration_rate * 100).toFixed(1)}%</span></div>`;
+                html += '</div>';
+                html += '</div>';
+
+                // Hop breakdown if available
+                if (result.hop_breakdown && Object.keys(result.hop_breakdown).length > 0) {
+                    html += '<div class="details-header">Connection Details by Hop Distance</div>';
+
+                    const hops = Object.keys(result.hop_breakdown).sort((a, b) => {
+                        return parseInt(a) - parseInt(b);
+                    });
+
+                    for (const hop of hops) {
+                        const count = result.hop_breakdown[hop];
+                        html += '<div class="hop-details">';
+                        html += `<div class="hop-label">HOP ${hop}</div>`;
+                        html += '<div class="hop-stats">';
+                        html += `<div class="hop-stat"><span class="hop-stat-label">Targets reached:</span> <span class="hop-stat-value">${count}</span></div>`;
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                }
+
+                html += '</div>'; // end details-section
+
+                // Metadata
+                if (data.calculation_time_ms) {
+                    html += `<div class="timestamp">Computation time: ${data.calculation_time_ms.toFixed(0)}ms</div>`;
+                }
+
+                html += '</div>'; // end score-card
+
+                resultDiv.innerHTML = html;
+            }
+
+            // Allow Enter key to trigger calculation
+            document.getElementById('addressInput').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    calculateTrustScore();
+                }
+            });
+
+            // Add search functionality
+            document.getElementById('addressInput').addEventListener('input', function(event) {
+                clearTimeout(searchTimeout);
+                const query = event.target.value.trim();
+
+                // Don't search if it's already a valid address
+                if (/^0x[a-fA-F0-9]{40}$/.test(query)) {
+                    document.getElementById('searchSuggestions').style.display = 'none';
+                    return;
+                }
+
+                searchTimeout = setTimeout(() => {
+                    searchProfile(query);
+                }, 300); // Debounce for 300ms
+            });
+
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(event) {
+                const input = document.getElementById('addressInput');
+                const suggestions = document.getElementById('searchSuggestions');
+                if (event.target !== input && event.target !== suggestions && !suggestions.contains(event.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+
+            // Toggle advanced details
+            function toggleDetails() {
+                const detailsSection = document.getElementById('advancedDetails');
+                const toggleBtn = document.querySelector('.toggle-details');
+
+                if (detailsSection) {
+                    if (detailsSection.classList.contains('visible')) {
+                        detailsSection.classList.remove('visible');
+                        toggleBtn.textContent = '▼ Show Advanced Details';
+                    } else {
+                        detailsSection.classList.add('visible');
+                        toggleBtn.textContent = '▲ Hide Advanced Details';
+                    }
+                }
+            }
+
+            // Show modal
+            function showCalculationModal() {
+                document.getElementById('calculationModal').style.display = 'block';
+            }
+
+            function showUsefulnessModal() {
+                document.getElementById('usefulnessModal').style.display = 'block';
+            }
+
+            // Close modal
+            function closeModal(modalId) {
+                document.getElementById(modalId).style.display = 'none';
+            }
+
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            }
+
+            // Pre-load Backers members on page load
+            window.addEventListener('load', function() {
+                console.log('Page loaded, attempting to pre-load Backers members...');
+                fetchBackersMembers().then(members => {
+                    console.log('✓ Pre-load successful:', members.length, 'members');
+                }).catch(err => {
+                    console.warn('✗ Could not pre-load Backers members:', err);
+                });
+            });
+        </script>
+    </body>
+</html>

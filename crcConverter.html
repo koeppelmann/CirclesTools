@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CRC Converter</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            body {
+                margin: 0;
+                font-family: "DM Sans", sans-serif;
+                background: #fff7f5;
+                color: #191568;
+                line-height: 1.3;
+            }
+            header {
+                background: #191568;
+                color: #fff;
+                padding: 20px;
+                text-align: center;
+            }
+            h1 {
+                margin: 0;
+                font-weight: 600;
+                font-size: 1.5rem;
+            }
+            p {
+                margin: 0.5rem 0 0;
+                font-weight: 400;
+            }
+            .container {
+                max-width: 900px;
+                margin: 40px auto;
+                padding: 0 20px;
+            }
+            .card {
+                background: #fff;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 2px 12px 0 rgba(92, 73, 228, 0.07);
+                border: 1px solid #eee;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            label {
+                display: block;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+            }
+            input[type="number"] {
+                padding: 10px;
+                width: 100%;
+                max-width: 300px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                font-size: 1rem;
+            }
+            .toggle-container {
+                display: flex;
+                margin-bottom: 20px;
+                background: #ffede8;
+                border-radius: 6px;
+                padding: 4px;
+                width: fit-content;
+            }
+            .toggle-btn {
+                background: none;
+                border: none;
+                padding: 8px 16px;
+                cursor: pointer;
+                border-radius: 4px;
+                font-weight: 500;
+                color: #191568;
+                transition: background 0.2s;
+            }
+            .toggle-btn.active {
+                background: #191568;
+                color: white;
+            }
+            button.convert-btn {
+                margin-top: 10px;
+                padding: 10px 16px;
+                background: #191568;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: 500;
+                transition: background 0.2s;
+            }
+            button.convert-btn:hover {
+                background: #251b9f;
+            }
+            .result-container {
+                margin-top: 20px;
+                padding: 20px;
+                background: #e5e3fb;
+                border-radius: 8px;
+                border: 1px solid #eee;
+            }
+            .result-label {
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+            .result-value {
+                font-size: 1.2rem;
+                color: #191568;
+            }
+            .explanation {
+                margin-top: 12px;
+                font-size: 0.9rem;
+                color: #666;
+                line-height: 1.4;
+            }
+            .note {
+                margin-top: 20px;
+                padding: 12px;
+                background: #f0f0f8;
+                border-left: 3px solid #191568;
+                font-size: 0.9rem;
+                color: #555;
+                line-height: 1.4;
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>CRC Converter</h1>
+            <p>Convert between static and demurraged CRC token values</p>
+        </header>
+
+        <div class="container">
+            <div class="card">
+                <div class="toggle-container">
+                    <button id="staticBtn" class="toggle-btn active">
+                        Static
+                    </button>
+                    <button id="demurragedBtn" class="toggle-btn">
+                        Demurraged
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label id="inputLabel" for="inputAmount"
+                        >Static Amount:</label
+                    >
+                    <input
+                        type="number"
+                        id="inputAmount"
+                        placeholder="Enter amount"
+                        step="0.0001"
+                        min="0"
+                    />
+                </div>
+
+                <button id="convertBtn" class="convert-btn">Convert</button>
+
+                <div
+                    id="resultContainer"
+                    class="result-container"
+                    style="display: none"
+                >
+                    <div class="result-label">Result:</div>
+                    <div id="resultValue" class="result-value">0</div>
+                    <div id="explanation" class="explanation"></div>
+                </div>
+
+                <div class="note">
+                    <strong>Note:</strong> Static, also called inflationary, CRC
+                    tokens don't change their nominal value over time, while
+                    demurraged CRC tokens do. For details, check
+                    <a
+                        href="https://github.com/aboutcircles/circles-contracts-v2/blob/beta/docs/docs/advanced-topics/inflation-demurrage.md"
+                        >this explainer doc</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <!-- Ethers.js UMD build -->
+        <script
+            src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"
+            crossorigin="anonymous"
+        ></script>
+        <script>
+            // Contract data - hardcoded to use a standard CRC token
+            const contractAddress =
+                "0x0d8c4901Dd270Fe101B8014A5dbECC4e4432eB1E";
+            const abi = [
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_timestamp",
+                            type: "uint256",
+                        },
+                    ],
+                    name: "day",
+                    outputs: [
+                        { internalType: "uint64", name: "", type: "uint64" },
+                    ],
+                    stateMutability: "view",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_inflationaryValue",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint64",
+                            name: "_day",
+                            type: "uint64",
+                        },
+                    ],
+                    name: "convertInflationaryToDemurrageValue",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "pure",
+                    type: "function",
+                },
+                {
+                    inputs: [
+                        {
+                            internalType: "uint256",
+                            name: "_demurrageValue",
+                            type: "uint256",
+                        },
+                        {
+                            internalType: "uint64",
+                            name: "_dayUpdated",
+                            type: "uint64",
+                        },
+                    ],
+                    name: "convertDemurrageToInflationaryValue",
+                    outputs: [
+                        { internalType: "uint256", name: "", type: "uint256" },
+                    ],
+                    stateMutability: "pure",
+                    type: "function",
+                },
+            ];
+
+            // Initialize ethers provider
+            const provider = new ethers.providers.JsonRpcProvider(
+                "https://rpc.aboutcircles.com",
+            );
+            const contract = new ethers.Contract(
+                contractAddress,
+                abi,
+                provider,
+            );
+
+            // UI elements
+            const staticBtn = document.getElementById("staticBtn");
+            const demurragedBtn = document.getElementById("demurragedBtn");
+            const inputLabel = document.getElementById("inputLabel");
+            const inputAmount = document.getElementById("inputAmount");
+            const convertBtn = document.getElementById("convertBtn");
+            const resultContainer = document.getElementById("resultContainer");
+            const resultValue = document.getElementById("resultValue");
+            const explanation = document.getElementById("explanation");
+
+            // State management
+            let isStatic = true;
+
+            // Toggle functionality
+            staticBtn.addEventListener("click", () => {
+                isStatic = true;
+                staticBtn.classList.add("active");
+                demurragedBtn.classList.remove("active");
+                inputLabel.textContent = "Static Amount:";
+                resultContainer.style.display = "none";
+            });
+
+            demurragedBtn.addEventListener("click", () => {
+                isStatic = false;
+                demurragedBtn.classList.add("active");
+                staticBtn.classList.remove("active");
+                inputLabel.textContent = "Demurraged Amount:";
+                resultContainer.style.display = "none";
+            });
+
+            // Convert functionality
+            convertBtn.addEventListener("click", async () => {
+                // Show loading state
+                convertBtn.textContent = "Converting...";
+                convertBtn.disabled = true;
+                resultContainer.style.display = "none";
+
+                try {
+                    // Get input value and convert to wei (18 decimals)
+                    const inputValue = inputAmount.value;
+                    if (
+                        !inputValue ||
+                        isNaN(inputValue) ||
+                        parseFloat(inputValue) < 0
+                    ) {
+                        throw new Error("Please enter a valid positive number");
+                    }
+
+                    const inputValueWei = ethers.utils.parseEther(inputValue);
+
+                    // Get current day
+                    const currentTimestamp = Math.floor(Date.now() / 1000);
+                    const currentDay = await contract.day(currentTimestamp);
+                    console.log(
+                        "Current day from contract:",
+                        currentDay.toString(),
+                    );
+
+                    let result;
+
+                    // Perform conversion based on selected mode
+                    if (isStatic) {
+                        // Convert static (inflationary) to demurraged
+                        console.log(
+                            "Converting static amount:",
+                            inputValueWei.toString(),
+                            "at day:",
+                            currentDay.toString(),
+                        );
+                        result =
+                            await contract.convertInflationaryToDemurrageValue(
+                                inputValueWei,
+                                currentDay,
+                            );
+                        console.log(
+                            "Conversion result (demurraged):",
+                            result.toString(),
+                        );
+                        explanation.textContent = `${inputValue} static CRC equals ${parseFloat(ethers.utils.formatEther(result)).toLocaleString(undefined, { maximumFractionDigits: 6 })} demurraged CRC today (day ${currentDay}). Demurraged values decrease over time due to the token's demurrage mechanism.`;
+                    } else {
+                        // Convert demurraged to static (inflationary)
+                        console.log(
+                            "Converting demurraged amount:",
+                            inputValueWei.toString(),
+                            "at day:",
+                            currentDay.toString(),
+                        );
+                        result =
+                            await contract.convertDemurrageToInflationaryValue(
+                                inputValueWei,
+                                currentDay,
+                            );
+                        console.log(
+                            "Conversion result (static):",
+                            result.toString(),
+                        );
+                        explanation.textContent = `${inputValue} demurraged CRC equals ${parseFloat(ethers.utils.formatEther(result)).toLocaleString(undefined, { maximumFractionDigits: 6 })} static CRC today (day ${currentDay} since the deployment of CRC v1 deployment). `;
+                    }
+
+                    // Format result back to human-readable
+                    const formattedResult = ethers.utils.formatEther(result);
+                    resultValue.textContent = parseFloat(
+                        formattedResult,
+                    ).toLocaleString(undefined, {
+                        maximumFractionDigits: 6,
+                    });
+
+                    // Display result
+                    resultContainer.style.display = "block";
+                } catch (error) {
+                    console.error("Conversion error:", error);
+                    resultValue.textContent =
+                        "Error: " +
+                        (error.message || "Failed to convert value");
+                    explanation.textContent =
+                        "Please try again with a different value or check your connection.";
+                    resultContainer.style.display = "block";
+                } finally {
+                    // Reset button state
+                    convertBtn.textContent = "Convert";
+                    convertBtn.disabled = false;
+                }
+            });
+        </script>
+    </body>
+</html>

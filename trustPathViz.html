@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Circles Trust Path Visualizer</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
   <style>
@@ -12,11 +12,11 @@
       margin: 0;
       font-family: 'Inter', Helvetica, Arial, sans-serif;
       background: #fafafa;
-      color: #333;
+      color: #191568;
       line-height: 1.3;
     }
     header {
-      background: #5C49E4;
+      background: #191568;
       color: #fff;
       padding: 20px;
       text-align: center;
@@ -59,7 +59,7 @@
     }
     .summary-item {
       padding: 15px;
-      background: #f8f9fa;
+      background: #fff7f5;
       border-radius: 6px;
     }
     .summary-item h3 {
@@ -91,7 +91,7 @@
     button {
       margin-top: 10px;
       padding: 10px 20px;
-      background: #5C49E4;
+      background: #191568;
       color: #fff;
       border: none;
       border-radius: 4px;
@@ -100,7 +100,7 @@
       font-weight: 600;
     }
     button:hover {
-      background: #4A39CC;
+      background: #251b9f;
     }
     #visualization {
       background: white;
@@ -115,12 +115,12 @@
       cursor: move;
     }
     .node rect {
-      fill: #5C49E4;
+      fill: #191568;
       transition: fill 0.2s;
       opacity: 0.9;
     }
     .node:hover rect {
-      fill: #4A39CC;
+      fill: #251b9f;
     }
     .node text {
       font-size: 12px;
@@ -129,7 +129,7 @@
     }
     .link {
       fill: none;
-      stroke: #5C49E4;
+      stroke: #191568;
       stroke-opacity: 0.2;
       transition: all 0.2s;
     }
@@ -434,12 +434,12 @@
         }
 
         const trustData = await trustResponse.json();
-        if (!trustData.result || !trustData.result.Rows) {
+        if (!trustData.result || !trustData.result.rows) {
           throw new Error("Invalid trust data response");
         }
 
         // Get token supply for each trusted token (trusters)
-        const supplyRequests = trustData.result.Rows.map(row => ({
+        const supplyRequests = trustData.result.rows.map(row => ({
           jsonrpc: "2.0",
           id: 2,
           method: "circlesv2_getTokenSupply",
@@ -466,7 +466,7 @@
 
         for (let i = 0; i < supplyData.length; i++) {
           const supply = supplyData[i].result;
-          const truster = trustData.result.Rows[i][6]; // truster address
+          const truster = trustData.result.rows[i][6]; // truster address
           if (supply) {
             const supplyInCRC = BigInt(supply) / BigInt(1e18);
             totalCapacity += supplyInCRC;
@@ -619,7 +619,7 @@
           case 'capacity': return '#e74c3c';  // Red for capacity constraints
           case 'outflow': return '#f39c12';   // Orange for outflow constraints
           case 'inflow': return '#3498db';    // Blue for inflow constraints
-          default: return '#5C49E4';          // Default purple
+          default: return '#191568';          // Default purple
         }
       }
 
@@ -751,7 +751,7 @@
         .attr("class", "link")
         .attr("d", d3.sankeyLinkHorizontal())
         .attr("stroke-width", d => Math.max(2, d.width))
-        .style("stroke", "#5C49E4")
+        .style("stroke", "#191568")
         .style("stroke-opacity", 0.2)
         .style("fill", "none")
         .sort((a, b) => b.width - a.width);
