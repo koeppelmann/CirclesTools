@@ -620,12 +620,12 @@
       }
       // Engaging call-to-action
       if (status === 'ACTIVE' && isFunded) {
-        const metriUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
+        const gnosisUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(lottery.address)}`;
         html += `<div style='margin:20px 0 8px 0; padding:18px 12px; background:#eafaf1; border-radius:10px; text-align:center;'>
           <div style='font-size:1.15em; color:#2980b9; margin-bottom:10px;'><b>Want to win <span style='color:#f39c12;'>${ethers.utils.formatUnits(prize, prizeTokenDecimals)} ${prizeSymbol}</span>?</b></div>
-          <a href='${metriUrl}' target='_blank' style='display:inline-block;margin:10px 0 12px 0;padding:12px 28px;background:linear-gradient(90deg,#4A90E2 0%,#50E3C2 100%);color:white;font-weight:bold;font-size:1.1em;border-radius:6px;text-decoration:none;box-shadow:0 2px 8px rgba(80,227,194,0.08);'>
-            Buy Ticket via Metri
+          <a href='${gnosisUrl}' target='_blank' style='display:inline-block;margin:10px 0 12px 0;padding:12px 28px;background:linear-gradient(90deg,#4A90E2 0%,#50E3C2 100%);color:white;font-weight:bold;font-size:1.1em;border-radius:6px;text-decoration:none;box-shadow:0 2px 8px rgba(80,227,194,0.08);'>
+            Buy Ticket via Gnosis
           </a>
           <div style='margin:14px 0 0 0;'>
             <img src='${qrUrl}' alt='QR code' style='display:block;margin:0 auto 6px auto;border-radius:8px;border:1.5px solid #27ae60;background:#fff;' />
@@ -638,13 +638,13 @@
       } else if (status === 'DRAWN') {
         html += `<div style='margin:16px 0 8px 0; font-size:1.2em; color:#27ae60; text-align:center;'><b>🎉 The lottery is over! Congratulations to our winner:</b></div>`;
       } else if (status === 'ENDED' && !drawn && !cancelled && participants && participants.length > 0) {
-        const metriUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
+        const gnosisUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(lottery.address)}`;
         html += `<div style='margin:20px 0 8px 0; padding:18px 12px; background:#eafaf1; border-radius:10px; text-align:center;'>
           <div style='font-size:1.15em; color:#e67e22; margin-bottom:10px;'><b>This lottery is over, but the winner has not been drawn yet.</b></div>
           <div style='font-size:1.08em; color:#2980b9; margin-bottom:10px;'><b>Send ${ticketPriceHuman} CRC to trigger the drawing.</b></div>
-          <a href='${metriUrl}' target='_blank' style='display:inline-block;margin:10px 0 12px 0;padding:12px 28px;background:linear-gradient(90deg,#4A90E2 0%,#50E3C2 100%);color:white;font-weight:bold;font-size:1.1em;border-radius:6px;text-decoration:none;box-shadow:0 2px 8px rgba(80,227,194,0.08);'>
-            Trigger Drawing via Metri
+          <a href='${gnosisUrl}' target='_blank' style='display:inline-block;margin:10px 0 12px 0;padding:12px 28px;background:linear-gradient(90deg,#4A90E2 0%,#50E3C2 100%);color:white;font-weight:bold;font-size:1.1em;border-radius:6px;text-decoration:none;box-shadow:0 2px 8px rgba(80,227,194,0.08);'>
+            Trigger Drawing via Gnosis
           </a>
           <div style='margin:14px 0 0 0;'>
             <img src='${qrUrl}' alt='QR code' style='display:block;margin:0 auto 6px auto;border-radius:8px;border:1.5px solid #27ae60;background:#fff;' />

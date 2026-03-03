@@ -449,7 +449,7 @@
 
                 <div class="form-group">
                     <label for="targetAmount"
-                        >Target Amount (from Metri):</label
+                        >Target Amount (from Gnosis):</label
                     >
                     <input
                         type="text"
@@ -463,8 +463,8 @@
                 </div>
 
                 <div class="info-box">
-                    <strong>Note:</strong> By default, we're using the Metri
-                    format (demurraged CRC). This is what you see in the Metri
+                    <strong>Note:</strong> By default, we're using the Gnosis
+                    format (demurraged CRC). This is what you see in the Gnosis
                     wallet and what's used for direct transfers.
                 </div>
 
@@ -513,19 +513,19 @@
 
                 <div class="steps-container">
                     <div class="step">
-                        <div class="step-title">Visit Metri</div>
+                        <div class="step-title">Visit Gnosis</div>
                         <div class="step-content">
-                            Click the button below to open Metri in a new tab.
+                            Click the button below to open Gnosis in a new tab.
                             Sign in if needed.
                         </div>
-                        <button id="openMetriBtn" class="action-btn">
-                            <i class="fas fa-external-link-alt"></i> Open Metri
+                        <button id="openGnosisBtn" class="action-btn">
+                            <i class="fas fa-external-link-alt"></i> Open Gnosis
                         </button>
                     </div>
                     <div class="step">
                         <div class="step-title">Check Your Limit</div>
                         <div class="step-content">
-                            On Metri, look for your send limit with this group's
+                            On Gnosis, look for your send limit with this group's
                             token. It will be displayed in a format like
                             "1,234.56".
                         </div>
@@ -534,7 +534,7 @@
                         <div class="step-title">Enter Your Current Limit</div>
                         <div class="form-group">
                             <label for="currentLimit"
-                                >Current Send Limit (from Metri):</label
+                                >Current Send Limit (from Gnosis):</label
                             >
                             <input
                                 type="text"
@@ -577,7 +577,7 @@
                             <div class="purchase-option-icon">
                                 <i class="fas fa-wallet"></i>
                             </div>
-                            Option 1: Purchase through Metri
+                            Option 1: Purchase through Gnosis
                         </div>
                         <div
                             class="purchase-option-amount"
@@ -586,11 +586,11 @@
                             0 CRC
                         </div>
                         <div class="purchase-option-desc">
-                            This is the format used in the Metri wallet and for
+                            This is the format used in the Gnosis wallet and for
                             direct transfers.
                         </div>
                         <button
-                            id="buyMetriBtn"
+                            id="buyGnosisBtn"
                             class="action-btn"
                             disabled
                             style="
@@ -598,7 +598,7 @@
                                 cursor: not-allowed;
                             "
                         >
-                            <i class="fas fa-plus-circle"></i> Buy via Metri
+                            <i class="fas fa-plus-circle"></i> Buy via Gnosis
                         </button>
                         <div
                             style="
@@ -608,7 +608,7 @@
                             "
                         >
                             <i class="fas fa-info-circle"></i> Direct purchase
-                            through Metri will be available soon.
+                            through Gnosis will be available soon.
                         </div>
                     </div>
 
@@ -859,8 +859,8 @@
                 "targetDisplayResults",
             );
             const buyCowswapBtn = document.getElementById("buyCowswapBtn");
-            const buyMetriBtn = document.getElementById("buyMetriBtn");
-            const openMetriBtn = document.getElementById("openMetriBtn");
+            const buyGnosisBtn = document.getElementById("buyGnosisBtn");
+            const openGnosisBtn = document.getElementById("openGnosisBtn");
             const editTargetBtn = document.getElementById("editTargetBtn");
             const editTargetFromResults = document.getElementById(
                 "editTargetFromResults",
@@ -894,7 +894,7 @@
             // Fetch trusted groups on load
             async function fetchTrustedGroups() {
                 try {
-                    // Using the Metri truster org address
+                    // Using the Gnosis truster org address
                     const trusterAddress =
                         "0x0afd8899bca011bb95611409f09c8efbf6b169cf";
 
@@ -1096,24 +1096,24 @@
                         <div class="purchase-option">
                             <div class="purchase-option-title">
                                 <div class="purchase-option-icon"><i class="fas fa-check-circle" style="color: #28a745;"></i></div>
-                                Next Step: Send directly using Metri
+                                Next Step: Send directly using Gnosis
                             </div>
                             <div class="purchase-option-desc">
                                 Your current limit (${parseFloat(ethers.utils.formatEther(amounts.currentLimitValue)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC)
                                 is sufficient to send your target amount (${parseFloat(ethers.utils.formatEther(amounts.targetDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC).
                             </div>
                             <div class="purchase-option-desc">
-                                Simply go to Metri and send ${parseFloat(ethers.utils.formatEther(amounts.targetDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
+                                Simply go to Gnosis and send ${parseFloat(ethers.utils.formatEther(amounts.targetDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
                                 to the group's mint handler.
                             </div>
-                            <button id="openMetriSendBtn" class="action-btn">
-                                <i class="fas fa-paper-plane"></i> Open Metri to Send
+                            <button id="openGnosisSendBtn" class="action-btn">
+                                <i class="fas fa-paper-plane"></i> Open Gnosis to Send
                             </button>
                         </div>
                     `;
 
                     // Set up the send button
-                    document.getElementById("openMetriSendBtn").onclick =
+                    document.getElementById("openGnosisSendBtn").onclick =
                         () => {
                             window.open(
                                 `https://app.gnosis.io/transfer/${selectedGroup.baseMintHandler}/crc`,
@@ -1134,8 +1134,8 @@
                                 First, send your maximum available limit (${parseFloat(ethers.utils.formatEther(amounts.currentLimitValue)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC)
                                 to the group's mint handler.
                             </div>
-                            <button id="openMetriMaxBtn" class="action-btn">
-                                <i class="fas fa-paper-plane"></i> Open Metri to Send Max
+                            <button id="openGnosisMaxBtn" class="action-btn">
+                                <i class="fas fa-paper-plane"></i> Open Gnosis to Send Max
                             </button>
                         </div>
 
@@ -1166,21 +1166,21 @@
                                 ${parseFloat(ethers.utils.formatEther(amounts.neededDemurraged)).toLocaleString(undefined, { maximumFractionDigits: 6 })} CRC
                             </div>
                             <div class="purchase-option-desc">
-                            using Metri. To do so, first set the target group as your affiliate group and then navigate to the Swap menu.
+                            using Gnosis. To do so, first set the target group as your affiliate group and then navigate to the Swap menu.
                             </div>
                             <div class="purchase-options-container" style="display: flex; gap: 10px; margin-top: 10px;">
-                                <button id="setMetriAffiliateBtn" class="action-btn">
-                                    <i class="fas fa-link"></i> Open group in Metri
+                                <button id="setGnosisAffiliateBtn" class="action-btn">
+                                    <i class="fas fa-link"></i> Open group in Gnosis
                                 </button>
                             </div>
                             <div class="purchase-option-desc">
-                            Note that both of these result in the same target amount, the difference in values is because DEXes read CRC values differently from Metri.
+                            Note that both of these result in the same target amount, the difference in values is because DEXes read CRC values differently from Gnosis.
                             </div>
                         </div>
                     `;
 
                     // Set up the buttons
-                    document.getElementById("openMetriMaxBtn").onclick = () => {
+                    document.getElementById("openGnosisMaxBtn").onclick = () => {
                         window.open(
                             `https://app.gnosis.io/transfer/${selectedGroup.baseMintHandler}/crc`,
                             "_blank",
@@ -1194,7 +1194,7 @@
                         );
                     };
 
-                    document.getElementById("setMetriAffiliateBtn").onclick =
+                    document.getElementById("setGnosisAffiliateBtn").onclick =
                         () => {
                             window.open(
                                 `https://app.gnosis.io/${selectedGroup.address}`,
@@ -1287,15 +1287,15 @@
                     // Enable next button
                     nextToStep2.disabled = false;
 
-                    // Setup Metri link
-                    openMetriBtn.onclick = () => {
+                    // Setup Gnosis link
+                    openGnosisBtn.onclick = () => {
                         window.open(
                             `https://app.gnosis.io/transfer/${group.baseMintHandler}/crc`,
                             "_blank",
                         );
                     };
 
-                    // Setup CowSwap buy link (Metri disabled for now)
+                    // Setup CowSwap buy link (Gnosis disabled for now)
                     buyCowswapBtn.onclick = () => {
                         window.open(
                             `https://swap.cow.fi/#/100/swap/WXDAI/${group.staticTokenAddress}`,
@@ -1303,7 +1303,7 @@
                         );
                     };
 
-                    // Metri buy button is disabled in HTML
+                    // Gnosis buy button is disabled in HTML
                 } catch (error) {
                     console.error("Error selecting group:", error);
                     selectedGroupInfo.innerHTML = `

@@ -189,7 +189,7 @@
           <div style="color:#666;font-size:0.95em;margin-top:2px;">If set, only users who are trusted by this address (group or person) can participate in the lottery.</div>
           
           <div class="form-group">
-            <label for="prizeToken">Prize Token Address: <span title="Prize will be sent to the winner's Circles account. Metri currently only supports USDC, EURe, and GBPe.">(i)</span></label>
+            <label for="prizeToken">Prize Token Address: <span title="Prize will be sent to the winner's Circles account. Gnosis currently only supports USDC, EURe, and GBPe.">(i)</span></label>
             <select id="prizeTokenSelect" onchange="handlePrizeTokenChange()">
               <option value="0x420CA0f9B9b604cE0fd9C18EF134C705e5Fa3430">EURe (0x420CA0f9B9b604cE0fd9C18EF134C705e5Fa3430)</option>
               <option value="0x2a22f9c3b484c3629090FeED35F17Ff8F88f76F0">USDC (0x2a22f9c3b484c3629090FeED35F17Ff8F88f76F0)</option>
@@ -198,7 +198,7 @@
             </select>
             <input type="text" id="prizeToken" value="0x2a22f9c3b484c3629090FeED35F17Ff8F88f76F0" oninput="updatePrizeTokenInfo()" style="display:none;">
             <div id="prizeTokenInfo" style="margin-top:4px; color:#666; font-size:0.95em;"></div>
-            <div style="color:#666;font-size:0.95em;margin-top:2px;">Prize will be sent to the winner's Circles account. Metri currently only supports USDC, EURe, and GBPe.</div>
+            <div style="color:#666;font-size:0.95em;margin-top:2px;">Prize will be sent to the winner's Circles account. Gnosis currently only supports USDC, EURe, and GBPe.</div>
           </div>
           
           <div class="form-group">
@@ -419,7 +419,7 @@
               endCountdownHtml = endDate.toLocaleString();
             }
 
-            const metriUrl = `https://app.gnosis.io/transfer/${address}`;
+            const gnosisUrl = `https://app.gnosis.io/transfer/${address}`;
 
             card.innerHTML = `
               <h3><a href="lottery-participate.html?address=${address}" style="color:#4A90E2;text-decoration:underline;">${name}</a></h3>
@@ -436,7 +436,7 @@
               <p>Total Tickets Sold: ${totalTicketsSold}</p>
               ${isDrawn ? `<p><b>Winner:</b> <span id="winner-${address}">${winner}</span></p>` : ''}
               ${requireTrustedBy !== ethers.constants.AddressZero ? `<p>Requires Trust From: ${requireTrustedBy}</p>` : ''}
-              <p>Metri Link: <a href='${metriUrl}' target='_blank' style='color:#4A90E2;font-weight:bold;'>Fund Lottery from Metri</a></p>
+              <p>Gnosis Link: <a href='${gnosisUrl}' target='_blank' style='color:#4A90E2;font-weight:bold;'>Fund Lottery from Gnosis</a></p>
               <div class="button-container">
                 ${status === 'ENDED' && !isDrawn && participantCount > 0 ? `
                   <button onclick="drawWinner('${address}')">Draw Winner</button>

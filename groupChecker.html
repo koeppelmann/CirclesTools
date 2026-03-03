@@ -555,7 +555,7 @@
                             if (isBaseMintHandler) {
                                 const mintBtn = document.createElement("button");
                                 mintBtn.className = "mint-btn icon-btn";
-                                mintBtn.title = "Mint via Metri";
+                                mintBtn.title = "Mint via Gnosis";
                                 mintBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7.5" stroke="#191568" stroke-width="1.5"/><path d="M9 5v8M5 9h8" stroke="#191568" stroke-width="1.5" stroke-linecap="round"/></svg>`;
                                 mintBtn.onclick = (e) => {
                                     e.preventDefault();
@@ -771,7 +771,7 @@
 
             // Initialize the input with trusted groups on page load
             async function initializePage() {
-                // this is the address of the metri truster org
+                // this is the address of the gnosis truster org
                 const trusterAddress =
                     "0x0afd8899bca011bb95611409f09c8efbf6b169cf";
                 const trustedGroups = await fetchTrustedGroups(trusterAddress);
