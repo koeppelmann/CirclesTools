@@ -172,6 +172,61 @@
                 margin: 0;
                 padding-left: 18px;
             }
+            th.sortable {
+                cursor: pointer;
+                user-select: none;
+                position: relative;
+                padding-right: 20px;
+            }
+            th.sortable:hover {
+                background: #d5d3f5;
+            }
+            th.sortable::after {
+                content: '⇅';
+                position: absolute;
+                right: 4px;
+                opacity: 0.4;
+                font-size: 0.85em;
+            }
+            th.sortable.sort-desc::after {
+                content: '▼';
+                opacity: 0.8;
+            }
+            th.sortable.sort-asc::after {
+                content: '▲';
+                opacity: 0.8;
+            }
+            .unit-toggle {
+                display: inline-flex;
+                background: #e5e3fb;
+                border-radius: 6px;
+                padding: 3px;
+                margin-bottom: 12px;
+                font-size: 0.9rem;
+                align-items: center;
+                gap: 4px;
+            }
+            .unit-toggle span {
+                font-weight: 600;
+                margin-right: 6px;
+                padding-left: 6px;
+            }
+            .unit-toggle button {
+                background: none;
+                border: none;
+                padding: 6px 14px;
+                cursor: pointer;
+                border-radius: 4px;
+                font-weight: 500;
+                color: #191568;
+                transition: background 0.2s;
+                width: auto;
+                height: auto;
+            }
+            .unit-toggle button.active {
+                background: #191568;
+                color: white;
+            }
             .mint-btn {
                 background: #f4f4ff;
                 color: #191568;
@@ -427,6 +482,28 @@
                 provider,
             );
 
+            // CRC static/demurraged converter contract
+            const crcConverterContract = new ethers.Contract(
+                '0x0d8c4901Dd270Fe101B8014A5dbECC4e4432eB1E',
+                [
+                    { inputs: [{ internalType: "uint256", name: "_timestamp", type: "uint256" }], name: "day", outputs: [{ internalType: "uint64", name: "", type: "uint64" }], stateMutability: "view", type: "function" },
+                    { inputs: [{ internalType: "uint256", name: "_inflationaryValue", type: "uint256" }, { internalType: "uint64", name: "_day", type: "uint64" }], name: "convertInflationaryToDemurrageValue", outputs: [{ internalType: "uint256", name: "", type: "uint256" }], stateMutability: "pure", type: "function" }
+                ],
+                provider,
+            );
+            let staticToDemurragedFactor = 1;
+            let showDemurraged = false;
+            (async () => {
+                try {
+                    const day = await crcConverterContract.day(Math.floor(Date.now() / 1000));
+                    const result = await crcConverterContract.convertInflationaryToDemurrageValue(ethers.utils.parseEther('1'), day);
+                    staticToDemurragedFactor = parseFloat(ethers.utils.formatEther(result));
+                    console.log('Static→Demurraged factor:', staticToDemurragedFactor);
+                } catch (err) {
+                    console.error('Failed to fetch conversion factor:', err);
+                }
+            })();
+
             const checkButton = document.getElementById("checkButton");
             const resultDiv = document.getElementById("result");
             const groupInput = document.getElementById("groupInput");
@@ -464,6 +541,22 @@
                     // Remove loader
                     resultDiv.innerHTML = "";
 
+                    // Unit toggle (Static / Demurraged)
+                    const toggleDiv = document.createElement('div');
+                    toggleDiv.className = 'unit-toggle';
+                    const toggleLabel = document.createElement('span');
+                    toggleLabel.textContent = 'Show as:';
+                    toggleDiv.appendChild(toggleLabel);
+                    const staticToggleBtn = document.createElement('button');
+                    staticToggleBtn.textContent = 'Static';
+                    staticToggleBtn.className = showDemurraged ? '' : 'active';
+                    const demurragedToggleBtn = document.createElement('button');
+                    demurragedToggleBtn.textContent = 'Demurraged';
+                    demurragedToggleBtn.className = showDemurraged ? 'active' : '';
+                    toggleDiv.appendChild(staticToggleBtn);
+                    toggleDiv.appendChild(demurragedToggleBtn);
+                    resultDiv.appendChild(toggleDiv);
+
                     // Create the table
                     const table = document.createElement("table");
                     table.style.width = "100%";
@@ -474,15 +567,40 @@
                     const headerRow = document.createElement("tr");
                     const headers = [
                         'Group Address', 'Owner', 'Fee Collection',
-                        'Static ERC20', 'Static ERC20 Price', 'Static ERC20 Supply',
+                        'Static ERC20', 'Static ERC20 Price', 'Static ERC20 Supply', 'Market Cap',
                         'Demurraged ERC20', 'Demurraged ERC20 Price', 'Demurraged ERC20 Supply',
                         'ERC1155 Total Supply', 'Balance',
                         'Membership Conditions', 'Service', 'Base Mint Handler', 'Base Mint Policy', 'Base Treasury'
                     ];
 
+                    const sortableColumns = { 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap' };
+                    let currentSort = { col: null, dir: null };
+
+                    function sortTable(tbody, sortKey, dir) {
+                        const rows = Array.from(tbody.querySelectorAll('tr'));
+                        rows.sort((a, b) => {
+                            const va = a[sortKey] || 0;
+                            const vb = b[sortKey] || 0;
+                            return dir === 'asc' ? va - vb : vb - va;
+                        });
+                        rows.forEach(r => tbody.appendChild(r));
+                    }
+
                     headers.forEach((headerText, idx) => {
                         const th = document.createElement("th");
                         th.textContent = headerText;
+                        if (sortableColumns[idx]) {
+                            th.className = 'sortable';
+                            th.addEventListener('click', () => {
+                                // Toggle direction
+                                const newDir = (currentSort.col === idx && currentSort.dir === 'desc') ? 'asc' : 'desc';
+                                currentSort = { col: idx, dir: newDir };
+                                // Update header classes
+                                headerRow.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+                                th.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                                sortTable(tbody, sortableColumns[idx], newDir);
+                            });
+                        }
                         headerRow.appendChild(th);
                     });
                     thead.appendChild(headerRow);
@@ -490,6 +608,46 @@
 
                     // Create table body
                     const tbody = document.createElement("tbody");
+
+                    // Helper: update a single row's display based on toggle state
+                    function updateRowDisplay(row) {
+                        const supplyFactor = showDemurraged ? staticToDemurragedFactor : 1;
+                        const priceFactor = showDemurraged ? (1 / staticToDemurragedFactor) : 1;
+
+                        const displaySupply = row.rawSupply * supplyFactor;
+                        row.supplyCell.textContent = displaySupply.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                        row.sortSupply = displaySupply;
+
+                        if (row.rawPrice !== null) {
+                            const displayPrice = row.rawPrice * priceFactor;
+                            row.priceCell.textContent = displayPrice.toFixed(4);
+                            row.priceCell.appendChild(row.pricePoolDiv);
+                            row.sortPrice = displayPrice;
+
+                            row.sortMarketCap = displaySupply * displayPrice;
+                            row.marketCapCell.textContent = row.sortMarketCap.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                        }
+                    }
+
+                    function updateAllRows() {
+                        Array.from(tbody.querySelectorAll('tr')).forEach(updateRowDisplay);
+                        if (currentSort.col !== null) {
+                            sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
+                        }
+                    }
+
+                    staticToggleBtn.addEventListener('click', () => {
+                        showDemurraged = false;
+                        staticToggleBtn.className = 'active';
+                        demurragedToggleBtn.className = '';
+                        updateAllRows();
+                    });
+                    demurragedToggleBtn.addEventListener('click', () => {
+                        showDemurraged = true;
+                        demurragedToggleBtn.className = 'active';
+                        staticToggleBtn.className = '';
+                        updateAllRows();
+                    });
 
                     // Add each group as a row
                     for (let i = 0; i < addresses.length; i++) {
@@ -622,10 +780,20 @@
                         staticPoolDiv.style.gap = '4px';
                         staticPriceCell.appendChild(staticPoolDiv);
                         row.appendChild(staticPriceCell);
+                        row.priceCell = staticPriceCell;
+                        row.pricePoolDiv = staticPoolDiv;
+                        row.rawPrice = null;
+                        row.sortPrice = 0;
                         getPrice(info.demurragedERC20).then(function updateStaticPrice(price) {
-                            staticPriceCell.textContent = price;
-                            staticPriceCell.appendChild(staticPoolDiv);
-                            if (price === 'N/A') {
+                            if (price !== 'N/A') {
+                                row.rawPrice = parseFloat(price) || 0;
+                                updateRowDisplay(row);
+                                if (currentSort.col === 4 || currentSort.col === 6) {
+                                    sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
+                                }
+                            } else {
+                                staticPriceCell.textContent = 'N/A';
+                                staticPriceCell.appendChild(staticPoolDiv);
                                 setTimeout(() => {
                                     getPrice(info.demurragedERC20).then(updateStaticPrice);
                                 }, 5000);
@@ -659,7 +827,19 @@
                                 .catch(() => updateStaticPools([], true));
                         })();
                         // Static ERC20 Supply
-                        row.appendChild(document.createElement('td')).textContent = ethers.utils.formatEther(info.demurragedERC20TotalSupply || 0);
+                        const staticSupplyVal = parseFloat(ethers.utils.formatEther(info.demurragedERC20TotalSupply || 0));
+                        row.rawSupply = staticSupplyVal;
+                        row.sortSupply = staticSupplyVal;
+                        const supplyCell = document.createElement('td');
+                        supplyCell.textContent = staticSupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                        row.supplyCell = supplyCell;
+                        row.appendChild(supplyCell);
+                        // Market Cap (Price × Supply)
+                        const marketCapCell = document.createElement('td');
+                        marketCapCell.textContent = '...';
+                        row.sortMarketCap = 0;
+                        row.marketCapCell = marketCapCell;
+                        row.appendChild(marketCapCell);
                         // Demurraged ERC20 (actually static)
                         row.appendChild(createAddressCell(info.staticERC20, false, false, false, true, true));
                         // Demurraged ERC20 Price
@@ -748,6 +928,12 @@
 
                     table.appendChild(tbody);
                     resultDiv.appendChild(table);
+
+                    // Default sort by Static ERC20 Supply descending
+                    currentSort = { col: 5, dir: 'desc' };
+                    headerRow.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+                    headerRow.children[5].classList.add('sort-desc');
+                    sortTable(tbody, 'sortSupply', 'desc');
 
                 } catch (error) {
                     console.error(error);
