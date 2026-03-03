@@ -419,7 +419,7 @@
               endCountdownHtml = endDate.toLocaleString();
             }
 
-            const metriUrl = `https://app.metri.xyz/transfer/${address}`;
+            const metriUrl = `https://app.gnosis.io/transfer/${address}`;
 
             card.innerHTML = `
               <h3><a href="lottery-participate.html?address=${address}" style="color:#4A90E2;text-decoration:underline;">${name}</a></h3>
@@ -468,7 +468,7 @@
                   // Fetch profile names in parallel
                   const names = await Promise.all(participants.map(addr => getProfileName(addr)));
                   document.getElementById(`participants-${address}`).innerHTML =
-                    `<b>Participants:</b><ul style='margin:4px 0 0 16px;'>${participants.map((p, i) => `<li><a href='https://app.metri.xyz/${p}' target='_blank' style='text-decoration:none;color:#4A90E2;'>@${names[i] ? names[i] : p.slice(0, 6) + '...' + p.slice(-4)}</a> (${p})</li>`).join('')}</ul>`;
+                    `<b>Participants:</b><ul style='margin:4px 0 0 16px;'>${participants.map((p, i) => `<li><a href='https://app.gnosis.io/${p}' target='_blank' style='text-decoration:none;color:#4A90E2;'>@${names[i] ? names[i] : p.slice(0, 6) + '...' + p.slice(-4)}</a> (${p})</li>`).join('')}</ul>`;
                 }
               } catch {}
             })();

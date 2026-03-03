@@ -359,7 +359,7 @@
                                 const missingCRC = groupAmount.sub(balanceGroup);
                                 const missingCRCWhole = ethers.utils.formatUnits(missingCRC, 18).replace(/\.0+$/, '');
                                 html += `<div style='margin-top:10px;'><b>Send Group Token:</b><br>`;
-                                html += `<a href='https://app.metri.xyz/transfer/${starterAddress}/crc/${missingCRCWhole}' target='_blank'>Send via Metri</a>`;
+                                html += `<a href='https://app.gnosis.io/transfer/${starterAddress}/crc/${missingCRCWhole}' target='_blank'>Send via Metri</a>`;
                                 html += `</div>`;
                             }
                         }

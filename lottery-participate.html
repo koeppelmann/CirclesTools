@@ -620,7 +620,7 @@
       }
       // Engaging call-to-action
       if (status === 'ACTIVE' && isFunded) {
-        const metriUrl = `https://app.metri.xyz/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
+        const metriUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(lottery.address)}`;
         html += `<div style='margin:20px 0 8px 0; padding:18px 12px; background:#eafaf1; border-radius:10px; text-align:center;'>
           <div style='font-size:1.15em; color:#2980b9; margin-bottom:10px;'><b>Want to win <span style='color:#f39c12;'>${ethers.utils.formatUnits(prize, prizeTokenDecimals)} ${prizeSymbol}</span>?</b></div>
@@ -638,7 +638,7 @@
       } else if (status === 'DRAWN') {
         html += `<div style='margin:16px 0 8px 0; font-size:1.2em; color:#27ae60; text-align:center;'><b>🎉 The lottery is over! Congratulations to our winner:</b></div>`;
       } else if (status === 'ENDED' && !drawn && !cancelled && participants && participants.length > 0) {
-        const metriUrl = `https://app.metri.xyz/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
+        const metriUrl = `https://app.gnosis.io/transfer/${lottery.address}/crc/${ticketPriceHuman}`;
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(lottery.address)}`;
         html += `<div style='margin:20px 0 8px 0; padding:18px 12px; background:#eafaf1; border-radius:10px; text-align:center;'>
           <div style='font-size:1.15em; color:#e67e22; margin-bottom:10px;'><b>This lottery is over, but the winner has not been drawn yet.</b></div>
@@ -659,7 +659,7 @@
       if (drawn && winner && winner !== ethers.constants.AddressZero) {
         // Laurel wreath SVG
         const laurel = `<svg width='80' height='80' viewBox='0 0 80 80' style='position:absolute;left:0;top:0;pointer-events:none;'><g><ellipse cx='40' cy='40' rx='36' ry='36' fill='none' stroke='#27ae60' stroke-width='4' stroke-dasharray='8 8' /></g></svg>`;
-        const winnerProfileUrl = winner && winner !== ethers.constants.AddressZero ? `https://app.metri.xyz/${winner}` : null;
+        const winnerProfileUrl = winner && winner !== ethers.constants.AddressZero ? `https://app.gnosis.io/${winner}` : null;
         if (winnerProfileUrl) {
           html += `<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;margin:18px 0 18px 0;position:relative;'>
             <a href='${winnerProfileUrl}' target='_blank' style='text-decoration:none;'>
@@ -685,7 +685,7 @@
         html += `<div class="participants-list" style='margin-top:18px;'><b>Participants:</b><ul style='list-style:none;padding-left:0;margin-top:8px;'>` + participants.map((p, i) => {
           const displayName = participantNames && participantNames[i] ? participantNames[i] : (p.slice(0, 6) + '...' + p.slice(-4));
           const avatar = participantAvatars && participantAvatars[i] ? participantAvatars[i] : 'https://ui-avatars.com/api/?name=Circles';
-          return `<li style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'><img src='${avatar}' alt='avatar' style='width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid #ccc;'/><a href='https://app.metri.xyz/${p}' target='_blank' style='text-decoration:none;color:#4A90E2;'>@${displayName}</a></li>`;
+          return `<li style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'><img src='${avatar}' alt='avatar' style='width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid #ccc;'/><a href='https://app.gnosis.io/${p}' target='_blank' style='text-decoration:none;color:#4A90E2;'>@${displayName}</a></li>`;
         }).join('') + `</ul></div>`;
       }
       const lotteryDetails = document.getElementById('lotteryDetails');
