@@ -196,36 +196,14 @@
                 content: '▲';
                 opacity: 0.8;
             }
-            .unit-toggle {
-                display: inline-flex;
-                background: #e5e3fb;
-                border-radius: 6px;
-                padding: 3px;
-                margin-bottom: 12px;
-                font-size: 0.9rem;
-                align-items: center;
-                gap: 4px;
-            }
-            .unit-toggle span {
-                font-weight: 600;
-                margin-right: 6px;
-                padding-left: 6px;
-            }
-            .unit-toggle button {
-                background: none;
-                border: none;
-                padding: 6px 14px;
+            .unit-label {
                 cursor: pointer;
-                border-radius: 4px;
-                font-weight: 500;
-                color: #191568;
-                transition: background 0.2s;
-                width: auto;
-                height: auto;
+                text-decoration: underline;
+                text-decoration-style: dotted;
+                margin-left: 1px;
             }
-            .unit-toggle button.active {
-                background: #191568;
-                color: white;
+            .unit-label:hover {
+                color: #5c49e4;
             }
             .mint-btn {
                 background: #f4f4ff;
@@ -492,7 +470,7 @@
                 provider,
             );
             let staticToDemurragedFactor = 1;
-            let showDemurraged = false;
+            let showDemurraged = true;
             (async () => {
                 try {
                     const day = await crcConverterContract.day(Math.floor(Date.now() / 1000));
@@ -541,22 +519,6 @@
                     // Remove loader
                     resultDiv.innerHTML = "";
 
-                    // Unit toggle (Static / Demurraged)
-                    const toggleDiv = document.createElement('div');
-                    toggleDiv.className = 'unit-toggle';
-                    const toggleLabel = document.createElement('span');
-                    toggleLabel.textContent = 'Show as:';
-                    toggleDiv.appendChild(toggleLabel);
-                    const staticToggleBtn = document.createElement('button');
-                    staticToggleBtn.textContent = 'Static';
-                    staticToggleBtn.className = showDemurraged ? '' : 'active';
-                    const demurragedToggleBtn = document.createElement('button');
-                    demurragedToggleBtn.textContent = 'Demurraged';
-                    demurragedToggleBtn.className = showDemurraged ? 'active' : '';
-                    toggleDiv.appendChild(staticToggleBtn);
-                    toggleDiv.appendChild(demurragedToggleBtn);
-                    resultDiv.appendChild(toggleDiv);
-
                     // Create the table
                     const table = document.createElement("table");
                     table.style.width = "100%";
@@ -567,11 +529,20 @@
                     const headerRow = document.createElement("tr");
                     const headers = [
                         'Group Address', 'Owner', 'Fee Collection',
-                        'Static ERC20', 'Static ERC20 Price', 'Static ERC20 Supply', 'Market Cap',
+                        'Static ERC20', 'Price/', 'Supply ', 'Market Cap',
                         'Demurraged ERC20', 'Demurraged ERC20 Price', 'Demurraged ERC20 Supply',
                         'ERC1155 Total Supply', 'Balance',
                         'Membership Conditions', 'Service', 'Base Mint Handler', 'Base Mint Policy', 'Base Treasury'
                     ];
+
+                    const unitToggleLabels = [];
+                    function toggleUnit(e) {
+                        if (e) e.stopPropagation();
+                        showDemurraged = !showDemurraged;
+                        const unitText = showDemurraged ? 'CRC' : 's-CRC';
+                        unitToggleLabels.forEach(s => { s.textContent = unitText; });
+                        updateAllRows();
+                    }
 
                     const sortableColumns = { 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap' };
                     let currentSort = { col: null, dir: null };
@@ -589,13 +560,20 @@
                     headers.forEach((headerText, idx) => {
                         const th = document.createElement("th");
                         th.textContent = headerText;
+                        // Add clickable unit toggle for Price and Supply headers
+                        if (idx === 4 || idx === 5) {
+                            const unitSpan = document.createElement('span');
+                            unitSpan.className = 'unit-label';
+                            unitSpan.textContent = showDemurraged ? 'CRC' : 's-CRC';
+                            unitToggleLabels.push(unitSpan);
+                            unitSpan.addEventListener('click', toggleUnit);
+                            th.appendChild(unitSpan);
+                        }
                         if (sortableColumns[idx]) {
                             th.className = 'sortable';
                             th.addEventListener('click', () => {
-                                // Toggle direction
                                 const newDir = (currentSort.col === idx && currentSort.dir === 'desc') ? 'asc' : 'desc';
                                 currentSort = { col: idx, dir: newDir };
-                                // Update header classes
                                 headerRow.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
                                 th.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
                                 sortTable(tbody, sortableColumns[idx], newDir);
@@ -613,9 +591,10 @@
                     function updateRowDisplay(row) {
                         const supplyFactor = showDemurraged ? staticToDemurragedFactor : 1;
                         const priceFactor = showDemurraged ? (1 / staticToDemurragedFactor) : 1;
+                        const unit = showDemurraged ? ' CRC' : ' s-CRC';
 
                         const displaySupply = row.rawSupply * supplyFactor;
-                        row.supplyCell.textContent = displaySupply.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                        row.supplyCell.textContent = displaySupply.toLocaleString(undefined, { maximumFractionDigits: 2 }) + unit;
                         row.sortSupply = displaySupply;
 
                         if (row.rawPrice !== null) {
@@ -635,19 +614,6 @@
                             sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
                         }
                     }
-
-                    staticToggleBtn.addEventListener('click', () => {
-                        showDemurraged = false;
-                        staticToggleBtn.className = 'active';
-                        demurragedToggleBtn.className = '';
-                        updateAllRows();
-                    });
-                    demurragedToggleBtn.addEventListener('click', () => {
-                        showDemurraged = true;
-                        demurragedToggleBtn.className = 'active';
-                        staticToggleBtn.className = '';
-                        updateAllRows();
-                    });
 
                     // Add each group as a row
                     for (let i = 0; i < addresses.length; i++) {
@@ -909,11 +875,11 @@
                     table.appendChild(tbody);
                     resultDiv.appendChild(table);
 
-                    // Default sort by Static ERC20 Supply descending
+                    // Default sort by Supply descending, apply demurraged conversion
                     currentSort = { col: 5, dir: 'desc' };
                     headerRow.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
                     headerRow.children[5].classList.add('sort-desc');
-                    sortTable(tbody, 'sortSupply', 'desc');
+                    updateAllRows();
 
                     // Fetch prices sequentially, sorted by largest supply first
                     // to be gentle with the Balancer API and avoid rate limiting
