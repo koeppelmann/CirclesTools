@@ -530,7 +530,7 @@
                     const headers = [
                         'Group Address', 'Owner', 'Fee Collection',
                         'Static ERC20', 'Price/', 'Supply ', 'Market Cap',
-                        'Demurraged ERC20', 'Demurraged ERC20 Price', 'Demurraged ERC20 Supply',
+                        'Demurraged ERC20', 'Demurraged ERC20 Supply',
                         'ERC1155 Total Supply', 'Balance',
                         'Membership Conditions', 'Service', 'Base Mint Handler', 'Base Mint Policy', 'Base Treasury'
                     ];
@@ -544,7 +544,7 @@
                         updateAllRows();
                     }
 
-                    const sortableColumns = { 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap' };
+                    const sortableColumns = { 4: 'sortPrice', 5: 'sortSupply', 6: 'sortMarketCap', 8: 'sortDemurragedSupply', 9: 'sortErc1155Supply' };
                     let currentSort = { col: null, dir: null };
 
                     function sortTable(tbody, sortKey, dir) {
@@ -797,51 +797,16 @@
                         row.appendChild(marketCapCell);
                         // Demurraged ERC20 (actually static)
                         row.appendChild(createAddressCell(info.staticERC20, false, false, false, true, true));
-                        // Demurraged ERC20 Price
-                        const demurragedPriceCell = document.createElement('td');
-                        demurragedPriceCell.textContent = 'Loading...';
-                        // Always create a poolDiv for Balancer icons
-                        const demurragedPoolDiv = document.createElement('div');
-                        demurragedPoolDiv.style.display = 'flex';
-                        demurragedPoolDiv.style.gap = '4px';
-                        demurragedPriceCell.appendChild(demurragedPoolDiv);
-                        row.appendChild(demurragedPriceCell);
-                        row.demurragedPriceCell = demurragedPriceCell;
-                        row.demurragedPoolDiv = demurragedPoolDiv;
-                        row.staticERC20Address = info.staticERC20;
-                        function updateDemurragedPools(pools, error) {
-                            demurragedPoolDiv.innerHTML = '';
-                            if (error) {
-                                setTimeout(() => {
-                                    getPoolsForToken(info.staticERC20).then((p) => updateDemurragedPools(p, null)).catch(() => updateDemurragedPools([], true));
-                                }, 5000);
-                                return;
-                            }
-                            if (pools.length > 0) {
-                                pools.forEach(pool => {
-                                    const balancerBtn = document.createElement('button');
-                                    balancerBtn.className = 'icon-btn';
-                                    balancerBtn.title = 'View on Balancer';
-                                    balancerBtn.innerHTML = `<svg width='22' height='22' viewBox='0 0 512 512' fill='none' xmlns='http://www.w3.org/2000/svg'><rect x='2' y='2' width='508' height='508' rx='254' fill='#004293'/><path d='M375.644 126.065C375.644 148.144 322.077 166.043 255.999 166.043C189.921 166.043 136.355 148.144 136.355 126.065C136.355 103.985 189.921 86.0862 255.999 86.0862C322.077 86.0862 375.644 103.985 375.644 126.065Z' fill='white'/><path d='M455.407 343.283C455.407 316.07 406.59 292.669 336.623 282.322L334.811 282.69C311.212 287.346 284.413 289.978 256 289.978C226.856 289.978 199.409 287.208 175.376 282.322C105.409 292.669 56.5918 316.07 56.5918 343.283C56.5918 380.082 145.869 409.914 256 409.914C366.13 409.914 455.407 380.082 455.407 343.283Z' fill='white'/><path d='M415.526 223.347C415.526 199.799 369.838 179.82 306.468 172.762L304.833 173.026C289.752 175.398 273.267 176.704 256 176.704C238.105 176.704 221.053 175.302 205.531 172.764C142.161 179.819 96.4734 199.801 96.4734 223.347C96.4734 252.786 167.895 276.652 256 276.652C344.104 276.652 415.526 252.786 415.526 223.347Z' fill='white'/><rect x='2' y='2' width='508' height='508' rx='254' stroke='#E5E7EB' stroke-width='4'/></svg>`;
-                                    balancerBtn.onclick = (e) => {
-                                        e.preventDefault();
-                                        window.open(`https://balancer.fi/pools/gnosis/v2/${pool.id}`, '_blank');
-                                    };
-                                    demurragedPoolDiv.appendChild(balancerBtn);
-                                });
-                            }
-                        }
-                        (function fetchDemurragedPools() {
-                            getPoolsForToken(info.staticERC20)
-                                .then(p => updateDemurragedPools(p, null))
-                                .catch(() => updateDemurragedPools([], true));
-                        })();
                         // Demurraged ERC20 Supply
-                        row.appendChild(document.createElement('td')).textContent = ethers.utils.formatEther(info.staticERC20TotalSupply || 0);
+                        const demurragedSupplyVal = parseFloat(ethers.utils.formatEther(info.staticERC20TotalSupply || 0));
+                        row.sortDemurragedSupply = demurragedSupplyVal;
+                        row.appendChild(document.createElement('td')).textContent = demurragedSupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
                         // ERC1155 Total Supply
-                        row.appendChild(document.createElement('td')).textContent = ethers.utils.formatEther(info.erc1155TotalSupply || 0);
+                        const erc1155SupplyVal = parseFloat(ethers.utils.formatEther(info.erc1155TotalSupply || 0));
+                        row.sortErc1155Supply = erc1155SupplyVal;
+                        row.appendChild(document.createElement('td')).textContent = erc1155SupplyVal.toLocaleString(undefined, { maximumFractionDigits: 2 });
                         // Balance
-                        row.appendChild(document.createElement('td')).textContent = ethers.utils.formatEther(info.balance || 0);
+                        row.appendChild(document.createElement('td')).textContent = parseFloat(ethers.utils.formatEther(info.balance || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 });
                         // Membership conditions
                         const conditionsCell = document.createElement('td');
                         if (info.membershipConditions.length > 0) {
@@ -923,24 +888,6 @@
                                 await new Promise(res => setTimeout(res, 500));
                             }
 
-                            // Fetch demurraged ERC20 price (from static ERC20 address)
-                            if (row.staticERC20Address) {
-                                const price = await getPrice(row.staticERC20Address);
-                                row.demurragedPriceCell.textContent = price;
-                                row.demurragedPriceCell.appendChild(row.demurragedPoolDiv);
-                                if (price === 'N/A') {
-                                    (function retryDemurragedPrice(r) {
-                                        setTimeout(async () => {
-                                            const p = await getPrice(r.staticERC20Address);
-                                            r.demurragedPriceCell.textContent = p;
-                                            r.demurragedPriceCell.appendChild(r.demurragedPoolDiv);
-                                            if (p === 'N/A') retryDemurragedPrice(r);
-                                        }, 10000);
-                                    })(row);
-                                }
-                                // Gentle delay between API calls
-                                await new Promise(res => setTimeout(res, 500));
-                            }
                         }
                     })();
 
