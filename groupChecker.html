@@ -784,21 +784,7 @@
                         row.pricePoolDiv = staticPoolDiv;
                         row.rawPrice = null;
                         row.sortPrice = 0;
-                        getPrice(info.demurragedERC20).then(function updateStaticPrice(price) {
-                            if (price !== 'N/A') {
-                                row.rawPrice = parseFloat(price) || 0;
-                                updateRowDisplay(row);
-                                if (currentSort.col === 4 || currentSort.col === 6) {
-                                    sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
-                                }
-                            } else {
-                                staticPriceCell.textContent = 'N/A';
-                                staticPriceCell.appendChild(staticPoolDiv);
-                                setTimeout(() => {
-                                    getPrice(info.demurragedERC20).then(updateStaticPrice);
-                                }, 5000);
-                            }
-                        });
+                        row.demurragedERC20Address = info.demurragedERC20;
                         function updateStaticPools(pools, error) {
                             staticPoolDiv.innerHTML = '';
                             if (error) {
@@ -851,15 +837,9 @@
                         demurragedPoolDiv.style.gap = '4px';
                         demurragedPriceCell.appendChild(demurragedPoolDiv);
                         row.appendChild(demurragedPriceCell);
-                        getPrice(info.staticERC20).then(function updateDemurragedPrice(price) {
-                            demurragedPriceCell.textContent = price;
-                            demurragedPriceCell.appendChild(demurragedPoolDiv);
-                            if (price === 'N/A') {
-                                setTimeout(() => {
-                                    getPrice(info.staticERC20).then(updateDemurragedPrice);
-                                }, 5000);
-                            }
-                        });
+                        row.demurragedPriceCell = demurragedPriceCell;
+                        row.demurragedPoolDiv = demurragedPoolDiv;
+                        row.staticERC20Address = info.staticERC20;
                         function updateDemurragedPools(pools, error) {
                             demurragedPoolDiv.innerHTML = '';
                             if (error) {
@@ -934,6 +914,66 @@
                     headerRow.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
                     headerRow.children[5].classList.add('sort-desc');
                     sortTable(tbody, 'sortSupply', 'desc');
+
+                    // Fetch prices sequentially, sorted by largest supply first
+                    // to be gentle with the Balancer API and avoid rate limiting
+                    (async function fetchPricesSequentially() {
+                        const rows = Array.from(tbody.querySelectorAll('tr'));
+                        rows.sort((a, b) => (b.rawSupply || 0) - (a.rawSupply || 0));
+
+                        for (const row of rows) {
+                            // Fetch static ERC20 price (from demurraged ERC20 address)
+                            if (row.demurragedERC20Address) {
+                                const price = await getPrice(row.demurragedERC20Address);
+                                if (price !== 'N/A') {
+                                    row.rawPrice = parseFloat(price) || 0;
+                                    updateRowDisplay(row);
+                                    if (currentSort.col === 4 || currentSort.col === 6) {
+                                        sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
+                                    }
+                                } else {
+                                    row.priceCell.textContent = 'N/A';
+                                    row.priceCell.appendChild(row.pricePoolDiv);
+                                    // Schedule retry later with longer delay
+                                    (function retryStaticPrice(r) {
+                                        setTimeout(async () => {
+                                            const p = await getPrice(r.demurragedERC20Address);
+                                            if (p !== 'N/A') {
+                                                r.rawPrice = parseFloat(p) || 0;
+                                                updateRowDisplay(r);
+                                                if (currentSort.col === 4 || currentSort.col === 6) {
+                                                    sortTable(tbody, sortableColumns[currentSort.col], currentSort.dir);
+                                                }
+                                            } else {
+                                                retryStaticPrice(r);
+                                            }
+                                        }, 10000);
+                                    })(row);
+                                }
+                                // Gentle delay between API calls
+                                await new Promise(res => setTimeout(res, 500));
+                            }
+
+                            // Fetch demurraged ERC20 price (from static ERC20 address)
+                            if (row.staticERC20Address) {
+                                const price = await getPrice(row.staticERC20Address);
+                                row.demurragedPriceCell.textContent = price;
+                                row.demurragedPriceCell.appendChild(row.demurragedPoolDiv);
+                                if (price === 'N/A') {
+                                    (function retryDemurragedPrice(r) {
+                                        setTimeout(async () => {
+                                            const p = await getPrice(r.staticERC20Address);
+                                            r.demurragedPriceCell.textContent = p;
+                                            r.demurragedPriceCell.appendChild(r.demurragedPoolDiv);
+                                            if (p === 'N/A') retryDemurragedPrice(r);
+                                        }, 10000);
+                                    })(row);
+                                }
+                                // Gentle delay between API calls
+                                await new Promise(res => setTimeout(res, 500));
+                            }
+                        }
+                    })();
 
                 } catch (error) {
                     console.error(error);
