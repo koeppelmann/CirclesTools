@@ -603,7 +603,9 @@
                             row.priceCell.appendChild(row.pricePoolDiv);
                             row.sortPrice = displayPrice;
 
-                            row.sortMarketCap = displaySupply * displayPrice;
+                            // Market cap = ERC1155 supply × price per CRC
+                            const pricePerCRC = row.rawPrice / staticToDemurragedFactor;
+                            row.sortMarketCap = row.rawErc1155Supply * pricePerCRC;
                             row.marketCapCell.textContent = row.sortMarketCap.toLocaleString(undefined, { maximumFractionDigits: 2 });
                         }
                     }
@@ -750,6 +752,7 @@
                         row.pricePoolDiv = staticPoolDiv;
                         row.rawPrice = null;
                         row.sortPrice = 0;
+                        row.rawErc1155Supply = parseFloat(ethers.utils.formatEther(info.erc1155TotalSupply || 0));
                         row.demurragedERC20Address = info.demurragedERC20;
                         function updateStaticPools(pools, error) {
                             staticPoolDiv.innerHTML = '';
