@@ -234,7 +234,9 @@ const CONFIG = {
   HUB: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
   START_BLOCK: 46482027,        // contract deploy block (for event scan)
   POLL_MS: 5000,
-  PROFILES: "https://rpc.aboutcircles.com/profiles/search?address=",
+  // The ?address= GET returns the name only; the batch POST with fetchComplete:true
+  // returns the full profile incl. the avatar image (this is what the lottery uses).
+  PROFILES: "https://rpc.aboutcircles.com/profiles/search/addresses",
   GNOSIS_TEMPLATE: "https://app.gnosis.io/transfer/{contract}/crc?amount={amount}",
 };
 // ───────────────────────────────────────────────────────────────────────
@@ -296,7 +298,10 @@ async function getProfile(address){
   if(profileCache.has(a)) return profileCache.get(a);
   let prof=null;
   try{
-    const r=await fetch(CONFIG.PROFILES+a);
+    const r=await fetch(CONFIG.PROFILES,{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ addresses:[a], fetchComplete:true })
+    });
     if(r.ok){ const data=await r.json();
       const arr=Array.isArray(data)?data:(data.results||[]);
       const p=arr.find(e=>e.address&&e.address.toLowerCase()===a);
