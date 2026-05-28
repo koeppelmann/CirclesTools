@@ -114,7 +114,7 @@
 </div>
 
 <!-- deps -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
   "https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm";
@@ -197,10 +197,15 @@ function buildPayload(){
 
 function renderQR(text){
   const el = $("qr"); el.innerHTML = "";
-  const canvas = document.createElement("canvas");
-  el.appendChild(canvas);
-  QRCode.toCanvas(canvas, text, { width: 280, margin: 1,
-    color:{ dark:"#0b0f17", light:"#ffffff" } }, e => { if(e) console.error(e); });
+  try{
+    if (typeof QRCode === "undefined") throw new Error("QR library not loaded");
+    new QRCode(el, { text, width: 280, height: 280,
+      colorDark: "#0b0f17", colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.L });
+  }catch(e){
+    console.error(e);
+    el.innerHTML = '<div style="color:#0b0f17;font-size:12px;word-break:break-all;max-width:280px">'+text+'</div>';
+  }
 }
 
 function setStatus(){
@@ -286,10 +291,10 @@ async function init(){
   $("bidLabel").textContent = bidStr;
   $("bidLabel2").textContent = bidStr;
 
-  $("qrfmt").addEventListener("change", buildPayload);
+  $("qrfmt").addEventListener("change", () => { try{ buildPayload(); }catch(e){ console.error(e); } });
   $("claimBtn").addEventListener("click", claim);
-  buildPayload();
-  await poll();
+  await poll();                                  // load state first — never blocked by QR
+  try{ buildPayload(); }catch(e){ console.error(e); }
   setInterval(poll, CONFIG.POLL_MS);
   setInterval(tick, 1000);
 }
