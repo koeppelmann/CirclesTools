@@ -266,23 +266,28 @@ function ago(ts){ if(!ts)return ""; const s=Math.max(0,Math.floor(Date.now()/100
   if(s<60)return s+"s ago"; if(s<3600)return Math.floor(s/60)+"m ago";
   if(s<86400)return Math.floor(s/3600)+"h ago"; return Math.floor(s/86400)+"d ago"; }
 
-/* deterministic identicon (blockies algorithm) as a data URL */
+/* deterministic identicon — canonical "blockies" (ethereum/blockies) as a data URL */
+const _bcache=new Map();
 function blockie(address){
-  const seed=(address||"").toLowerCase(); let r=[];
-  for(let i=0;i<4;i++) r[i]=0;
-  function srand(){ const t=r[0]^(r[0]<<11); r[0]=r[1];r[1]=r[2];r[2]=r[3];
-    r[3]=(r[3]^(r[3]>>19)^t^(t>>8))>>>0; return r[3]/0x100000000; }
-  for(let i=0;i<seed.length;i++){ r[i%4]=((r[i%4]<<5)-r[i%4]+seed.charCodeAt(i))>>>0; }
-  function hue(){ return Math.floor(srand()*360); }
-  const color=`hsl(${hue()},65%,58%)`, bg=`hsl(${hue()},25%,16%)`, spot=`hsl(${hue()},70%,62%)`;
-  const S=8, data=[];
-  for(let y=0;y<S;y++){ const row=[]; for(let x=0;x<S/2;x++){ const v=srand(); row[x]=v<.5?0:(v<.85?1:2);}
-    for(let x=0;x<S/2;x++) row[S-1-x]=row[x]; data.push(row); }
-  const px=8, sz=S*px; const c=document.createElement("canvas"); c.width=c.height=sz;
+  const seed=(address||"0x0").toLowerCase();
+  if(_bcache.has(seed)) return _bcache.get(seed);
+  const rs=new Array(4);
+  function seedrand(s){ for(let i=0;i<4;i++) rs[i]=0;
+    for(let i=0;i<s.length;i++) rs[i%4]=((rs[i%4]<<5)-rs[i%4]+s.charCodeAt(i)); }
+  function rand(){ const t=rs[0]^(rs[0]<<11); rs[0]=rs[1];rs[1]=rs[2];rs[2]=rs[3];
+    rs[3]=(rs[3]^(rs[3]>>>19)^t^(t>>>8)); return (rs[3]>>>0)/((1<<31)>>>0); }
+  function color(){ const h=Math.floor(rand()*360), s=(rand()*60+40)+"%", l=(rand()*25+42)+"%";
+    return `hsl(${h},${s},${l})`; }
+  seedrand(seed);
+  const main=color(), bg=color(), spot=color(); // order matters (matches reference)
+  const S=8, dw=Math.ceil(S/2), data=[];
+  for(let y=0;y<S;y++){ let row=[]; for(let x=0;x<dw;x++) row[x]=Math.floor(rand()*2.3);
+    const r=row.slice(0,S-dw).reverse(); row=row.concat(r); for(let i=0;i<row.length;i++) data.push(row[i]); }
+  const px=8, sz=S*px, c=document.createElement("canvas"); c.width=c.height=sz;
   const g=c.getContext("2d"); g.fillStyle=bg; g.fillRect(0,0,sz,sz);
-  for(let y=0;y<S;y++)for(let x=0;x<S;x++){ const v=data[y][x]; if(v===0)continue;
-    g.fillStyle=v===1?color:spot; g.fillRect(x*px,y*px,px,px); }
-  return c.toDataURL();
+  for(let i=0;i<data.length;i++){ if(!data[i]) continue;
+    g.fillStyle=data[i]===1?main:spot; g.fillRect((i%S)*px,Math.floor(i/S)*px,px,px); }
+  const url=c.toDataURL(); _bcache.set(seed,url); return url;
 }
 
 async function getProfile(address){
@@ -302,7 +307,9 @@ async function getProfile(address){
 
 /* set an <img> to the profile image (fallback to identicon) and return a display name */
 async function paint(imgEl, address){
-  imgEl.src = blockie(address);                 // instant fallback
+  const ident = blockie(address);
+  imgEl.onerror = () => { imgEl.onerror=null; imgEl.src=ident; }; // broken profile img -> identicon
+  imgEl.src = ident;                              // instant fallback
   const p = await getProfile(address);
   if(p && p.image) imgEl.src = p.image;
   return (p && p.name) || short(address) || "—";
@@ -405,16 +412,23 @@ async function loadRecentBids(){
   try{
     const latest=await provider.getBlockNumber();
     const from=Math.max(CONFIG.START_BLOCK, latest-1000000);
-    const ev=await contract.queryFilter(contract.filters.BidPlaced(), from, latest);
-    const last=ev.slice(-5).reverse();
-    const key=last.map(e=>e.transactionHash+e.index).join(",");
+    // Raw getLogs (address-only) is reliable on public RPCs; filter by topic client-side.
+    // (contract.queryFilter with a topic filter is rejected by some Gnosis RPCs.)
+    const topic=contract.interface.getEvent("BidPlaced").topicHash;
+    const raw=await provider.getLogs({ address: CONFIG.CONTRACT, fromBlock: from, toBlock: latest });
+    const parsed=raw.filter(l=>l.topics[0]===topic).map(l=>{
+      const d=contract.interface.parseLog(l);
+      return { bidder:d.args.bidder, round:d.args.round, blockNumber:l.blockNumber };
+    });
+    const last=parsed.slice(-5).reverse();
+    const key=last.map(e=>e.blockNumber+"#"+e.round).join(",");
     if(key===lastBidsKey) return; lastBidsKey=key;
     const list=$("bidlist");
     if(last.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; return; }
     // fetch timestamps (≤5) and render
     const rows=await Promise.all(last.map(async(e,i)=>{
-      const blk=await e.getBlock();
-      return { bidder:e.args.bidder, round:e.args.round, ts:blk?.timestamp, top:i===0 };
+      const blk=await provider.getBlock(e.blockNumber);
+      return { bidder:e.bidder, round:e.round, ts:blk?.timestamp, top:i===0 };
     }));
     list.innerHTML="";
     for(const r of rows){
