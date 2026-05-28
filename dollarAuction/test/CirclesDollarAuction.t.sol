@@ -300,6 +300,36 @@ contract CirclesDollarAuctionTest is Test {
         assertEq(bal(address(game)), 0);
     }
 
+    // ───────────────────────── recent bids ring buffer ─────────────────────────
+
+    function test_RecentBidsReturnsLastFiveMostRecentFirst() public {
+        _seed();
+        for (uint256 i = 1; i <= 7; i++) {
+            address u = _bidder(i);
+            _fund(u, BID);
+            _send(u, BID);
+        }
+        (address[] memory bidders,) = game.recentBids();
+        assertEq(bidders.length, 5, "caps at 5");
+        // bids 3..7 remain, most-recent (7) first
+        assertEq(bidders[0], _bidder(7));
+        assertEq(bidders[1], _bidder(6));
+        assertEq(bidders[2], _bidder(5));
+        assertEq(bidders[3], _bidder(4));
+        assertEq(bidders[4], _bidder(3));
+    }
+
+    function test_RecentBidsFewerThanFive() public {
+        _seed();
+        address u1 = _bidder(1);
+        _fund(u1, BID);
+        _send(u1, BID);
+        (address[] memory bidders, uint256[] memory times) = game.recentBids();
+        assertEq(bidders.length, 1);
+        assertEq(bidders[0], u1);
+        assertEq(times[0], block.timestamp);
+    }
+
     // ───────────────────────── O(1) gas regardless of queue length ─────────────────────────
 
     function _measureBid(uint256 i) internal returns (uint256) {

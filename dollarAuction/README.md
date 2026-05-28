@@ -42,7 +42,7 @@ the game — the amount is parked in `failedCredits` and recovered later.
 
 ## Test deployment (Gnosis Chain)
 
-- Contract: `0x12A6a9d81A8f61841527dD59c907A1bBA77f3237`
+- Contract: `0xcb5d876EfBd47B116Bd5724d37C3479214Fa7179`
 - Accepted group: `0xC19BC204eb1c1D5B3FE500E5E5dfaBaB625F286c`
 - Hub: `0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8`
 - Params: bid 1 CRC, starting price 100 CRC, timer 5 min → 1 min floor.

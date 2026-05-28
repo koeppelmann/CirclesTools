@@ -72,6 +72,10 @@ contract CirclesDollarAuction {
     uint256 public head; // index of the front (oldest unpaid) claim
     uint256 public headPaid; // amount already paid into claimants[head]
 
+    // Fixed-size ring buffer of the last 5 bids (for the UI; O(1), never grows).
+    address[5] private _rbAddr;
+    uint40[5] private _rbTime;
+
     // Failed pushes (recipient refused the transfer); recoverable later.
     mapping(address => uint256) public failedCredits;
     uint256 public totalFailedCredits;
@@ -265,6 +269,11 @@ contract CirclesDollarAuction {
         lastBidder = bidder;
         lastBidTime = block.timestamp;
 
+        // record into the last-5 ring buffer (O(1))
+        uint256 slot = (round - 1) % 5;
+        _rbAddr[slot] = bidder;
+        _rbTime[slot] = uint40(block.timestamp);
+
         // 10 stays as prize.
         poolNominal += TO_POOL;
 
@@ -408,6 +417,18 @@ contract CirclesDollarAuction {
 
     function queueLength() external view returns (uint256) {
         return claimants.length;
+    }
+
+    /// @notice The last (up to) 5 bids, most-recent first. O(1) — fixed ring buffer.
+    function recentBids() external view returns (address[] memory bidders, uint256[] memory times) {
+        uint256 n = round < 5 ? round : 5;
+        bidders = new address[](n);
+        times = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            uint256 slot = (round - 1 - i) % 5;
+            bidders[i] = _rbAddr[slot];
+            times[i] = uint256(_rbTime[slot]);
+        }
     }
 
     /// @notice One-shot snapshot for the front-end.

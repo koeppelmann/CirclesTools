@@ -228,7 +228,7 @@ import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
 
 // ─────────────────────────────── CONFIG ───────────────────────────────
 const CONFIG = {
-  CONTRACT: "0x12A6a9d81A8f61841527dD59c907A1bBA77f3237",
+  CONTRACT: "0xcb5d876EfBd47B116Bd5724d37C3479214Fa7179",
   RPC_URL: "https://rpc.gnosischain.com",
   CHAIN_ID: 100,
   HUB: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
@@ -245,7 +245,7 @@ const ABI = [
   "function GROUP() view returns (address)",
   "function BID() view returns (uint256)",
   "function claimPrize()",
-  "event BidPlaced(address indexed bidder, uint256 indexed round, uint256 claimIndex, uint256 newTimer, uint256 poolNominal)"
+  "function recentBids() view returns (address[], uint256[])"
 ];
 
 const $ = id => document.getElementById(id);
@@ -298,8 +298,14 @@ async function getProfile(address){
   try{
     const r=await fetch(CONFIG.PROFILES+a);
     if(r.ok){ const data=await r.json();
-      if(Array.isArray(data)){ const p=data.find(e=>e.address&&e.address.toLowerCase()===a);
-        if(p) prof={ name:p.name||null, image:p.previewImageUrl||p.imageUrl||null }; } }
+      const arr=Array.isArray(data)?data:(data.results||[]);
+      const p=arr.find(e=>e.address&&e.address.toLowerCase()===a);
+      if(p){
+        // image lives in `avatar` (preferred), then previewImageUrl/imageUrl; resolve ipfs://
+        let img=p.avatar||p.previewImageUrl||p.imageUrl||null;
+        if(img&&img.startsWith("ipfs://")) img="https://ipfs.io/ipfs/"+img.slice(7);
+        prof={ name:p.name||null, image:img };
+      } }
   }catch(_){}
   profileCache.set(a,prof);
   return prof;
@@ -410,26 +416,15 @@ function tick(){
 let lastBidsKey="";
 async function loadRecentBids(){
   try{
-    const latest=await provider.getBlockNumber();
-    const from=Math.max(CONFIG.START_BLOCK, latest-1000000);
-    // Raw getLogs (address-only) is reliable on public RPCs; filter by topic client-side.
-    // (contract.queryFilter with a topic filter is rejected by some Gnosis RPCs.)
-    const topic=contract.interface.getEvent("BidPlaced").topicHash;
-    const raw=await provider.getLogs({ address: CONFIG.CONTRACT, fromBlock: from, toBlock: latest });
-    const parsed=raw.filter(l=>l.topics[0]===topic).map(l=>{
-      const d=contract.interface.parseLog(l);
-      return { bidder:d.args.bidder, round:d.args.round, blockNumber:l.blockNumber };
-    });
-    const last=parsed.slice(-5).reverse();
-    const key=last.map(e=>e.blockNumber+"#"+e.round).join(",");
+    // Read the on-chain ring buffer (one eth_call) — reliable everywhere, no getLogs.
+    const res=await contract.recentBids();           // [addresses[], times[]], most-recent first
+    const bidders=res[0], times=res[1];
+    const totalRound = state ? Number(state[3]) : bidders.length;
+    const rows=bidders.map((b,i)=>({ bidder:b, ts:Number(times[i]), round:totalRound-i, top:i===0 }));
+    const key=rows.map(r=>r.bidder+"#"+r.round).join(",");
     if(key===lastBidsKey) return; lastBidsKey=key;
     const list=$("bidlist");
-    if(last.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; return; }
-    // fetch timestamps (≤5) and render
-    const rows=await Promise.all(last.map(async(e,i)=>{
-      const blk=await provider.getBlock(e.blockNumber);
-      return { bidder:e.bidder, round:e.round, ts:blk?.timestamp, top:i===0 };
-    }));
+    if(rows.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; return; }
     list.innerHTML="";
     for(const r of rows){
       const row=document.createElement("div"); row.className="bidrow";
