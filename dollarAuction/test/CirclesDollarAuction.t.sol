@@ -300,6 +300,36 @@ contract CirclesDollarAuctionTest is Test {
         assertEq(bal(address(game)), 0);
     }
 
+    // ───────────────────────── O(1) gas regardless of queue length ─────────────────────────
+
+    function _measureBid(uint256 i) internal returns (uint256) {
+        address u = _bidder(i);
+        _fund(u, BID);
+        vm.prank(u);
+        uint256 g = gasleft();
+        hub.safeTransferFrom(u, address(game), id, BID, "");
+        return g - gasleft();
+    }
+
+    function test_PerBidGasIsBoundedRegardlessOfQueueLength() public {
+        _seed();
+        _measureBid(1);
+        uint256 gasEarly = _measureBid(2); // queue length ~2
+        for (uint256 i = 3; i <= 300; i++) {
+            address u = _bidder(i);
+            _fund(u, BID);
+            _send(u, BID);
+        }
+        uint256 gasDeep = _measureBid(301); // queue length ~301
+        emit log_named_uint("gas @ bid 2  ", gasEarly);
+        emit log_named_uint("gas @ bid 301", gasDeep);
+        // O(1): a bid 301-deep in the queue is no more expensive than an early bid
+        // (in fact cheaper — warm storage), and stays under a fixed ceiling. If the
+        // claim queue were iterated, this would grow ~linearly and blow past the bound.
+        assertLe(gasDeep, gasEarly, "deep-queue bid must not cost more than an early bid");
+        assertLt(gasDeep, 150_000, "per-bid gas bounded by a constant");
+    }
+
     // ───────────────────────── hostile recipient does not stall ─────────────────────────
 
     function test_RejectingClaimantDoesNotStallGame() public {
@@ -424,19 +454,43 @@ contract CirclesDollarAuctionTest is Test {
         assertEq(h.balanceOf(u, tid), 0.8 ether);
     }
 
-    function test_GameOverRejectsFurtherBids() public {
+    // ───────────────────────── late sends settle + refund ─────────────────────────
+
+    function test_LateBidSettlesAuctionAndRefundsSender() public {
+        _seed();
+        address u1 = _bidder(1);
+        _fund(u1, BID);
+        _send(u1, BID);
+        uint256 pool = game.poolNominal();
+
+        // Let the timer elapse, then a second user bids "too late".
+        vm.warp(block.timestamp + game.currentTimer());
+        address late = _bidder(2);
+        _fund(late, BID);
+        uint256 u1Before = bal(u1);
+        _send(late, BID); // should NOT revert
+
+        // The auction settled to u1 (the last in-time bidder)…
+        assertTrue(game.finished(), "settled");
+        assertEq(game.round(), 1, "no new bid counted");
+        assertEq(bal(u1) - u1Before, pool, "winner paid the pool");
+        // …and the late sender got their full stake back.
+        assertEq(bal(late), BID, "late funds returned");
+    }
+
+    function test_SendAfterGameOverIsRefundedNotReverted() public {
         _seed();
         address u = _bidder(1);
         _fund(u, BID);
         _send(u, BID);
         vm.warp(block.timestamp + game.currentTimer());
-        game.claimPrize();
+        game.claimPrize(); // game already settled
 
         address late = _bidder(2);
         _fund(late, BID);
-        vm.prank(late);
-        vm.expectRevert();
-        hub.safeTransferFrom(late, address(game), id, BID, "");
+        _send(late, BID); // must not revert
+        assertEq(bal(late), BID, "funds bounced back");
+        assertEq(game.round(), 1);
     }
 }
 

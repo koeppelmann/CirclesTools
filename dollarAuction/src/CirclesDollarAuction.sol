@@ -211,7 +211,13 @@ contract CirclesDollarAuction {
         // sender's funds untouched (i.e. "fully sent back").
         if (id != ACCEPTED_ID) revert OnlyHub(); // wrong token
 
-        if (finished) revert GameOver();
+        // If the game is already settled, don't revert — bounce the funds back so a
+        // late payer (e.g. a path payment that landed after settlement) is made whole.
+        if (finished) {
+            _push(from, value);
+            emit Refunded(from, value);
+            return;
+        }
 
         if (!seeded) {
             // The first deposit of at least the starting price activates the game.
@@ -223,6 +229,16 @@ contract CirclesDollarAuction {
             seeder = from;
             poolNominal = value; // entire seed is the prize pool
             emit Seeded(from, value);
+            return;
+        }
+
+        // If the deadline for the last bid has passed, this transfer arrived too late:
+        // settle the auction to the winner and return the late funds to the sender,
+        // rather than reverting or accepting a stale bid.
+        if (round != 0 && block.timestamp >= lastBidTime + currentTimer) {
+            _settle();
+            _push(from, value);
+            emit Refunded(from, value);
             return;
         }
 
@@ -303,27 +319,34 @@ contract CirclesDollarAuction {
     // ───────────────────────────── End game ─────────────────────────────
 
     /// @notice Pays the prize pool to the last bidder once the timer has elapsed.
+    /// Permissionless: anyone may settle. (A late bid also settles automatically.)
     function claimPrize() external nonReentrant {
         if (!seeded) revert NotActive();
         if (finished) revert GameOver();
         if (round == 0) revert NoBids();
         if (block.timestamp < lastBidTime + currentTimer) revert StillLive();
+        _settle();
+    }
 
+    /// @dev Settles the auction: pays the prize pool to the last bidder and ends the game.
+    /// Pushed via _push so a hostile winner cannot block settlement (or a late refund);
+    /// the prize is parked in failedCredits if the winner refuses it.
+    function _settle() internal {
         finished = true;
         address winner = lastBidder;
 
-        // Prize is the nominal pool, capped by what is actually withdrawable
-        // (held balance minus funds owed to failed-push recipients, accounting
-        // for demurrage on the held balance).
+        // Prize is the nominal pool, capped by what is actually withdrawable (held
+        // balance minus funds owed to failed-push recipients, accounting for demurrage).
+        // Note: any not-yet-processed incoming funds in `balance` are never given to the
+        // winner because the cap is min(poolNominal, withdrawable) and poolNominal tracks
+        // only the prize, not deposits awaiting refund.
         uint256 prize = poolNominal;
         uint256 bal = HUB.balanceOf(address(this), ACCEPTED_ID);
         uint256 withdrawable = bal > totalFailedCredits ? bal - totalFailedCredits : 0;
         if (prize > withdrawable) prize = withdrawable;
         poolNominal = 0;
 
-        if (prize != 0) {
-            HUB.safeTransferFrom(address(this), winner, ACCEPTED_ID, prize, "");
-        }
+        _push(winner, prize);
         emit GameWon(winner, prize, round);
     }
 

@@ -4,116 +4,223 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Circles Dollar Auction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b0f17; --panel:#141b2b; --panel2:#1c2740; --accent:#ffd84d; --accent2:#36d399;
-    --danger:#ff6b6b; --text:#eef2ff; --muted:#8b97b8;
+    --bg0:#070a12; --bg1:#0c111d; --panel:#101727; --line:#1e2942;
+    --glass: rgba(20,28,46,.66);
+    --text:#eaf0ff; --muted:#8a97bd; --faint:#5b6588;
+    --gold:#f6c945; --gold2:#ffaf3a; --green:#34e0a1; --red:#ff5d6c; --blue:#5b9dff;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:'Inter',system-ui,Segoe UI,Roboto,sans-serif;background:
-       radial-gradient(1200px 600px at 50% -10%,#1a2745 0,transparent 60%),var(--bg);
-       color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;}
-  header{width:100%;text-align:center;padding:22px 12px 4px}
-  h1{margin:0;font-size:clamp(22px,4vw,40px);letter-spacing:.5px}
-  h1 span{color:var(--accent)}
-  .sub{color:var(--muted);margin-top:6px;font-size:14px}
-  .wrap{display:flex;flex-wrap:wrap;gap:26px;justify-content:center;align-items:stretch;
-        padding:24px;max-width:1080px;width:100%}
-  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid #243156;
-        border-radius:20px;padding:26px;flex:1 1 420px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
-  .status{display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:13px;
-          background:#23314f;color:var(--muted)}
-  .status.live{background:rgba(54,211,153,.15);color:var(--accent2)}
-  .status.claim{background:rgba(255,216,77,.16);color:var(--accent)}
-  .status.over{background:rgba(255,107,107,.16);color:var(--danger)}
-  .countdown{font-variant-numeric:tabular-nums;font-weight:800;line-height:1;
-             font-size:clamp(46px,12vw,108px);text-align:center;margin:14px 0 6px;
-             text-shadow:0 0 28px rgba(255,216,77,.25)}
-  .countdown.urgent{color:var(--danger);text-shadow:0 0 28px rgba(255,107,107,.4)}
-  .clabel{text-align:center;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:2px}
-  .rows{margin-top:22px;display:grid;gap:12px}
-  .row{display:flex;justify-content:space-between;align-items:center;font-size:15px;
-       padding:12px 14px;background:#0f1626;border-radius:12px;border:1px solid #1f2a45}
-  .row .k{color:var(--muted)}
-  .row .v{font-weight:700;font-family:ui-monospace,Menlo,monospace}
-  .big{font-size:22px}
-  .accent{color:var(--accent)}
-  .qrbox{text-align:center}
-  .qrcanvas{background:#fff;padding:18px;border-radius:18px;display:inline-block;margin-top:8px}
-  #qr canvas, #qr img{display:block}
-  .pay{margin-top:16px;font-size:15px;color:var(--muted);text-align:center;line-height:1.6}
-  .pay b{color:var(--text)}
-  .addr{font-family:ui-monospace,monospace;background:#0f1626;border:1px solid #1f2a45;
-        border-radius:10px;padding:8px 12px;display:inline-block;margin-top:6px;word-break:break-all}
-  select,button{font:inherit;color:var(--text);background:#0f1626;border:1px solid #2a3a5f;
-        border-radius:10px;padding:8px 12px;cursor:pointer}
-  button.cta{background:var(--accent);color:#1a1300;border:none;font-weight:800;padding:14px 20px;
-        border-radius:12px;width:100%;margin-top:14px;font-size:16px}
-  button.cta[disabled]{opacity:.4;cursor:not-allowed}
-  .foot{color:var(--muted);font-size:12px;text-align:center;padding:8px 16px 30px;max-width:780px}
-  .cfgwarn{background:rgba(255,107,107,.12);border:1px solid var(--danger);color:#ffd0d0;
-           border-radius:12px;padding:12px 16px;margin:10px auto;max-width:760px;font-size:13px}
-  .grid2{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:10px}
-  a{color:var(--accent)}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Inter',system-ui,Segoe UI,Roboto,sans-serif;color:var(--text);
+    min-height:100vh;
+    background:
+      radial-gradient(1000px 700px at 12% -8%, rgba(246,201,69,.10), transparent 55%),
+      radial-gradient(900px 700px at 100% 0%, rgba(91,157,255,.10), transparent 50%),
+      radial-gradient(800px 800px at 50% 120%, rgba(52,224,161,.07), transparent 55%),
+      linear-gradient(180deg,var(--bg1),var(--bg0));
+    background-attachment:fixed;
+  }
+  a{color:var(--gold)}
+  .wrap{max-width:1120px;margin:0 auto;padding:22px 18px 60px}
+
+  /* header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+        background:linear-gradient(135deg,var(--gold),var(--gold2));color:#241a00;font-weight:900;font-size:22px;
+        box-shadow:0 8px 26px rgba(246,201,69,.35)}
+  h1{font-family:'Space Grotesk';font-weight:700;font-size:clamp(20px,2.6vw,28px);margin:0;letter-spacing:.2px}
+  h1 b{color:var(--gold)}
+  .tag{color:var(--muted);font-size:13px;margin-top:1px}
+  .hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
+        background:var(--glass);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted);
+        backdrop-filter:blur(8px)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .pill.live .dot{background:var(--green);box-shadow:0 0 0 0 rgba(52,224,161,.6);animation:pulse 1.8s infinite}
+  .pill.claim{color:var(--gold)} .pill.claim .dot{background:var(--gold);animation:pulse 1s infinite}
+  .pill.over{color:var(--red)} .pill.over .dot{background:var(--red);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,224,161,.5)}70%{box-shadow:0 0 0 9px rgba(52,224,161,0)}100%{box-shadow:0 0 0 0 rgba(52,224,161,0)}}
+
+  /* layout */
+  .stage{display:grid;grid-template-columns:1.25fr .95fr;gap:18px;margin-top:18px}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}}
+  .card{background:var(--glass);border:1px solid var(--line);border-radius:22px;padding:24px;
+        backdrop-filter:blur(12px);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .label{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+  /* leader + countdown */
+  .leader{display:flex;align-items:center;gap:16px}
+  .avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;flex:none;
+          background:#0c1322;border:2px solid #2a3a5c;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  .avatar.ring{box-shadow:0 0 0 2px var(--gold), 0 8px 22px rgba(246,201,69,.25)}
+  .leader .who{min-width:0}
+  .leader .name{font-family:'Space Grotesk';font-weight:700;font-size:22px;line-height:1.15;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .leader .sub{color:var(--muted);font-size:13px;margin-top:3px}
+
+  .count-wrap{margin:22px 0 6px;text-align:center}
+  .countdown{font-family:'Space Grotesk';font-variant-numeric:tabular-nums;font-weight:700;
+             font-size:clamp(54px,11vw,104px);line-height:1;letter-spacing:1px;
+             text-shadow:0 0 40px rgba(246,201,69,.25)}
+  .countdown.urgent{color:var(--red);text-shadow:0 0 42px rgba(255,93,108,.45);animation:tick 1s steps(2) infinite}
+  @keyframes tick{50%{opacity:.82}}
+  .count-label{margin-top:8px;color:var(--muted)}
+  .bar{height:8px;border-radius:999px;background:#0c1322;border:1px solid var(--line);overflow:hidden;margin-top:16px}
+  .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+           background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .9s linear}
+  .bar.urgent > i{background:linear-gradient(90deg,var(--red),#ff8a5b)}
+
+  .prize{display:flex;align-items:baseline;gap:10px;justify-content:center;margin-top:20px}
+  .prize .v{font-family:'Space Grotesk';font-weight:700;font-size:40px;color:var(--gold)}
+  .prize .u{color:var(--muted);font-weight:600}
+
+  .cta{display:block;width:100%;margin-top:18px;padding:15px;border:none;border-radius:14px;cursor:pointer;
+       font-weight:800;font-size:16px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#241a00;
+       box-shadow:0 10px 26px rgba(246,201,69,.3);transition:transform .08s ease, opacity .2s}
+  .cta:hover{transform:translateY(-1px)} .cta:active{transform:translateY(0)}
+  .cta[disabled]{opacity:.32;cursor:not-allowed;box-shadow:none;filter:saturate(.4)}
+
+  /* bid panel */
+  .bidhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .bidamt{font-family:'Space Grotesk';font-weight:700;color:var(--gold)}
+  .qrwrap{margin:16px auto 0;width:max-content;background:#fff;padding:14px;border-radius:18px;
+          box-shadow:0 14px 34px rgba(0,0,0,.4)}
+  #qr canvas,#qr img{display:block;border-radius:6px}
+  .addrrow{display:flex;align-items:center;gap:8px;margin-top:16px;background:#0c1322;border:1px solid var(--line);
+           border-radius:12px;padding:10px 12px}
+  .addrrow code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--text);
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .icobtn{border:1px solid var(--line);background:#121a2c;color:var(--muted);border-radius:9px;padding:7px 10px;
+          cursor:pointer;font-size:12px;font-weight:600}
+  .icobtn:hover{color:var(--text);border-color:#2c3a5c}
+  .openbtn{display:block;text-align:center;text-decoration:none;margin-top:12px;padding:13px;border-radius:12px;
+           background:#121a2c;border:1px solid var(--line);color:var(--text);font-weight:700}
+  .openbtn:hover{border-color:var(--gold);color:var(--gold)}
+  .fmtrow{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:14px}
+  select{font:inherit;color:var(--text);background:#0c1322;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px;text-align:center;min-height:16px}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+  @media(max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:16px;backdrop-filter:blur(8px)}
+  .stat .v{font-family:'Space Grotesk';font-weight:700;font-size:24px;margin-top:6px}
+  .stat .v.g{color:var(--gold)}
+
+  /* recent bids */
+  .recent{margin-top:18px}
+  .recent h3{margin:0 0 6px;font-family:'Space Grotesk';font-weight:600;font-size:15px}
+  .bidlist{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+  .bidrow{display:flex;align-items:center;gap:12px;padding:11px 8px;border-radius:12px}
+  .bidrow:hover{background:rgba(255,255,255,.03)}
+  .bidrow .av{width:38px;height:38px;border-radius:50%;flex:none;background:#0c1322;border:1px solid var(--line);object-fit:cover}
+  .bidrow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bidrow .meta{color:var(--muted);font-size:12px;margin-top:1px}
+  .bidrow .amt{margin-left:auto;color:var(--green);font-weight:700;font-family:'Space Grotesk';white-space:nowrap}
+  .bidrow .rnd{color:var(--muted);font-size:12px;margin-left:8px;min-width:46px;text-align:right}
+  .crown{color:var(--gold)}
+  .empty{color:var(--muted);font-size:14px;padding:18px 8px}
+
+  .foot{color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:26px;text-align:center;max-width:760px;margin-inline:auto}
+  .cfg{display:none;background:rgba(255,93,108,.12);border:1px solid var(--red);color:#ffd5da;border-radius:12px;
+       padding:12px 16px;margin:14px 0;font-size:13px}
 </style>
 </head>
 <body>
-<header>
-  <h1>Circles <span>Dollar&nbsp;Auction</span></h1>
-  <div class="sub">Last bidder standing wins the pool. Every bid shortens the clock.</div>
-</header>
-
-<div id="cfgwarn" class="cfgwarn" style="display:none"></div>
-
 <div class="wrap">
-  <!-- LEFT: state + countdown -->
-  <div class="card">
-    <span id="status" class="status">connecting…</span>
-    <div class="clabel" id="clabel">time left to win</div>
-    <div id="countdown" class="countdown">--:--:--</div>
+  <header>
+    <div class="brand">
+      <div class="logo">$</div>
+      <div>
+        <h1>Circles <b>Dollar Auction</b></h1>
+        <div class="tag">Last bidder standing wins the pool — every bid shortens the clock.</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <span id="statusPill" class="pill"><span class="dot"></span><span id="statusText">connecting…</span></span>
+      <a id="scanLink" class="pill" href="#" target="_blank" rel="noopener"><span class="dot" style="background:var(--blue)"></span>contract ↗</a>
+    </div>
+  </header>
 
-    <div class="rows">
-      <div class="row"><span class="k">Current leader</span><span class="v" id="leader">—</span></div>
-      <div class="row"><span class="k">Prize pool</span><span class="v big accent" id="pool">— CRC</span></div>
-      <div class="row"><span class="k">Bids so far</span><span class="v" id="round">0</span></div>
-      <div class="row"><span class="k">Current bid window</span><span class="v" id="window">—</span></div>
-      <div class="row"><span class="k">Outstanding claims</span><span class="v" id="claims">0</span></div>
+  <div id="cfg" class="cfg"></div>
+
+  <div class="stage">
+    <!-- LEFT: leader + countdown -->
+    <div class="card">
+      <div class="leader">
+        <img id="leaderAv" class="avatar" alt="" />
+        <div class="who">
+          <div class="label">Current leader</div>
+          <div id="leaderName" class="name">—</div>
+          <div id="leaderSub" class="sub">waiting for the first bid</div>
+        </div>
+      </div>
+
+      <div class="count-wrap">
+        <div id="countdown" class="countdown">--:--</div>
+        <div class="bar" id="bar"><i id="barFill"></i></div>
+        <div id="countLabel" class="count-label">time left to win</div>
+      </div>
+
+      <div class="prize">
+        <span class="v" id="pool">—</span><span class="u">CRC in the pool</span>
+      </div>
+
+      <button id="claimBtn" class="cta" disabled>Claim prize</button>
     </div>
 
-    <button id="claimBtn" class="cta" disabled>Claim prize</button>
+    <!-- RIGHT: bid -->
+    <div class="card">
+      <div class="bidhead">
+        <div class="label">Place a bid</div>
+        <div class="bidamt"><span id="bidAmt">…</span> CRC</div>
+      </div>
+      <div class="qrwrap"><div id="qr"></div></div>
+      <div class="addrrow">
+        <code id="addr">—</code>
+        <button id="copyBtn" class="icobtn">Copy</button>
+      </div>
+      <a id="openApp" class="openbtn" href="#" target="_blank" rel="noopener">Open in Gnosis app →</a>
+      <div class="fmtrow">
+        <span class="label">QR format</span>
+        <select id="qrfmt">
+          <option value="gnosis">Gnosis app checkout</option>
+          <option value="eip681">EIP-681</option>
+          <option value="address">Plain address</option>
+        </select>
+      </div>
+      <div id="hint" class="hint"></div>
+    </div>
   </div>
 
-  <!-- RIGHT: how to bid -->
-  <div class="card qrbox">
-    <span class="status">Place a bid</span>
-    <div class="clabel" style="margin-top:14px">scan to send <b class="accent"><span id="bidLabel">…</span> CRC</b></div>
-    <div class="qrcanvas"><div id="qr"></div></div>
+  <!-- stats -->
+  <div class="stats">
+    <div class="stat"><div class="label">Bids so far</div><div class="v" id="sRound">0</div></div>
+    <div class="stat"><div class="label">Current window</div><div class="v" id="sWindow">—</div></div>
+    <div class="stat"><div class="label">Outstanding claims</div><div class="v" id="sClaims">0</div></div>
+    <div class="stat"><div class="label">Prize pool</div><div class="v g" id="sPool">—</div></div>
+  </div>
 
-    <div class="pay">
-      Send exactly <b><span id="bidLabel2">…</span> CRC</b> of the accepted group<br/>
-      to this address:
-      <div class="addr" id="addr">—</div>
-    </div>
+  <!-- recent bids -->
+  <div class="card recent">
+    <h3>Recent bids</h3>
+    <div class="label">the last five to take the lead</div>
+    <div class="bidlist" id="bidlist"><div class="empty">No bids yet — be the first.</div></div>
+  </div>
 
-    <div class="grid2">
-      <label class="k" style="color:var(--muted);font-size:13px">QR format</label>
-      <select id="qrfmt">
-        <option value="gnosis">Gnosis app checkout (amount included)</option>
-        <option value="eip681">EIP-681 (amount included)</option>
-        <option value="address">Plain address</option>
-      </select>
-    </div>
-    <div class="pay" id="payhint" style="font-size:12px"></div>
+  <div class="foot">
+    Reads on-chain state from Gnosis Chain; the clock ticks locally between refreshes.
+    A bid splits 10% to the pool, 10% to the owner and 80% to a FIFO claim queue (each bid mints a 110% claim).
+    When the clock hits zero anyone can settle — and a bid that lands too late simply settles the game and is refunded.
   </div>
 </div>
 
-<div class="foot">
-  Reads on-chain state from Gnosis Chain every few seconds. The countdown ticks locally between refreshes.
-  A bid is 100 CRC: 10 grows the pool, 10 goes to the owner, 80 pays the FIFO claim queue (each bid mints a 110 CRC claim).
-  When the clock hits zero, anyone can settle and the last bidder is paid the pool.
-</div>
-
-<!-- deps -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
@@ -121,17 +228,13 @@ import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
 
 // ─────────────────────────────── CONFIG ───────────────────────────────
 const CONFIG = {
-  // The deployed CirclesDollarAuction contract address:
-  CONTRACT: "0x73253aeBC1Fc62bbD2a201C3B9A68c32f3C6c0C7",
-  // Gnosis Chain RPC (read-only):
+  CONTRACT: "0x12A6a9d81A8f61841527dD59c907A1bBA77f3237",
   RPC_URL: "https://rpc.gnosischain.com",
   CHAIN_ID: 100,
-  // Circles v2 Hub on Gnosis:
   HUB: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
+  START_BLOCK: 46482027,        // contract deploy block (for event scan)
   POLL_MS: 5000,
-  // Gnosis app (formerly Metri) checkout deep link. Placeholders:
-  //   {contract} {amount} {amountWei} {tokenId} {hub}
-  // Documented format: /transfer/{recipient}/crc?amount={humanReadableCrc}
+  PROFILES: "https://rpc.aboutcircles.com/profiles/search?address=",
   GNOSIS_TEMPLATE: "https://app.gnosis.io/transfer/{contract}/crc?amount={amount}",
 };
 // ───────────────────────────────────────────────────────────────────────
@@ -141,162 +244,224 @@ const ABI = [
   "function ACCEPTED_ID() view returns (uint256)",
   "function GROUP() view returns (address)",
   "function BID() view returns (uint256)",
-  "function claimPrize()"
+  "function claimPrize()",
+  "event BidPlaced(address indexed bidder, uint256 indexed round, uint256 claimIndex, uint256 newTimer, uint256 poolNominal)"
 ];
 
 const $ = id => document.getElementById(id);
 const provider = new JsonRpcProvider(CONFIG.RPC_URL, CONFIG.CHAIN_ID);
-let contract, acceptedId, group, bidWei = 100n * 10n**18n;
-let state = null;            // latest gameInfo snapshot
-let localDeadline = null;    // ms epoch when current window expires
-let qrPayload = "";
+let contract, acceptedId, bidWei = 1n*10n**18n;
+let state = null, localDeadline = null, curWindow = 0;
+const profileCache = new Map();
 
-function warnCfg(msg){ const w=$("cfgwarn"); w.style.display="block"; w.textContent=msg; }
+function warn(m){ const w=$("cfg"); w.style.display="block"; w.textContent=m; }
+function short(a){ return a && /^0x/.test(a) && a!=="0x0000000000000000000000000000000000000000"
+  ? a.slice(0,6)+"…"+a.slice(-4) : null; }
+function crc(w){ return Number(formatEther(w)).toLocaleString(undefined,{maximumFractionDigits:2}); }
+function fmtDur(s){ s=Math.max(0,Math.floor(s));
+  const d=Math.floor(s/86400);s-=d*86400;const h=Math.floor(s/3600);s-=h*3600;
+  const m=Math.floor(s/60),x=s-m*60,p=n=>String(n).padStart(2,"0");
+  if(d>0)return `${d}d ${p(h)}:${p(m)}`; if(h>0)return `${p(h)}:${p(m)}:${p(x)}`; return `${p(m)}:${p(x)}`; }
+function ago(ts){ if(!ts)return ""; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
+  if(s<60)return s+"s ago"; if(s<3600)return Math.floor(s/60)+"m ago";
+  if(s<86400)return Math.floor(s/3600)+"h ago"; return Math.floor(s/86400)+"d ago"; }
 
-function short(a){ return a && a !== "0x0000000000000000000000000000000000000000"
-  ? a.slice(0,6)+"…"+a.slice(-4) : "—"; }
-
-function fmtDur(secs){
-  secs = Math.max(0, Math.floor(secs));
-  const d = Math.floor(secs/86400); secs -= d*86400;
-  const h = Math.floor(secs/3600); secs -= h*3600;
-  const m = Math.floor(secs/60); const s = secs - m*60;
-  const pad = n => String(n).padStart(2,"0");
-  if (d > 0) return `${d}d ${pad(h)}:${pad(m)}:${pad(s)}`;
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
-}
-function crc(weiBig){ return Number(formatEther(weiBig)).toLocaleString(undefined,{maximumFractionDigits:2}); }
-
-// Build the QR payload for the chosen format.
-function buildPayload(){
-  const fmt = $("qrfmt").value;
-  const contractAddr = CONFIG.CONTRACT;
-  const amount = formatEther(bidWei); // human-readable CRC, derived from the contract's BID
-  const amountWei = bidWei.toString();
-  const tokenId = acceptedId ? acceptedId.toString() : "0";
-  let payload, hint;
-  if (fmt === "address"){
-    payload = contractAddr;
-    hint = "Most wallets let you pick the token & amount after scanning a plain address.";
-  } else if (fmt === "eip681"){
-    // Hub.safeTransferFrom(from,to,id,value,data) — wallet fills `from`.
-    payload = `ethereum:${CONFIG.HUB}@${CONFIG.CHAIN_ID}/safeTransferFrom`+
-              `?address=${contractAddr}&uint256=${tokenId}&uint256=${amountWei}&bytes=0x`;
-    hint = "EIP-681 call to the Hub; supported by some wallets.";
-  } else {
-    payload = CONFIG.GNOSIS_TEMPLATE
-      .replaceAll("{contract}",contractAddr).replaceAll("{amount}",amount)
-      .replaceAll("{amountWei}",amountWei).replaceAll("{tokenId}",tokenId)
-      .replaceAll("{hub}",CONFIG.HUB);
-    hint = "Opens the Gnosis app checkout pre-filled with the bid amount.";
-  }
-  qrPayload = payload;
-  $("payhint").textContent = hint;
-  renderQR(payload);
+/* deterministic identicon (blockies algorithm) as a data URL */
+function blockie(address){
+  const seed=(address||"").toLowerCase(); let r=[];
+  for(let i=0;i<4;i++) r[i]=0;
+  function srand(){ const t=r[0]^(r[0]<<11); r[0]=r[1];r[1]=r[2];r[2]=r[3];
+    r[3]=(r[3]^(r[3]>>19)^t^(t>>8))>>>0; return r[3]/0x100000000; }
+  for(let i=0;i<seed.length;i++){ r[i%4]=((r[i%4]<<5)-r[i%4]+seed.charCodeAt(i))>>>0; }
+  function hue(){ return Math.floor(srand()*360); }
+  const color=`hsl(${hue()},65%,58%)`, bg=`hsl(${hue()},25%,16%)`, spot=`hsl(${hue()},70%,62%)`;
+  const S=8, data=[];
+  for(let y=0;y<S;y++){ const row=[]; for(let x=0;x<S/2;x++){ const v=srand(); row[x]=v<.5?0:(v<.85?1:2);}
+    for(let x=0;x<S/2;x++) row[S-1-x]=row[x]; data.push(row); }
+  const px=8, sz=S*px; const c=document.createElement("canvas"); c.width=c.height=sz;
+  const g=c.getContext("2d"); g.fillStyle=bg; g.fillRect(0,0,sz,sz);
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){ const v=data[y][x]; if(v===0)continue;
+    g.fillStyle=v===1?color:spot; g.fillRect(x*px,y*px,px,px); }
+  return c.toDataURL();
 }
 
-function renderQR(text){
-  const el = $("qr"); el.innerHTML = "";
+async function getProfile(address){
+  if(!address || !/^0x/.test(address)) return null;
+  const a=address.toLowerCase();
+  if(profileCache.has(a)) return profileCache.get(a);
+  let prof=null;
   try{
-    if (typeof QRCode === "undefined") throw new Error("QR library not loaded");
-    new QRCode(el, { text, width: 280, height: 280,
-      colorDark: "#0b0f17", colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.L });
-  }catch(e){
-    console.error(e);
-    el.innerHTML = '<div style="color:#0b0f17;font-size:12px;word-break:break-all;max-width:280px">'+text+'</div>';
-  }
+    const r=await fetch(CONFIG.PROFILES+a);
+    if(r.ok){ const data=await r.json();
+      if(Array.isArray(data)){ const p=data.find(e=>e.address&&e.address.toLowerCase()===a);
+        if(p) prof={ name:p.name||null, image:p.previewImageUrl||p.imageUrl||null }; } }
+  }catch(_){}
+  profileCache.set(a,prof);
+  return prof;
 }
 
-function setStatus(){
-  const [seeded,finished,leader,round,pool,balance,lastBidTime,curTimer,timeLeft,head,headPaid,qlen] = state;
-  const st = $("status"), cd = $("countdown"), cl = $("clabel"), btn = $("claimBtn");
-  $("leader").textContent = short(leader);
-  $("pool").textContent = crc(pool) + " CRC";
-  $("round").textContent = round.toString();
-  $("window").textContent = fmtDur(Number(curTimer));
-  $("claims").textContent = (qlen - head).toString();
-  $("addr").textContent = CONFIG.CONTRACT;
+/* set an <img> to the profile image (fallback to identicon) and return a display name */
+async function paint(imgEl, address){
+  imgEl.src = blockie(address);                 // instant fallback
+  const p = await getProfile(address);
+  if(p && p.image) imgEl.src = p.image;
+  return (p && p.name) || short(address) || "—";
+}
 
-  if (finished){
-    st.className="status over"; st.textContent="Game over";
-    cl.textContent="winner"; cd.textContent="🏆 "+short(leader); cd.classList.remove("urgent");
-    btn.disabled=true; localDeadline=null; return;
+// ─────────────────────────── QR / pay link ───────────────────────────
+function payload(fmt){
+  const c=CONFIG.CONTRACT, amount=formatEther(bidWei), wei=bidWei.toString(),
+        tid=acceptedId?acceptedId.toString():"0";
+  if(fmt==="address") return [c, "Pick the group token & amount after scanning a plain address."];
+  if(fmt==="eip681")  return [`ethereum:${CONFIG.HUB}@${CONFIG.CHAIN_ID}/safeTransferFrom?address=${c}&uint256=${tid}&uint256=${wei}&bytes=0x`,
+                              "EIP-681 call to the Hub; supported by some wallets."];
+  return [CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",c).replaceAll("{amount}",amount),
+          "Opens the Gnosis app checkout pre-filled with the bid amount."];
+}
+function buildPayload(){
+  const [data,hint]=payload($("qrfmt").value);
+  $("hint").textContent=hint;
+  $("openApp").href = $("qrfmt").value==="gnosis" ? data
+      : CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",CONFIG.CONTRACT).replaceAll("{amount}",formatEther(bidWei));
+  renderQR(data);
+}
+function renderQR(text){
+  const el=$("qr"); el.innerHTML="";
+  try{ if(typeof QRCode==="undefined") throw new Error("QR lib missing");
+    new QRCode(el,{text,width:248,height:248,colorDark:"#070a12",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.L});
+  }catch(e){ console.error(e); el.innerHTML='<div style="color:#070a12;font-size:11px;word-break:break-all;max-width:248px">'+text+'</div>'; }
+}
+
+// ─────────────────────────── state rendering ───────────────────────────
+function setPill(cls,txt){ $("statusPill").className="pill "+cls; $("statusText").textContent=txt; }
+
+async function setLeader(addr){
+  if(!short(addr)){ $("leaderName").textContent="—"; $("leaderSub").textContent="waiting for the first bid";
+    $("leaderAv").src=blockie("0x0"); $("leaderAv").classList.remove("ring"); return; }
+  $("leaderAv").classList.add("ring");
+  const name=await paint($("leaderAv"),addr);
+  $("leaderName").textContent=name;
+}
+
+async function render(){
+  const [seeded,finished,leader,round,pool,balance,lastBidTime,curTimer,timeLeft,head,headPaid,qlen]=state;
+  curWindow=Number(curTimer);
+  $("pool").textContent=crc(pool); $("sPool").textContent=crc(pool)+" CRC";
+  $("sRound").textContent=round.toString();
+  $("sWindow").textContent=fmtDur(Number(curTimer));
+  $("sClaims").textContent=(qlen-head).toString();
+  $("addr").textContent=CONFIG.CONTRACT;
+  $("scanLink").href=`https://gnosisscan.io/address/${CONFIG.CONTRACT}`;
+
+  if(finished){
+    setPill("over","Game over");
+    $("countdown").textContent="🏆"; $("countdown").classList.remove("urgent");
+    $("countLabel").textContent="winner takes the pool"; $("barFill").style.width="100%";
+    $("claimBtn").disabled=true; localDeadline=null;
+    await setLeader(leader);
+    $("leaderSub").textContent = short(leader)? "won the auction" : "—";
+    return;
   }
-  if (!seeded){
-    st.className="status"; st.textContent="Waiting for owner to seed the pool";
-    cl.textContent="not started"; cd.textContent="—"; btn.disabled=true; localDeadline=null; return;
+  if(!seeded){
+    setPill("","Waiting to be seeded");
+    $("countdown").textContent=fmtDur(Number(curTimer)); $("countdown").classList.remove("urgent");
+    $("countLabel").textContent="starts on the first bid";
+    $("barFill").style.width="100%"; $("claimBtn").disabled=true; localDeadline=null;
+    await setLeader(null); return;
   }
-  if (round === 0n){
-    st.className="status live"; st.textContent="Open — be the first bidder!";
-    cl.textContent="be the first to bid"; cd.textContent="READY"; btn.disabled=true; localDeadline=null; return;
+  if(round===0n){
+    setPill("live","Open — be the first!"); $("countdown").textContent=fmtDur(Number(curTimer));
+    $("countdown").classList.remove("urgent");
+    $("countLabel").textContent="be the first to bid"; $("barFill").style.width="100%";
+    $("claimBtn").disabled=true; localDeadline=null; await setLeader(null); return;
   }
-  // live with bids
-  localDeadline = (Number(lastBidTime) + Number(curTimer)) * 1000;
-  const claimable = Number(timeLeft) === 0;
-  if (claimable){
-    st.className="status claim"; st.textContent="Time! Last bid wins — settle now";
-    cl.textContent="ready to settle"; btn.disabled=false;
-  } else {
-    st.className="status live"; st.textContent="Live — bidding open";
-    cl.textContent="time left to win"; btn.disabled=true;
-  }
+
+  localDeadline=(Number(lastBidTime)+Number(curTimer))*1000;
+  await setLeader(leader);
+  $("leaderSub").textContent="leading since "+ago(Number(lastBidTime));
+  const claimable=Number(timeLeft)===0;
+  if(claimable){ setPill("claim","Time! Last bid wins"); $("countLabel").textContent="ready to settle";
+    $("claimBtn").disabled=false; }
+  else { setPill("live","Live — bidding open"); $("countLabel").textContent="time left to win";
+    $("claimBtn").disabled=true; }
 }
 
 function tick(){
-  if (!localDeadline){ return; }
-  const left = (localDeadline - Date.now())/1000;
-  const cd = $("countdown");
-  cd.textContent = fmtDur(left);
-  cd.classList.toggle("urgent", left <= 300); // red under 5 min
-  if (left <= 0){
-    cd.textContent = "00:00:00";
-    $("status").className="status claim"; $("status").textContent="Time! Last bid wins — settle now";
-    $("claimBtn").disabled=false; $("clabel").textContent="ready to settle";
-  }
+  if(!localDeadline) return;
+  const left=(localDeadline-Date.now())/1000;
+  $("countdown").textContent=fmtDur(left);
+  const urgent=left<=60;
+  $("countdown").classList.toggle("urgent",urgent);
+  $("bar").classList.toggle("urgent",urgent);
+  const frac=curWindow>0?Math.max(0,Math.min(1,left/curWindow)):0;
+  $("barFill").style.width=(frac*100).toFixed(1)+"%";
+  if(left<=0){ $("countdown").textContent="00:00"; setPill("claim","Time! Last bid wins");
+    $("countLabel").textContent="ready to settle"; $("claimBtn").disabled=false; }
 }
 
+// ─────────────────────────── recent bids (events) ───────────────────────────
+let lastBidsKey="";
+async function loadRecentBids(){
+  try{
+    const latest=await provider.getBlockNumber();
+    const from=Math.max(CONFIG.START_BLOCK, latest-1000000);
+    const ev=await contract.queryFilter(contract.filters.BidPlaced(), from, latest);
+    const last=ev.slice(-5).reverse();
+    const key=last.map(e=>e.transactionHash+e.index).join(",");
+    if(key===lastBidsKey) return; lastBidsKey=key;
+    const list=$("bidlist");
+    if(last.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; return; }
+    // fetch timestamps (≤5) and render
+    const rows=await Promise.all(last.map(async(e,i)=>{
+      const blk=await e.getBlock();
+      return { bidder:e.args.bidder, round:e.args.round, ts:blk?.timestamp, top:i===0 };
+    }));
+    list.innerHTML="";
+    for(const r of rows){
+      const row=document.createElement("div"); row.className="bidrow";
+      const av=document.createElement("img"); av.className="av"; av.src=blockie(r.bidder);
+      const mid=document.createElement("div"); mid.style.minWidth="0";
+      const nm=document.createElement("div"); nm.className="nm";
+      nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
+      const meta=document.createElement("div"); meta.className="meta"; meta.textContent=ago(r.ts);
+      mid.appendChild(nm); mid.appendChild(meta);
+      const amt=document.createElement("div"); amt.className="amt"; amt.textContent="+"+crc(bidWei)+" CRC";
+      const rnd=document.createElement("div"); rnd.className="rnd"; rnd.textContent="#"+r.round.toString();
+      row.appendChild(av); row.appendChild(mid); row.appendChild(amt); row.appendChild(rnd);
+      list.appendChild(row);
+      // upgrade to profile name/avatar async
+      paint(av,r.bidder).then(name=>{ nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+name; });
+    }
+  }catch(e){ console.warn("recent bids",e); }
+}
+
+// ─────────────────────────── poll / actions ───────────────────────────
 async function poll(){
-  try{
-    state = await contract.gameInfo();
-    setStatus();
-  }catch(e){ console.error(e); warnCfg("Could not read contract — check CONTRACT address & RPC. "+e.message); }
+  try{ state=await contract.gameInfo(); await render(); await loadRecentBids(); }
+  catch(e){ console.error(e); warn("Could not read contract — check CONTRACT address & RPC. "+(e.shortMessage||e.message)); }
 }
-
 async function claim(){
-  if (!window.ethereum){ alert("No wallet found. Anyone can call claimPrize()."); return; }
-  try{
-    const bp = new BrowserProvider(window.ethereum);
-    await bp.send("eth_requestAccounts",[]);
-    const signer = await bp.getSigner();
-    const tx = await new Contract(CONFIG.CONTRACT, ABI, signer).claimPrize();
-    $("status").textContent="Settling… ("+tx.hash.slice(0,10)+")";
-    await tx.wait(); poll();
-  }catch(e){ alert(e.shortMessage || e.message); }
+  if(!window.ethereum){ alert("No wallet found. Anyone can call claimPrize()."); return; }
+  try{ const bp=new BrowserProvider(window.ethereum); await bp.send("eth_requestAccounts",[]);
+    const tx=await new Contract(CONFIG.CONTRACT,ABI,await bp.getSigner()).claimPrize();
+    setPill("claim","Settling… "+tx.hash.slice(0,10)); await tx.wait(); poll();
+  }catch(e){ alert(e.shortMessage||e.message); }
 }
 
 async function init(){
-  if (!/^0x[0-9a-fA-F]{40}$/.test(CONFIG.CONTRACT) ||
-      CONFIG.CONTRACT === "0x0000000000000000000000000000000000000000"){
-    warnCfg("Set CONFIG.CONTRACT to your deployed CirclesDollarAuction address (top of index.html).");
-  }
-  contract = new Contract(CONFIG.CONTRACT, ABI, provider);
-  try{
-    acceptedId = await contract.ACCEPTED_ID();
-    group = await contract.GROUP();
-    bidWei = await contract.BID();
-  }catch(_){ /* constants unavailable until deployed */ }
-
-  const bidStr = Number(formatEther(bidWei)).toLocaleString(undefined,{maximumFractionDigits:4});
-  $("bidLabel").textContent = bidStr;
-  $("bidLabel2").textContent = bidStr;
-
-  $("qrfmt").addEventListener("change", () => { try{ buildPayload(); }catch(e){ console.error(e); } });
-  $("claimBtn").addEventListener("click", claim);
-  await poll();                                  // load state first — never blocked by QR
+  if(!/^0x[0-9a-fA-F]{40}$/.test(CONFIG.CONTRACT)) warn("Set CONFIG.CONTRACT to your deployed address.");
+  contract=new Contract(CONFIG.CONTRACT,ABI,provider);
+  try{ acceptedId=await contract.ACCEPTED_ID(); bidWei=await contract.BID(); }catch(_){}
+  const bs=Number(formatEther(bidWei)).toLocaleString(undefined,{maximumFractionDigits:4});
+  $("bidAmt").textContent=bs;
+  $("copyBtn").addEventListener("click",()=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
+    $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1200); });
+  $("qrfmt").addEventListener("change",()=>{ try{buildPayload();}catch(e){console.error(e);} });
+  $("claimBtn").addEventListener("click",claim);
+  await poll();
   try{ buildPayload(); }catch(e){ console.error(e); }
-  setInterval(poll, CONFIG.POLL_MS);
-  setInterval(tick, 1000);
+  setInterval(poll,CONFIG.POLL_MS);
+  setInterval(tick,1000);
 }
 init();
 </script>
