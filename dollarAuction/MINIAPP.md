@@ -25,15 +25,16 @@ pot, everyone else gets paid back +10% from the bids that follow them.
 (inlined, ~2 KB, no external CDN on the critical path):
 
 - **Embedded** (inside the Circles host): `isMiniappMode()` is true → `onWalletChange` supplies
-  the Safe address, and the **Place bid** button submits the transfer via `sendTransactions([...])`.
-  The bid tx is `Hub.safeTransferFrom(you, contract, groupTokenId, amount, 0x)`. Settling the
-  winner and recovering a failed payout also go through `sendTransactions`.
+  the Safe address, and the **Place bid** button submits the bid via `sendTransactions([...])`.
+  The bid is a **trust-path payment**: the app calls the `circlesV2_findPath` pathfinder
+  (`rpc.aboutcircles.com`), builds the flow matrix, and submits
+  `Hub.operateFlowMatrix(flowVertices, flow, streams, packedCoordinates)`. Because the contract
+  trusts only the group, the path necessarily delivers the group token on its terminal edge(s).
+  This works whether or not the user holds the group token directly. If the pathfinder is
+  unreachable it falls back to a direct `Hub.safeTransferFrom(you, contract, groupTokenId, amount, 0x)`,
+  and there's always the "Pay via the Gnosis app" link. Settling the winner and recovering a
+  failed payout also go through `sendTransactions`.
 - **Standalone** (regular browser): falls back to a **Gnosis-app deep-link QR** for the bid.
-
-> Note: the one-tap bid uses a direct group-token transfer (works when you hold the group
-> Circles directly). If a balance needs trust-path routing, the in-app "Pay via the Gnosis app"
-> link / QR handles it; a future revision can build the path with `@aboutcircles/sdk` pathfinder
-> and submit it through the same `sendTransactions` call.
 
 ## Contract
 - `CirclesDollarAuction` on Gnosis Chain: `0x7779d8b980a8c40A1Be5e8406955dD28A3252966`

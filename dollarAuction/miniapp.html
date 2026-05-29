@@ -660,6 +660,51 @@ function transferTx(amountWei){
 }
 function callTx(fn, args){ return { to: CONFIG.CONTRACT, data: GAME_IFACE.encodeFunctionData(fn, args||[]), value:"0x0" }; }
 
+// ── Path payment (general case) ──
+// Route `amountWei` of group CRC from the connected wallet to the contract THROUGH the
+// Circles trust graph, so it works even when the user doesn't hold the group token directly.
+// The contract trusts only the group, so the pathfinder necessarily delivers the group token
+// on the terminal edge(s). Mirrors the proven friendly_arb_bot flow-matrix construction.
+const PATHFINDER = "https://rpc.aboutcircles.com";
+const FLOW_IFACE = new Interface([
+  "function operateFlowMatrix(address[] _flowVertices,(uint16 streamSinkId,uint192 amount)[] _flow,(uint16 sourceCoordinate,uint16[] flowEdgeIds,bytes data)[] _streams,bytes _packedCoordinates)"
+]);
+async function findPath(source, sink, amountWei){
+  const params={ Source:source, Sink:sink, TargetFlow:amountWei.toString(), WithWrap:false, MaxTransfers:"30" };
+  const r=await fetch(PATHFINDER,{ method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"circlesV2_findPath",params:[params]}) });
+  const j=await r.json();
+  if(j.error) throw new Error(j.error.message||"pathfinder error");
+  return j.result;   // { transfers:[{tokenOwner,from,to,value}], ... }
+}
+function buildFlowMatrix(transfers, source, sink){
+  const src=source.toLowerCase(), snk=sink.toLowerCase();
+  const T=transfers.map(t=>({tokenOwner:t.tokenOwner.toLowerCase(),from:t.from.toLowerCase(),to:t.to.toLowerCase(),value:BigInt(t.value)}));
+  const addrs=new Set(); T.forEach(t=>{addrs.add(t.tokenOwner);addrs.add(t.from);addrs.add(t.to);});
+  const flowVertices=[...addrs].sort((a,b)=>{const l=BigInt(a),r=BigInt(b);return l<r?-1:l>r?1:0;});
+  const idx={}; flowVertices.forEach((a,i)=>idx[a]=i);
+  const flowEdges=T.map(t=>({streamSinkId:(t.to===snk&&t.from!==snk)?1:0, amount:t.value}));     // edges into the sink are terminal
+  if(!flowEdges.some(e=>e.streamSinkId===1)) flowEdges[flowEdges.length-1].streamSinkId=1;
+  const termIds=flowEdges.map((e,i)=>e.streamSinkId===1?i:-1).filter(i=>i!==-1);
+  const streams=[{sourceCoordinate:idx[src], flowEdgeIds:termIds, data:"0x"}];
+  const coords=[]; T.forEach(t=>{coords.push(idx[t.tokenOwner],idx[t.from],idx[t.to]);});          // 3 uint16 per transfer
+  const bytes=new Uint8Array(coords.length*2); coords.forEach((c,i)=>{bytes[2*i]=c>>8; bytes[2*i+1]=c&0xff;});
+  const packed="0x"+[...bytes].map(b=>b.toString(16).padStart(2,"0")).join("");
+  return { flowVertices, flowEdges, streams, packedCoordinates:packed };
+}
+async function bidTxViaPath(amountWei){
+  const pf=await findPath(userAddress, CONFIG.CONTRACT, amountWei);
+  if(!pf||!Array.isArray(pf.transfers)||!pf.transfers.length) throw new Error("no path found");
+  const fm=buildFlowMatrix(pf.transfers, userAddress, CONFIG.CONTRACT);
+  const data=FLOW_IFACE.encodeFunctionData("operateFlowMatrix",[
+    fm.flowVertices,
+    fm.flowEdges.map(e=>[e.streamSinkId, e.amount]),
+    fm.streams.map(s=>[s.sourceCoordinate, s.flowEdgeIds, s.data]),
+    fm.packedCoordinates
+  ]);
+  return { to: CONFIG.HUB, data, value:"0x0" };
+}
+
 // Route transactions through the Circles host when embedded, else a normal injected wallet.
 async function submit(transactions, msg){
   setPill("claim", msg||"Submitting…");
@@ -672,9 +717,17 @@ async function submit(transactions, msg){
 }
 async function placeBid(){
   if(!userAddress){ alert("Wallet not connected yet — open this in the Circles app."); return; }
-  try{ await submit([transferTx(currentMode==="fund"?seedWei:bidWei)],
-                    currentMode==="fund"?"Funding the pot…":"Placing your bid…"); }
-  catch(e){ if(e.message!=="nowallet") alert(e.shortMessage||e.message); }
+  const amt = currentMode==="fund" ? seedWei : bidWei;
+  const msg = currentMode==="fund" ? "Funding the pot…" : "Placing your bid…";
+  $("bidBtn").disabled=true;
+  try{
+    let tx;
+    try{ tx = await bidTxViaPath(amt); }                 // general: route through the trust graph
+    catch(err){ console.warn("path payment unavailable, falling back to direct transfer:", err);
+                tx = transferTx(amt); }                  // fallback: user holds the group token directly
+    await submit([tx], msg);
+  }catch(e){ if(e.message!=="nowallet") alert(e.shortMessage||e.message); }
+  finally{ $("bidBtn").disabled=false; }
 }
 async function settle(){ try{ await submit([callTx("claimPrize")],"Paying the winner…"); }
   catch(e){ if(e.message!=="nowallet") alert(e.shortMessage||e.message); } }
