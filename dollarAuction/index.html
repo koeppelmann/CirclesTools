@@ -244,7 +244,7 @@
       </div>
       <div class="way small">
         <div class="ic">💸</div>
-        <div class="h"><span id="bidsNeeded">1</span> people bid after you</div>
+        <div class="h" id="claimHead"><span id="bidsNeeded">2</span> people bid after you</div>
         <div class="amt">win <span id="claimBack">—</span> Circles</div>
       </div>
     </div>
@@ -429,16 +429,20 @@ async function setLeader(addr){
   $("leaderName").textContent=name;
 }
 
-/* how many more bids until the NEXT bidder (position k = round+1) is fully paid back.
-   claim k is paid once cumulative funding TO_CLAIMS*T >= CLAIM_SIZE*k, so bids-after
-   = ceil((CLAIM_SIZE-TO_CLAIMS)/TO_CLAIMS * k). */
+/* How many more bids, placed AFTER you, until the NEXT bidder (position k = round+1)
+   is fully paid their CLAIM_SIZE. Each bid funds TO_CLAIMS toward the front of the FIFO
+   queue, so claim k is fully covered once TO_CLAIMS*T >= CLAIM_SIZE*k; the strict minimum
+   is ceil((CLAIM_SIZE-TO_CLAIMS)/TO_CLAIMS * k). We display it CONSERVATIVELY (+1): we do
+   not count your own bid's partial pre-payment toward your own claim, so the number is the
+   count of bids after you that *guarantee* the full payout, never an optimistic estimate. */
 function updateWaysLive(round){
   const k = (round || 0n) + 1n;
   if(toClaimsWei>0n && claimWei>0n){
     const num = (claimWei - toClaimsWei) * k;
-    let x = (num + toClaimsWei - 1n) / toClaimsWei; // ceil
-    if(x < 1n) x = 1n;
-    $("bidsNeeded").textContent = x.toString();
+    let x = (num + toClaimsWei - 1n) / toClaimsWei; // ceil = strict minimum
+    x = x + 1n;                                     // conservative: only count bids after you
+    const word = x === 1n ? "person bids" : "people bid";
+    $("claimHead").textContent = `${x.toString()} ${word} after you`;
   }
 }
 
