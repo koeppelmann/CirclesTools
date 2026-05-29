@@ -692,7 +692,8 @@ const GAME_IFACE = new Interface(["function claimPrize()","function recoverFaile
 const FLOW_IFACE = new Interface([
   "function operateFlowMatrix(address[] _flowVertices,(uint16 streamSinkId,uint192 amount)[] _flow,(uint16 sourceCoordinate,uint16[] flowEdgeIds,bytes data)[] _streams,bytes _packedCoordinates)"
 ]);
-const PATHFINDER = "https://rpc.aboutcircles.com";
+const PATHFINDERS = ["https://rpc.aboutcircles.com", "https://rpc.circlesubi.network/"];
+const HUB1155 = new Contract(CONFIG.HUB, ["function balanceOf(address,uint256) view returns (uint256)"], provider);
 
 function encodeStartData(it, mt, bid){          // abi.encode(uint256,uint256,uint256) = 96 bytes
   const h=x=>BigInt(x).toString(16).padStart(64,"0");
@@ -704,12 +705,22 @@ function directTx(amountWei, dataHex){
 }
 function callTx(fn, args){ return { to: CONFIG.CONTRACT, data: GAME_IFACE.encodeFunctionData(fn, args||[]), value:"0x0" }; }
 
+// Ask the pathfinder for a route delivering `amountWei` group CRC to the sink. Tries both public
+// RPCs and only returns a result that actually contains transfers (a real route).
 async function findPath(source, sink, amountWei){
   const params={ Source:source, Sink:sink, TargetFlow:amountWei.toString(), WithWrap:false, MaxTransfers:"30" };
-  const r=await fetch(PATHFINDER,{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({jsonrpc:"2.0",id:1,method:"circlesV2_findPath",params:[params]})});
-  const j=await r.json(); if(j.error) throw new Error(j.error.message||"pathfinder error");
-  return j.result;
+  let lastErr;
+  for(const url of PATHFINDERS){
+    try{
+      const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({jsonrpc:"2.0",id:1,method:"circlesV2_findPath",params:[params]})});
+      const j=await r.json();
+      if(j.error) throw new Error(j.error.message||"pathfinder error");
+      if(j.result && Array.isArray(j.result.transfers) && j.result.transfers.length) return j.result;
+      lastErr=new Error("no route");
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error("no route");
 }
 function buildFlowMatrix(transfers, source, sink, streamData){
   const src=source.toLowerCase(), snk=sink.toLowerCase();
@@ -744,12 +755,21 @@ async function submit(transactions, msg){
   for(const t of transactions){ const tx=await signer.sendTransaction({to:t.to,data:t.data,value:t.value?BigInt(t.value):0n}); hashes.push(tx.hash); await tx.wait(); }
   poll(); return hashes;
 }
-// Send `amountWei` group CRC to the hub carrying `streamData` (path payment; direct-transfer fallback).
+// Send `amountWei` group CRC to the hub carrying `streamData`.
+// 1) trust-path payment (routes ANY spendable Circles to the group — the general case);
+// 2) only if that has no route, a direct transfer, and only when the wallet actually holds
+//    enough of the group token directly (otherwise it would just revert);
+// 3) otherwise a clear "not enough" message instead of a doomed transaction.
 async function sendToHub(amountWei, streamData, msg){
-  let tx;
-  try{ tx = await pathTx(amountWei, streamData); }
-  catch(err){ console.warn("path unavailable, direct transfer:", err); tx = directTx(amountWei, streamData); }
-  return submit([tx], msg);
+  try{
+    const tx=await pathTx(amountWei, streamData);
+    return submit([tx], msg);
+  }catch(err){ console.warn("path payment unavailable:", err); }
+  try{
+    const bal=await HUB1155.balanceOf(userAddress, acceptedId);
+    if(bal>=amountWei) return submit([directTx(amountWei, streamData)], msg);
+  }catch(_){}
+  throw new Error(`Couldn't route ${crc(amountWei)} CRC from your wallet — you may not have enough spendable group Circles for this.`);
 }
 async function placeBid(){
   if(!userAddress){ alert("Wallet not connected yet — open this in the Circles app."); return; }
