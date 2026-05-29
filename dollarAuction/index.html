@@ -156,7 +156,10 @@
   .bidrow .av{width:40px;height:40px;border-radius:50%;flex:none;background:var(--cream);border:1px solid var(--line2);object-fit:cover}
   .bidrow .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bidrow .meta{color:var(--ink2);font-size:12px;margin-top:1px;font-weight:500}
-  .bidrow .amt{margin-left:auto;color:var(--mint);font-weight:800;white-space:nowrap}
+  .bidrow .tl{flex:1;text-align:center;min-width:0;padding:0 8px}
+  .bidrow .tlVal{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap}
+  .bidrow .tlLab{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--faint);margin-top:2px}
+  .bidrow .amt{color:var(--mint);font-weight:800;white-space:nowrap}
   .bidrow .rnd{color:var(--faint);font-size:12px;margin-left:8px;min-width:46px;text-align:right;font-weight:600}
   .crown{color:var(--gold)}
   .empty{color:var(--ink2);font-size:14px;padding:18px 8px;font-weight:500}
@@ -587,15 +590,18 @@ function fmtShort(s){ s=Math.max(0,Math.floor(s));
   if(h>0) return `${h}h ${m}m`; if(m>0) return `${m}m ${x}s`; return `${x}s`; }
 // Refresh "Xm ago · <time left>" on every row (called each second and each poll) so the recent
 // list stays consistent with the live countdown above it instead of freezing at render time.
+function leftColor(f){ f=Math.max(0,Math.min(1,f)); return `hsl(${Math.round(f*130)},78%,43%)`; } // 0=red → 1=green
 function renderBidTimes(){
   const now=Math.floor(Date.now()/1000);
   for(const r of recentRowData){
-    let extra="";
-    if(r.kind==="leader"){ const left=r.ts+r.win-now;
-      extra = left>0 ? ` · ${fmtShort(left)} left to win` : ` · time's up`; }
-    else if(r.kind==="won"){ extra=` · won the pot`; }
-    else { const left=Math.max(0, r.ts+r.win-r.nextTs); extra=` · ${fmtShort(left)} left when outbid`; }
-    r.metaEl.textContent = ago(r.ts) + extra;
+    r.metaEl.textContent = ago(r.ts);
+    if(r.kind==="won"){ r.tlVal.textContent="🏆"; r.tlVal.style.color="var(--gold)"; r.tlLab.textContent="won the pot"; continue; }
+    let left;
+    if(r.kind==="leader"){ left=r.ts+r.win-now; r.tlLab.textContent="left to win"; }
+    else { left=r.ts+r.win-r.nextTs; r.tlLab.textContent="left when outbid"; }
+    left=Math.max(0,left);
+    r.tlVal.textContent = fmtShort(left);                       // larger, centered value
+    r.tlVal.style.color = leftColor(r.win>0 ? left/r.win : 0);  // redder the closer it got to 0
   }
 }
 async function loadRecentBids(){
@@ -620,11 +626,15 @@ async function loadRecentBids(){
         nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
         const meta=document.createElement("div"); meta.className="meta";
         mid.appendChild(nm); mid.appendChild(meta);
+        const tl=document.createElement("div"); tl.className="tl";
+        const tlVal=document.createElement("div"); tlVal.className="tlVal";
+        const tlLab=document.createElement("div"); tlLab.className="tlLab";
+        tl.appendChild(tlVal); tl.appendChild(tlLab);
         const amt=document.createElement("div"); amt.className="amt"; amt.textContent="+"+crc(bidWei)+" CRC";
         const rnd=document.createElement("div"); rnd.className="rnd"; rnd.textContent="#"+r.round.toString();
-        row.appendChild(av); row.appendChild(mid); row.appendChild(amt); row.appendChild(rnd);
+        row.appendChild(av); row.appendChild(mid); row.appendChild(tl); row.appendChild(amt); row.appendChild(rnd);
         list.appendChild(row);
-        recentRowData.push({ metaEl:meta, ts:r.ts, win:windowForRound(r.round), nextTs:r.nextTs,
+        recentRowData.push({ metaEl:meta, tlVal, tlLab, ts:r.ts, win:windowForRound(r.round), nextTs:r.nextTs,
                              kind: r.top ? (finished?"won":"leader") : "outbid" });
         // upgrade to profile name/avatar async
         paint(av,r.bidder).then(name=>{ nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+name; });
