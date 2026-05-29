@@ -669,7 +669,7 @@ async function loadRecentBids(){
       for(const r of rows){
         const row=document.createElement("div"); row.className="bidrow";
         const av=document.createElement("img"); av.className="av"; av.src=blockie(r.bidder);
-        const mid=document.createElement("div"); mid.style.minWidth="0";
+        const mid=document.createElement("div"); mid.style.cssText="min-width:0;flex:0 1 168px";  // fixed basis so the time-left column lines up across rows
         const nm=document.createElement("div"); nm.className="nm";
         nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
         const meta=document.createElement("div"); meta.className="meta";
