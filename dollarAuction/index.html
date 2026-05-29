@@ -214,35 +214,22 @@
         <button id="copyBtn" class="icobtn">Copy</button>
       </div>
       <a id="openApp" class="openbtn" href="#" target="_blank" rel="noopener">Open in the Gnosis app →</a>
-      <div class="fmtrow">
-        <span class="label">QR shows</span>
-        <select id="qrfmt">
-          <option value="gnosis">Gnosis app payment</option>
-          <option value="address">Just the address</option>
-          <option value="eip681">Wallet link (advanced)</option>
-        </select>
-      </div>
-      <div id="hint" class="hint"></div>
     </div>
   </div>
 
   <!-- two ways to win -->
   <div class="card ways">
     <h2>Two ways to win</h2>
-    <div class="sub">Every bid is just <b id="bidAmt2">…</b> CRC. Here's what you can win with it.</div>
     <div class="wgrid">
       <div class="way big">
         <div class="ic">🏆</div>
-        <div class="h">Be the last bidder</div>
-        <div class="amt"><span id="poolPrize">—</span> CRC</div>
-        <div class="d">If no one bids after you before the clock hits zero, you win the entire pot.</div>
+        <div class="h">You're the last bidder</div>
+        <div class="amt">win <span id="poolPrize">—</span> Circles</div>
       </div>
       <div class="way small">
         <div class="ic">💸</div>
-        <div class="h">Get paid back, and then some</div>
-        <div class="amt"><span id="claimBack">—</span> CRC</div>
-        <div class="d">Even if you're outbid, you get your bid back <b>+10%</b> once enough people bid after you.</div>
-        <div class="live">Bid now → you'd be <b>#<span id="queuePos">1</span></b> in line → paid after about <b><span id="bidsNeeded">1</span></b> more bid(s).</div>
+        <div class="h"><span id="bidsNeeded">1</span> people bid after you</div>
+        <div class="amt">win <span id="claimBack">—</span> Circles</div>
       </div>
     </div>
   </div>
@@ -388,10 +375,8 @@ function payload(fmt){
           "Opens the Gnosis app with your bid amount pre-filled."];
 }
 function buildPayload(){
-  const [data,hint]=payload($("qrfmt").value);
-  $("hint").textContent=hint;
-  $("openApp").href = $("qrfmt").value==="gnosis" ? data
-      : CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",CONFIG.CONTRACT).replaceAll("{amount}",formatEther(bidWei));
+  const [data]=payload("gnosis");
+  $("openApp").href = data;
   renderQR(data);
 }
 function renderQR(text){
@@ -417,7 +402,6 @@ async function setLeader(addr){
    = ceil((CLAIM_SIZE-TO_CLAIMS)/TO_CLAIMS * k). */
 function updateWaysLive(round){
   const k = (round || 0n) + 1n;
-  $("queuePos").textContent = k.toString();
   if(toClaimsWei>0n && claimWei>0n){
     const num = (claimWei - toClaimsWei) * k;
     let x = (num + toClaimsWei - 1n) / toClaimsWei; // ceil
@@ -536,11 +520,10 @@ async function init(){
   try{ acceptedId=await contract.ACCEPTED_ID(); bidWei=await contract.BID();
        claimWei=await contract.CLAIM_SIZE(); toClaimsWei=await contract.TO_CLAIMS(); }catch(_){}
   const bs=Number(formatEther(bidWei)).toLocaleString(undefined,{maximumFractionDigits:4});
-  $("bidAmt").textContent=bs; $("bidAmt2").textContent=bs;
+  $("bidAmt").textContent=bs;
   $("claimBack").textContent=crc(claimWei);
   $("copyBtn").addEventListener("click",()=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
     $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1200); });
-  $("qrfmt").addEventListener("change",()=>{ try{buildPayload();}catch(e){console.error(e);} });
   $("claimBtn").addEventListener("click",claim);
   await poll();
   try{ buildPayload(); }catch(e){ console.error(e); }
