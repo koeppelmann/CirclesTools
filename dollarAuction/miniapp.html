@@ -695,6 +695,35 @@ const FLOW_IFACE = new Interface([
 const PATHFINDERS = ["https://rpc.aboutcircles.com", "https://rpc.circlesubi.network/"];
 const HUB1155 = new Contract(CONFIG.HUB, ["function balanceOf(address,uint256) view returns (uint256)"], provider);
 
+// Official Circles SDK transfer builder (pathfinding + flow matrix + wrapped-token handling),
+// loaded lazily from a CDN. Returns ready-to-send {to,data,value} arrays for sendTransactions.
+const CIRCLES_CONFIG = {
+  circlesRpcUrl: "https://rpc.aboutcircles.com/", chainRpcUrl: CONFIG.RPC_URL,
+  profileServiceUrl: "https://rpc.aboutcircles.com/profiles/",
+  v2HubAddress: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
+  nameRegistryAddress: "0xA27566fD89162cC3D40Cb59c87AAaA49B85F3474",
+  baseGroupMintPolicy: "0xcCa27c26CF7BAC2a9928f42201d48220F0e3a549",
+  standardTreasury: "0x08F90aB73A515308f03A718257ff9887ED330C6e",
+  coreMembersGroupDeployer: "0xFEca40Eb02FB1f4F5F795fC7a03c1A27819B1Ded",
+  baseGroupFactoryAddress: "0xD0B5Bd9962197BEaC4cbA24244ec3587f19Bd06d",
+  liftERC20Address: "0x5F99a795dD2743C36D63511f0D4bc667e6d3cDB5",
+  invitationFarmAddress: "0x0000000000000000000000000000000000000000",
+  referralsModuleAddress: "0x12105a9B291aF2ABb0591001155A75949b062CE5",
+  invitationModuleAddress: "0x00738aca013B7B2e6cfE1690F0021C3182Fa40B5",
+};
+let _tb = undefined;   // undefined = untried, null = unavailable, object = ready
+async function getTransferBuilder(){
+  if(_tb !== undefined) return _tb;
+  try{ const m=await import("https://esm.sh/@aboutcircles/sdk-transfers@0.1.42");
+    _tb = new m.TransferBuilder(CIRCLES_CONFIG); }
+  catch(e){ console.warn("Circles SDK unavailable, using built-in routing:", e); _tb = null; }
+  return _tb;
+}
+function hexToBytes(hex){ const h=(hex||"").replace(/^0x/,""); const a=new Uint8Array(h.length/2);
+  for(let i=0;i<a.length;i++) a[i]=parseInt(h.substr(i*2,2),16); return a; }
+function normTxs(txs){ return txs.map(t=>({ to:t.to, data:t.data,
+  value:(t.value && BigInt(t.value)>0n) ? "0x"+BigInt(t.value).toString(16) : "0x0" })); }
+
 function encodeStartData(it, mt, bid){          // abi.encode(uint256,uint256,uint256) = 96 bytes
   const h=x=>BigInt(x).toString(16).padStart(64,"0");
   return "0x"+h(it)+h(mt)+h(bid);
@@ -761,14 +790,22 @@ async function submit(transactions, msg){
 //    enough of the group token directly (otherwise it would just revert);
 // 3) otherwise a clear "not enough" message instead of a doomed transaction.
 async function sendToHub(amountWei, streamData, msg){
+  // 1) Official Circles SDK TransferBuilder — handles pathfinding, flow matrix, and wrapped tokens.
   try{
-    const tx=await pathTx(amountWei, streamData);
-    return submit([tx], msg);
-  }catch(err){ console.warn("path payment unavailable:", err); }
-  try{
-    const bal=await HUB1155.balanceOf(userAddress, acceptedId);
-    if(bal>=amountWei) return submit([directTx(amountWei, streamData)], msg);
-  }catch(_){}
+    const tb=await getTransferBuilder();
+    if(tb){
+      const opts = (streamData && streamData!=="0x") ? { txData: hexToBytes(streamData) } : {};
+      const txs = await tb.constructAdvancedTransfer(userAddress, CONFIG.CONTRACT, amountWei, opts);
+      if(txs && txs.length) return submit(normTxs(txs), msg);
+    }
+  }catch(err){ console.warn("SDK transfer build failed:", err); }
+  // 2) Built-in trust-path payment (both pathfinder RPCs) — fallback if the SDK can't load.
+  try{ const tx=await pathTx(amountWei, streamData); return submit([tx], msg); }
+  catch(err){ console.warn("path payment unavailable:", err); }
+  // 3) Direct transfer only if the wallet actually holds enough of the group token.
+  try{ const bal=await HUB1155.balanceOf(userAddress, acceptedId);
+    if(bal>=amountWei) return submit([directTx(amountWei, streamData)], msg); }catch(_){}
+  // 4) Nothing worked — say so clearly instead of submitting a doomed transaction.
   throw new Error(`Couldn't route ${crc(amountWei)} CRC from your wallet — you may not have enough spendable group Circles for this.`);
 }
 async function placeBid(){

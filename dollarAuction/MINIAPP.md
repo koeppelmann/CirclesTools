@@ -25,15 +25,16 @@ pot, everyone else gets paid back +10% from the bids that follow them.
 (inlined, ~2 KB, no external CDN on the critical path):
 
 - **Embedded** (inside the Circles host): `isMiniappMode()` is true → `onWalletChange` supplies
-  the Safe address, and the **Place bid** button submits the bid via `sendTransactions([...])`.
-  The bid is a **trust-path payment**: the app calls the `circlesV2_findPath` pathfinder
-  (`rpc.aboutcircles.com`), builds the flow matrix, and submits
-  `Hub.operateFlowMatrix(flowVertices, flow, streams, packedCoordinates)`. Because the contract
-  trusts only the group, the path necessarily delivers the group token on its terminal edge(s).
-  This works whether or not the user holds the group token directly. If the pathfinder is
-  unreachable it falls back to a direct `Hub.safeTransferFrom(you, contract, groupTokenId, amount, 0x)`,
-  and there's always the "Pay via the Gnosis app" link. Settling the winner and recovering a
-  failed payout also go through `sendTransactions`.
+  the Safe address, and the **Place bid** / **Start the game** buttons submit via `sendTransactions([...])`.
+  Routing uses the official **`@aboutcircles/sdk-transfers` `TransferBuilder.constructAdvancedTransfer()`**
+  (loaded lazily from esm.sh) — it does pathfinding, flow-matrix construction and wrapped-token
+  handling and returns ready-to-send `{to,data,value}` txs (start params travel via the `txData`
+  option). Because the contract trusts only the group, the route necessarily delivers the group
+  token on its terminal edge(s), so it works whether or not the user holds the group token directly.
+  Layered fallbacks if the SDK can't load: a built-in `circlesV2_findPath` + `operateFlowMatrix`
+  path payment, then a direct `safeTransferFrom` **only when the wallet actually holds enough** group
+  CRC, then a clear "couldn't route X CRC" message (never a doomed transaction). Settling the winner
+  and recovering a failed payout also go through `sendTransactions`.
 - **Standalone** (regular browser): falls back to a **Gnosis-app deep-link QR** for the bid.
 
 ## Contracts (Gnosis Chain, Etherscan-verified)
