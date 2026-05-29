@@ -89,6 +89,15 @@
   .cta:hover{transform:translateY(-1px)} .cta:active{transform:translateY(0)}
   .cta[disabled]{opacity:.4;cursor:not-allowed;box-shadow:none;filter:grayscale(.3)}
 
+  /* winner state */
+  .winbox{text-align:center;padding:10px 0 4px}
+  .winbox .winTrophy{font-size:68px;line-height:1;margin:6px 0 10px;filter:drop-shadow(0 10px 22px rgba(246,183,60,.4))}
+  .winbox .winMsg{font-weight:800;font-size:27px;letter-spacing:-.6px;line-height:1.25}
+  .winbox .winMsg b{background:linear-gradient(120deg,var(--purple),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .winbox .winState{margin:16px 0 6px;display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:9px 16px;border-radius:999px}
+  .winbox .winState.pending{color:#c0560b;background:#fff3e9;border:1px solid #ffd9bf}
+  .winbox .winState.paid{color:#0c9b6e;background:#e9fbf3;border:1px solid #bff0dc}
+
   /* bid panel */
   .bidhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
   .bidamt{font-weight:800;color:var(--purple);font-size:15px}
@@ -176,33 +185,40 @@
 
   <div id="cfg" class="cfg"></div>
 
-  <div class="stage">
+  <div class="stage" id="stage">
     <!-- LEFT: leader + countdown -->
     <div class="card">
       <div class="leader">
         <img id="leaderAv" class="avatar" alt="" />
         <div class="who">
-          <div class="label">In the lead</div>
+          <div class="label" id="leaderLabel">In the lead</div>
           <div id="leaderName" class="name">—</div>
           <div id="leaderSub" class="sub">waiting for the first bid</div>
         </div>
       </div>
 
-      <div class="count-wrap">
+      <div class="count-wrap" id="countWrap">
         <div id="countdown" class="countdown">--:--</div>
         <div class="bar" id="bar"><i id="barFill"></i></div>
         <div id="countLabel" class="count-label">time left to win</div>
       </div>
 
-      <div class="prize">
+      <div class="prize" id="prizeRow">
         <span class="v" id="pool">—</span><span class="u">CRC in the pot</span>
       </div>
 
       <button id="claimBtn" class="cta" disabled>Settle &amp; pay the winner</button>
+
+      <div id="winBox" class="winbox" style="display:none">
+        <div class="winTrophy">🏆</div>
+        <div class="winMsg" id="winMsg">—</div>
+        <div class="winState" id="winState">—</div>
+        <button id="payBtn" class="cta">Pay the winner</button>
+      </div>
     </div>
 
     <!-- RIGHT: bid -->
-    <div class="card">
+    <div class="card" id="bidCard">
       <div class="bidhead">
         <div class="label">Place your bid</div>
         <div class="bidamt"><span id="bidAmt">…</span> CRC</div>
@@ -284,14 +300,17 @@ const ABI = [
   "function CLAIM_SIZE() view returns (uint256)",
   "function TO_CLAIMS() view returns (uint256)",
   "function STARTING_PRICE() view returns (uint256)",
+  "function failedCredits(address) view returns (uint256)",
   "function claimPrize()",
-  "function recentBids() view returns (address[], uint256[])"
+  "function recoverFailedCredit(address to)",
+  "function recentBids() view returns (address[], uint256[])",
+  "event GameWon(address indexed winner, uint256 prize, uint256 totalRounds)"
 ];
 
 const $ = id => document.getElementById(id);
 const provider = new JsonRpcProvider(CONFIG.RPC_URL, CONFIG.CHAIN_ID);
 let contract, acceptedId, bidWei = 1n*10n**18n, claimWei = 0n, toClaimsWei = 0n;
-let state = null, localDeadline = null, curWindow = 0;
+let state = null, localDeadline = null, curWindow = 0, _zeroPolled = false;
 const profileCache = new Map();
 
 function warn(m){ const w=$("cfg"); w.style.display="block"; w.textContent=m; }
@@ -422,16 +441,16 @@ async function render(){
   const scan=`https://gnosisscan.io/address/${CONFIG.CONTRACT}`;
   $("scanLink").href=scan; $("scanLink2").href=scan;
   updateWaysLive(round);
+  if(pool>0n) lastKnownPrize=pool;   // remember the pot to show after it's paid out
 
-  if(finished){
-    setPill("over","Game over");
-    $("countdown").textContent="🏆"; $("countdown").classList.remove("urgent");
-    $("countLabel").textContent="winner takes the pot"; $("barFill").style.width="100%";
-    $("claimBtn").disabled=true; localDeadline=null;
-    await setLeader(leader);
-    $("leaderSub").textContent = short(leader)? "won the auction" : "—";
-    return;
-  }
+  // Won: either already settled, or the clock has hit zero (winner decided, payout pending).
+  const claimableNow = seeded && !finished && round!==0n && Number(timeLeft)===0;
+  if(finished || claimableNow){ await showWinner(finished, leader, pool); return; }
+
+  // Not a won state — restore the normal (bidding) layout.
+  setWonLayout(false);
+  $("leaderLabel").textContent="In the lead";
+
   if(!seeded){
     setPill("","Getting ready");
     $("countdown").textContent=fmtDur(Number(curTimer)); $("countdown").classList.remove("urgent");
@@ -446,14 +465,70 @@ async function render(){
     $("claimBtn").disabled=true; localDeadline=null; await setLeader(null); return;
   }
 
-  localDeadline=(Number(lastBidTime)+Number(curTimer))*1000;
+  localDeadline=(Number(lastBidTime)+Number(curTimer))*1000; _zeroPolled=false;
   await setLeader(leader);
   $("leaderSub").textContent="leading since "+ago(Number(lastBidTime));
-  const claimable=Number(timeLeft)===0;
-  if(claimable){ setPill("claim","Time's up — last bid wins"); $("countLabel").textContent="ready to settle";
-    $("claimBtn").disabled=false; }
-  else { setPill("live","Live — bidding open"); $("countLabel").textContent="time left to win";
-    $("claimBtn").disabled=true; }
+  setPill("live","Live — bidding open"); $("countLabel").textContent="time left to win";
+  $("claimBtn").disabled=true;
+}
+
+// ─────────────────────────── winner state ───────────────────────────
+let lastKnownPrize=null, winPrizeFetched=false, payAction=null;
+
+/* best-effort: pull the prize from the GameWon event (for an already-settled game). */
+async function fetchWinPrize(){
+  if(winPrizeFetched) return; winPrizeFetched=true;
+  try{
+    const latest=await provider.getBlockNumber();
+    const logs=await contract.queryFilter(contract.filters.GameWon(), latest>200000?latest-200000:0, latest);
+    if(logs.length){ lastKnownPrize=logs[logs.length-1].args[1]; }
+  }catch(_){}
+}
+
+/* swap the page between the bidding layout and the single-card winner layout. */
+function setWonLayout(on){
+  $("countWrap").style.display = on?"none":"";
+  $("prizeRow").style.display  = on?"none":"";
+  $("claimBtn").style.display  = on?"none":"";
+  $("winBox").style.display    = on?"block":"none";
+  $("bidCard").style.display   = on?"none":"";       // hide the bid QR once there's a winner
+  const s=$("stage").style;
+  if(on){ s.gridTemplateColumns="1fr"; s.maxWidth="560px"; s.marginInline="auto"; }
+  else  { s.gridTemplateColumns=""; s.maxWidth=""; s.marginInline=""; }
+}
+
+async function showWinner(finished, winner, poolNominal){
+  setWonLayout(true);
+  localDeadline=null;
+  $("leaderLabel").textContent="Winner";
+  $("leaderAv").classList.add("ring");
+  const name=await paint($("leaderAv"),winner);
+  $("leaderName").textContent=name;
+  $("leaderSub").textContent= finished ? "won the auction" : "the clock hit zero";
+
+  // Is the prize still owed? Pending = clock elapsed but not settled, OR settled but the
+  // push to the winner failed (parked in failedCredits, recoverable).
+  let failWei=0n; try{ failWei=await contract.failedCredits(winner); }catch(_){}
+  let pending, prizeWei;
+  if(!finished){ pending=true; prizeWei=poolNominal; }
+  else if(failWei>0n){ pending=true; prizeWei=failWei; }
+  else { pending=false; prizeWei=lastKnownPrize; if(prizeWei==null) fetchWinPrize(); }
+
+  const amt = (prizeWei!=null && prizeWei>0n) ? crc(prizeWei)+" CRC" : "the pot";
+  $("winMsg").innerHTML = `<b>${name}</b> won ${amt}`;
+
+  const ws=$("winState"), btn=$("payBtn");
+  if(pending){
+    ws.className="winState pending"; ws.textContent="⏳ Payout pending";
+    btn.style.display="block"; btn.disabled=false;
+    if(!finished){ btn.textContent="Pay the winner"; payAction=()=>sendTx("claimPrize"); }
+    else { btn.textContent="Retry payout"; payAction=()=>sendTx("recoverFailedCredit", winner); }
+    setPill("claim", finished?"Payout pending":"Time's up — winner decided");
+  }else{
+    ws.className="winState paid"; ws.textContent="✓ Paid out";
+    btn.style.display="none"; payAction=null;
+    setPill("over","Game over");
+  }
 }
 
 function tick(){
@@ -465,8 +540,10 @@ function tick(){
   $("bar").classList.toggle("urgent",urgent);
   const frac=curWindow>0?Math.max(0,Math.min(1,left/curWindow)):0;
   $("barFill").style.width=(frac*100).toFixed(1)+"%";
-  if(left<=0){ $("countdown").textContent="00:00"; setPill("claim","Time's up — last bid wins");
-    $("countLabel").textContent="ready to settle"; $("claimBtn").disabled=false; }
+  if(left<=0){ $("countdown").textContent="00:00"; setPill("claim","Time's up — winner decided");
+    $("countLabel").textContent="ready to settle";
+    // clock just crossed zero — refresh once to switch to the winner panel
+    if(!_zeroPolled){ _zeroPolled=true; poll(); } }
 }
 
 // ─────────────────────────── recent bids (ring buffer) ───────────────────────────
@@ -506,11 +583,11 @@ async function poll(){
   try{ state=await contract.gameInfo(); await render(); await loadRecentBids(); }
   catch(e){ console.error(e); warn("Could not read the contract — check the address & network. "+(e.shortMessage||e.message)); }
 }
-async function claim(){
-  if(!window.ethereum){ alert("No wallet found. Anyone can settle the game — just connect a wallet on Gnosis Chain."); return; }
+async function sendTx(method, ...args){
+  if(!window.ethereum){ alert("No wallet found. Anyone can trigger the payout — just connect a wallet on Gnosis Chain."); return; }
   try{ const bp=new BrowserProvider(window.ethereum); await bp.send("eth_requestAccounts",[]);
-    const tx=await new Contract(CONFIG.CONTRACT,ABI,await bp.getSigner()).claimPrize();
-    setPill("claim","Settling… "+tx.hash.slice(0,10)); await tx.wait(); poll();
+    const tx=await new Contract(CONFIG.CONTRACT,ABI,await bp.getSigner())[method](...args);
+    setPill("claim","Paying the winner… "+tx.hash.slice(0,10)); await tx.wait(); poll();
   }catch(e){ alert(e.shortMessage||e.message); }
 }
 
@@ -524,7 +601,8 @@ async function init(){
   $("claimBack").textContent=crc(claimWei);
   $("copyBtn").addEventListener("click",()=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
     $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1200); });
-  $("claimBtn").addEventListener("click",claim);
+  $("claimBtn").addEventListener("click",()=>sendTx("claimPrize"));
+  $("payBtn").addEventListener("click",()=>{ if(payAction) payAction(); });
   await poll();
   try{ buildPayload(); }catch(e){ console.error(e); }
   setInterval(poll,CONFIG.POLL_MS);
