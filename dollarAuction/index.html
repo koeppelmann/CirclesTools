@@ -300,6 +300,10 @@ const ABI = [
   "function CLAIM_SIZE() view returns (uint256)",
   "function TO_CLAIMS() view returns (uint256)",
   "function STARTING_PRICE() view returns (uint256)",
+  "function initialTimer() view returns (uint256)",
+  "function minTimer() view returns (uint256)",
+  "function ratioNum() view returns (uint256)",
+  "function ratioDen() view returns (uint256)",
   "function failedCredits(address) view returns (uint256)",
   "function claimPrize()",
   "function recoverFailedCredit(address to)",
@@ -312,6 +316,7 @@ const provider = new JsonRpcProvider(CONFIG.RPC_URL, CONFIG.CHAIN_ID);
 let contract, acceptedId, bidWei = 1n*10n**18n, claimWei = 0n, toClaimsWei = 0n, seedWei = 0n;
 let qrAmountWei = bidWei;   // amount currently encoded in the QR (bid or seed)
 let state = null, localDeadline = null, curWindow = 0, _zeroPolled = false;
+let initTimerS = 0, minTimerS = 0, rNum = 948, rDen = 1000;   // timer schedule (for per-bid "time left")
 const profileCache = new Map();
 
 function warn(m){ const w=$("cfg"); w.style.display="block"; w.textContent=m; }
@@ -551,6 +556,7 @@ async function showWinner(finished, winner, poolNominal){
 }
 
 function tick(){
+  if(recentRowData.length) renderBidTimes();
   if(!localDeadline) return;
   const left=(localDeadline-Date.now())/1000;
   $("countdown").textContent=fmtDur(left);
@@ -567,33 +573,66 @@ function tick(){
 
 // ─────────────────────────── recent bids (ring buffer) ───────────────────────────
 let lastBidsKey="";
+let recentRowData=[];   // [{metaEl, ts, win, nextTs, kind}] kept so the times update live every second
+
+// Window (seconds) granted to bid #r — replays the on-chain geometric timer decay, so we can
+// show how much time each leader had / has on the clock.
+function windowForRound(r){
+  let t = initTimerS || 0;
+  for(let k=1; k<r; k++){ t=Math.floor(t*rNum/rDen); if(t<minTimerS) t=minTimerS; }
+  return t;
+}
+function fmtShort(s){ s=Math.max(0,Math.floor(s));
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), x=s%60;
+  if(h>0) return `${h}h ${m}m`; if(m>0) return `${m}m ${x}s`; return `${x}s`; }
+// Refresh "Xm ago · <time left>" on every row (called each second and each poll) so the recent
+// list stays consistent with the live countdown above it instead of freezing at render time.
+function renderBidTimes(){
+  const now=Math.floor(Date.now()/1000);
+  for(const r of recentRowData){
+    let extra="";
+    if(r.kind==="leader"){ const left=r.ts+r.win-now;
+      extra = left>0 ? ` · ${fmtShort(left)} left to win` : ` · time's up`; }
+    else if(r.kind==="won"){ extra=` · won the pot`; }
+    else { const left=Math.max(0, r.ts+r.win-r.nextTs); extra=` · ${fmtShort(left)} left when outbid`; }
+    r.metaEl.textContent = ago(r.ts) + extra;
+  }
+}
 async function loadRecentBids(){
   try{
     // Read the on-chain ring buffer (one eth_call) — reliable everywhere, no getLogs.
     const res=await contract.recentBids();           // [addresses[], times[]], most-recent first
     const bidders=res[0], times=res[1];
     const totalRound = state ? Number(state[3]) : bidders.length;
-    const rows=bidders.map((b,i)=>({ bidder:b, ts:Number(times[i]), round:totalRound-i, top:i===0 }));
+    const finished   = state ? Boolean(state[1]) : false;
+    const rows=bidders.map((b,i)=>({ bidder:b, ts:Number(times[i]), round:totalRound-i, top:i===0,
+                                     nextTs:i>0?Number(times[i-1]):0 }));
     const key=rows.map(r=>r.bidder+"#"+r.round).join(",");
-    if(key===lastBidsKey) return; lastBidsKey=key;
     const list=$("bidlist");
-    if(rows.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; return; }
-    list.innerHTML="";
-    for(const r of rows){
-      const row=document.createElement("div"); row.className="bidrow";
-      const av=document.createElement("img"); av.className="av"; av.src=blockie(r.bidder);
-      const mid=document.createElement("div"); mid.style.minWidth="0";
-      const nm=document.createElement("div"); nm.className="nm";
-      nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
-      const meta=document.createElement("div"); meta.className="meta"; meta.textContent=ago(r.ts);
-      mid.appendChild(nm); mid.appendChild(meta);
-      const amt=document.createElement("div"); amt.className="amt"; amt.textContent="+"+crc(bidWei)+" CRC";
-      const rnd=document.createElement("div"); rnd.className="rnd"; rnd.textContent="#"+r.round.toString();
-      row.appendChild(av); row.appendChild(mid); row.appendChild(amt); row.appendChild(rnd);
-      list.appendChild(row);
-      // upgrade to profile name/avatar async
-      paint(av,r.bidder).then(name=>{ nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+name; });
+    if(rows.length===0){ list.innerHTML='<div class="empty">No bids yet — be the first.</div>'; recentRowData=[]; lastBidsKey=""; return; }
+    if(key!==lastBidsKey){
+      lastBidsKey=key; list.innerHTML=""; recentRowData=[];
+      for(const r of rows){
+        const row=document.createElement("div"); row.className="bidrow";
+        const av=document.createElement("img"); av.className="av"; av.src=blockie(r.bidder);
+        const mid=document.createElement("div"); mid.style.minWidth="0";
+        const nm=document.createElement("div"); nm.className="nm";
+        nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
+        const meta=document.createElement("div"); meta.className="meta";
+        mid.appendChild(nm); mid.appendChild(meta);
+        const amt=document.createElement("div"); amt.className="amt"; amt.textContent="+"+crc(bidWei)+" CRC";
+        const rnd=document.createElement("div"); rnd.className="rnd"; rnd.textContent="#"+r.round.toString();
+        row.appendChild(av); row.appendChild(mid); row.appendChild(amt); row.appendChild(rnd);
+        list.appendChild(row);
+        recentRowData.push({ metaEl:meta, ts:r.ts, win:windowForRound(r.round), nextTs:r.nextTs,
+                             kind: r.top ? (finished?"won":"leader") : "outbid" });
+        // upgrade to profile name/avatar async
+        paint(av,r.bidder).then(name=>{ nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+name; });
+      }
+    } else if(recentRowData[0]){
+      recentRowData[0].kind = finished ? "won" : "leader";   // game may have settled since the last build
     }
+    renderBidTimes();
   }catch(e){ console.warn("recent bids",e); }
 }
 
@@ -615,7 +654,9 @@ async function init(){
   contract=new Contract(CONFIG.CONTRACT,ABI,provider);
   try{ acceptedId=await contract.ACCEPTED_ID(); bidWei=await contract.BID();
        claimWei=await contract.CLAIM_SIZE(); toClaimsWei=await contract.TO_CLAIMS();
-       seedWei=await contract.STARTING_PRICE(); }catch(_){}
+       seedWei=await contract.STARTING_PRICE();
+       initTimerS=Number(await contract.initialTimer()); minTimerS=Number(await contract.minTimer());
+       rNum=Number(await contract.ratioNum()); rDen=Number(await contract.ratioDen()); }catch(_){}
   qrAmountWei=bidWei;
   $("bidAmt").textContent=crc(bidWei);
   $("claimBack").textContent=crc(claimWei);
