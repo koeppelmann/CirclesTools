@@ -217,13 +217,13 @@
       </div>
     </div>
 
-    <!-- RIGHT: bid -->
+    <!-- RIGHT: bid / fund -->
     <div class="card" id="bidCard">
       <div class="bidhead">
-        <div class="label">Place your bid</div>
+        <div class="label" id="bidTitle">Place your bid</div>
         <div class="bidamt"><span id="bidAmt">…</span> CRC</div>
       </div>
-      <div class="bidsub">Scan with the Gnosis app to send your bid and take the lead.</div>
+      <div class="bidsub" id="bidSub">Scan with the Gnosis app to send your bid and take the lead.</div>
       <div class="qrwrap"><div id="qr"></div></div>
       <div class="addrrow">
         <code id="addr">—</code>
@@ -234,7 +234,7 @@
   </div>
 
   <!-- two ways to win -->
-  <div class="card ways">
+  <div class="card ways" id="waysCard">
     <h2>Two ways to win</h2>
     <div class="wgrid">
       <div class="way big">
@@ -280,7 +280,7 @@ import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
 
 // ─────────────────────────────── CONFIG ───────────────────────────────
 const CONFIG = {
-  CONTRACT: "0xcb5d876EfBd47B116Bd5724d37C3479214Fa7179",
+  CONTRACT: "0x7779d8b980a8c40A1Be5e8406955dD28A3252966",
   RPC_URL: "https://rpc.gnosischain.com",
   CHAIN_ID: 100,
   HUB: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
@@ -309,7 +309,8 @@ const ABI = [
 
 const $ = id => document.getElementById(id);
 const provider = new JsonRpcProvider(CONFIG.RPC_URL, CONFIG.CHAIN_ID);
-let contract, acceptedId, bidWei = 1n*10n**18n, claimWei = 0n, toClaimsWei = 0n;
+let contract, acceptedId, bidWei = 1n*10n**18n, claimWei = 0n, toClaimsWei = 0n, seedWei = 0n;
+let qrAmountWei = bidWei;   // amount currently encoded in the QR (bid or seed)
 let state = null, localDeadline = null, curWindow = 0, _zeroPolled = false;
 const profileCache = new Map();
 
@@ -384,19 +385,31 @@ async function paint(imgEl, address){
 }
 
 // ─────────────────────────── QR / pay link ───────────────────────────
-function payload(fmt){
-  const c=CONFIG.CONTRACT, amount=formatEther(bidWei), wei=bidWei.toString(),
-        tid=acceptedId?acceptedId.toString():"0";
-  if(fmt==="address") return [c, "Scan, then pick the group token and amount in your wallet."];
-  if(fmt==="eip681")  return [`ethereum:${CONFIG.HUB}@${CONFIG.CHAIN_ID}/safeTransferFrom?address=${c}&uint256=${tid}&uint256=${wei}&bytes=0x`,
-                              "A wallet link some apps understand. Use the Gnosis app option if unsure."];
-  return [CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",c).replaceAll("{amount}",amount),
-          "Opens the Gnosis app with your bid amount pre-filled."];
+function payload(){
+  const c=CONFIG.CONTRACT, amount=formatEther(qrAmountWei);
+  return CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",c).replaceAll("{amount}",amount);
 }
 function buildPayload(){
-  const [data]=payload("gnosis");
+  const data=payload();
   $("openApp").href = data;
   renderQR(data);
+}
+
+/* Switch the right card between funding the pot (before seed) and bidding (after seed).
+   The QR encodes the seed amount when funding, the bid amount when bidding. */
+function setBidMode(mode){
+  if(mode==="fund"){
+    qrAmountWei = seedWei;
+    $("bidTitle").textContent="Start the game";
+    $("bidAmt").textContent=crc(seedWei);
+    $("bidSub").textContent=`Send ${crc(seedWei)} CRC to fund the pot and open bidding.`;
+  }else{
+    qrAmountWei = bidWei;
+    $("bidTitle").textContent="Place your bid";
+    $("bidAmt").textContent=crc(bidWei);
+    $("bidSub").textContent="Scan with the Gnosis app to send your bid and take the lead.";
+  }
+  try{ buildPayload(); }catch(e){ console.error(e); }
 }
 function renderQR(text){
   const el=$("qr"); el.innerHTML="";
@@ -433,7 +446,7 @@ async function render(){
   const [seeded,finished,leader,round,pool,balance,lastBidTime,curTimer,timeLeft,head,headPaid,qlen]=state;
   curWindow=Number(curTimer);
   $("pool").textContent=crc(pool); $("sPool").textContent=crc(pool)+" CRC";
-  $("poolPrize").textContent=crc(pool);
+  $("poolPrize").textContent=crc(pool>0n?pool:seedWei);  // prospective pot before it's funded
   $("sRound").textContent=round.toString();
   $("sWindow").textContent=fmtDur(Number(curTimer));
   $("sClaims").textContent=(qlen-head).toString();
@@ -447,9 +460,10 @@ async function render(){
   const claimableNow = seeded && !finished && round!==0n && Number(timeLeft)===0;
   if(finished || claimableNow){ await showWinner(finished, leader, pool); return; }
 
-  // Not a won state — restore the normal (bidding) layout.
+  // Not a won state — restore the normal layout and pick fund-vs-bid mode.
   setWonLayout(false);
   $("leaderLabel").textContent="In the lead";
+  setBidMode(seeded ? "bid" : "fund");
 
   if(!seeded){
     setPill("","Getting ready");
@@ -489,9 +503,10 @@ async function fetchWinPrize(){
 function setWonLayout(on){
   $("countWrap").style.display = on?"none":"";
   $("prizeRow").style.display  = on?"none":"";
-  $("claimBtn").style.display  = on?"none":"";
+  $("claimBtn").style.display  = "none";   // settling is handled by the winner panel's button
   $("winBox").style.display    = on?"block":"none";
   $("bidCard").style.display   = on?"none":"";       // hide the bid QR once there's a winner
+  $("waysCard").style.display  = on?"none":"";       // hide "two ways to win" in the won view
   const s=$("stage").style;
   if(on){ s.gridTemplateColumns="1fr"; s.maxWidth="560px"; s.marginInline="auto"; }
   else  { s.gridTemplateColumns=""; s.maxWidth=""; s.marginInline=""; }
@@ -595,9 +610,10 @@ async function init(){
   if(!/^0x[0-9a-fA-F]{40}$/.test(CONFIG.CONTRACT)) warn("Set CONFIG.CONTRACT to your deployed address.");
   contract=new Contract(CONFIG.CONTRACT,ABI,provider);
   try{ acceptedId=await contract.ACCEPTED_ID(); bidWei=await contract.BID();
-       claimWei=await contract.CLAIM_SIZE(); toClaimsWei=await contract.TO_CLAIMS(); }catch(_){}
-  const bs=Number(formatEther(bidWei)).toLocaleString(undefined,{maximumFractionDigits:4});
-  $("bidAmt").textContent=bs;
+       claimWei=await contract.CLAIM_SIZE(); toClaimsWei=await contract.TO_CLAIMS();
+       seedWei=await contract.STARTING_PRICE(); }catch(_){}
+  qrAmountWei=bidWei;
+  $("bidAmt").textContent=crc(bidWei);
   $("claimBack").textContent=crc(claimWei);
   $("copyBtn").addEventListener("click",()=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
     $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1200); });
