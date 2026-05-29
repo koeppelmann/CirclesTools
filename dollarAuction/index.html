@@ -104,7 +104,7 @@
   .bidsub{color:var(--ink2);font-size:13.5px;font-weight:500;margin:2px 0 16px}
   .qrwrap{margin:0 auto;width:max-content;background:#fff;padding:14px;border-radius:20px;border:1px solid var(--line);
           box-shadow:0 10px 28px rgba(45,25,80,.10)}
-  #qr canvas,#qr img{display:block;border-radius:8px}
+  #qr canvas,#qr img,#startQr canvas,#startQr img{display:block;border-radius:8px}
   .addrrow{display:flex;align-items:center;gap:8px;margin-top:16px;background:var(--cream);border:1px solid var(--line2);
            border-radius:13px;padding:10px 12px}
   .addrrow code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--ink);
@@ -168,6 +168,15 @@
   .foot a{font-weight:700}
   .cfg{display:none;background:#fff0f3;border:1px solid var(--pink);color:#b03050;border-radius:14px;
        padding:12px 16px;margin:14px 0;font-size:13px;font-weight:600}
+
+  /* start-a-game card */
+  #startCard{max-width:560px;margin-inline:auto}
+  .starthead{text-align:center;margin:6px 0 18px}
+  .starthead .bigico{font-size:54px;line-height:1}
+  .starthead h2{font-weight:800;font-size:24px;letter-spacing:-.5px;margin:10px 0 8px}
+  .starthead p{color:var(--ink2);font-size:14px;font-weight:500;line-height:1.65;max-width:460px;margin:0 auto}
+  .startwin{display:flex;align-items:center;gap:13px;justify-content:flex-start;background:var(--cream2);
+            border:1px solid var(--line);border-radius:18px;padding:14px 18px;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -190,7 +199,7 @@
 
   <div class="stage" id="stage">
     <!-- LEFT: leader + countdown -->
-    <div class="card">
+    <div class="card" id="leaderCard">
       <div class="leader">
         <img id="leaderAv" class="avatar" alt="" />
         <div class="who">
@@ -236,6 +245,31 @@
     </div>
   </div>
 
+  <!-- START a new game (shown when no game is running) -->
+  <div class="card" id="startCard" style="display:none">
+    <div id="startLastWin" class="startwin" style="display:none">
+      <img id="startWinAv" class="avatar" alt="" />
+      <div class="who">
+        <div class="label">Last game</div>
+        <div class="name"><span id="startWinName">—</span> 🏆</div>
+        <div class="sub">won <b id="startWinPrize">—</b> CRC</div>
+      </div>
+    </div>
+    <div class="starthead">
+      <div class="bigico">🎬</div>
+      <h2>No game running — start one!</h2>
+      <p>Send <b id="startMin">10,000</b>–<b id="startMax">1,000,000</b> CRC to this address to launch a
+        new auction. You become the <b>owner</b> and earn 10% of every bid. The clock starts at 1h and
+        shrinks toward 5min.</p>
+    </div>
+    <div class="qrwrap"><div id="startQr"></div></div>
+    <div class="addrrow">
+      <code id="startAddr">—</code>
+      <button id="startCopy" class="icobtn">Copy</button>
+    </div>
+    <a id="startOpen" class="openbtn" href="#" target="_blank" rel="noopener">Open in the Gnosis app →</a>
+  </div>
+
   <!-- two ways to win -->
   <div class="card ways" id="waysCard">
     <h2>Two ways to win</h2>
@@ -254,7 +288,7 @@
   </div>
 
   <!-- stats -->
-  <div class="stats">
+  <div class="stats" id="statsRow">
     <div class="stat"><div class="label">Bids so far</div><div class="v" id="sRound">0</div></div>
     <div class="stat"><div class="label">Clock resets to</div><div class="v" id="sWindow">—</div></div>
     <div class="stat"><div class="label">Waiting to be paid</div><div class="v" id="sClaims">0</div></div>
@@ -262,7 +296,7 @@
   </div>
 
   <!-- recent bids -->
-  <div class="card recent">
+  <div class="card recent" id="recentCard">
     <h3>Recent bids</h3>
     <div class="sub">The last five people to take the lead.</div>
     <div class="bidlist" id="bidlist"><div class="empty">No bids yet — be the first.</div></div>
@@ -283,43 +317,36 @@ import { JsonRpcProvider, BrowserProvider, Contract, formatEther } from
 
 // ─────────────────────────────── CONFIG ───────────────────────────────
 const CONFIG = {
-  CONTRACT: "0x7779d8b980a8c40A1Be5e8406955dD28A3252966",
+  CONTRACT: "0x003D222feA904941bf28402422aCB2013e84300F",   // CirclesDollarAuctionHub
   RPC_URL: "https://rpc.gnosischain.com",
   CHAIN_ID: 100,
   HUB: "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8",
   POLL_MS: 5000,
-  // The ?address= GET returns the name only; the batch POST with fetchComplete:true
-  // returns the full profile incl. the avatar image (this is what the lottery uses).
   PROFILES: "https://rpc.aboutcircles.com/profiles/search/addresses",
   GNOSIS_TEMPLATE: "https://app.gnosis.io/transfer/{contract}/crc?amount={amount}",
 };
 // ───────────────────────────────────────────────────────────────────────
 
 const ABI = [
-  "function gameInfo() view returns (bool,bool,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)",
+  "function currentGameInfo() view returns (tuple(uint256 id,bool idle,bool finished,address owner,uint256 bid,uint256 claimSize,uint256 toClaims,uint256 startingPrice,address lastBidder,uint256 round,uint256 poolNominal,uint256 prize,uint256 balance,uint256 lastBidTime,uint256 currentTimer,uint256 timeLeft,uint256 head,uint256 queueLength,uint256 initialTimer,uint256 minTimer))",
+  "function canStart() view returns (bool)",
   "function ACCEPTED_ID() view returns (uint256)",
-  "function GROUP() view returns (address)",
-  "function BID() view returns (uint256)",
-  "function CLAIM_SIZE() view returns (uint256)",
-  "function TO_CLAIMS() view returns (uint256)",
-  "function STARTING_PRICE() view returns (uint256)",
-  "function initialTimer() view returns (uint256)",
-  "function minTimer() view returns (uint256)",
-  "function ratioNum() view returns (uint256)",
-  "function ratioDen() view returns (uint256)",
+  "function MIN_SEED() view returns (uint256)",
+  "function MAX_SEED() view returns (uint256)",
   "function failedCredits(address) view returns (uint256)",
   "function claimPrize()",
   "function recoverFailedCredit(address to)",
-  "function recentBids() view returns (address[], uint256[])",
-  "event GameWon(address indexed winner, uint256 prize, uint256 totalRounds)"
+  "function recentBids() view returns (address[], uint256[])"
 ];
 
 const $ = id => document.getElementById(id);
 const provider = new JsonRpcProvider(CONFIG.RPC_URL, CONFIG.CHAIN_ID);
-let contract, acceptedId, bidWei = 1n*10n**18n, claimWei = 0n, toClaimsWei = 0n, seedWei = 0n;
-let qrAmountWei = bidWei;   // amount currently encoded in the QR (bid or seed)
-let state = null, localDeadline = null, curWindow = 0, _zeroPolled = false;
-let initTimerS = 0, minTimerS = 0, rNum = 948, rDen = 1000;   // timer schedule (for per-bid "time left")
+let contract, acceptedId;
+let v = null;                                  // latest currentGameInfo()
+let bidWei = 0n, claimWei = 0n, toClaimsWei = 0n;
+let minSeedWei = 10000n*10n**18n, maxSeedWei = 1000000n*10n**18n, seedQrWei = 10000n*10n**18n;
+let initTimerS = 3600, minTimerS = 300, rNum = 948, rDen = 1000;
+let localDeadline = null, curWindow = 0, _zeroPolled = false, payAction = null;
 const profileCache = new Map();
 
 function warn(m){ const w=$("cfg"); w.style.display="block"; w.textContent=m; }
@@ -347,7 +374,7 @@ function blockie(address){
   function color(){ const h=Math.floor(rand()*360), s=(rand()*60+40)+"%", l=(rand()*25+42)+"%";
     return `hsl(${h},${s},${l})`; }
   seedrand(seed);
-  const main=color(), bg=color(), spot=color(); // order matters (matches reference)
+  const main=color(), bg=color(), spot=color();
   const S=8, dw=Math.ceil(S/2), data=[];
   for(let y=0;y<S;y++){ let row=[]; for(let x=0;x<dw;x++) row[x]=Math.floor(rand()*2.3);
     const r=row.slice(0,S-dw).reverse(); row=row.concat(r); for(let i=0;i<row.length;i++) data.push(row[i]); }
@@ -364,67 +391,41 @@ async function getProfile(address){
   if(profileCache.has(a)) return profileCache.get(a);
   let prof=null;
   try{
-    const r=await fetch(CONFIG.PROFILES,{
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ addresses:[a], fetchComplete:true })
-    });
+    const r=await fetch(CONFIG.PROFILES,{ method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ addresses:[a], fetchComplete:true }) });
     if(r.ok){ const data=await r.json();
       const arr=Array.isArray(data)?data:(data.results||[]);
       const p=arr.find(e=>e.address&&e.address.toLowerCase()===a);
-      if(p){
-        // image lives in `avatar` (preferred), then previewImageUrl/imageUrl; resolve ipfs://
-        let img=p.avatar||p.previewImageUrl||p.imageUrl||null;
+      if(p){ let img=p.avatar||p.previewImageUrl||p.imageUrl||null;
         if(img&&img.startsWith("ipfs://")) img="https://ipfs.io/ipfs/"+img.slice(7);
-        prof={ name:p.name||null, image:img };
-      } }
+        prof={ name:p.name||null, image:img }; } }
   }catch(_){}
   profileCache.set(a,prof);
   return prof;
 }
 
-/* set an <img> to the profile image (fallback to identicon) and return a display name */
 async function paint(imgEl, address){
   const ident = blockie(address);
-  imgEl.onerror = () => { imgEl.onerror=null; imgEl.src=ident; }; // broken profile img -> identicon
-  imgEl.src = ident;                              // instant fallback
+  imgEl.onerror = () => { imgEl.onerror=null; imgEl.src=ident; };
+  imgEl.src = ident;
   const p = await getProfile(address);
   if(p && p.image) imgEl.src = p.image;
   return (p && p.name) || short(address) || "—";
 }
 
 // ─────────────────────────── QR / pay link ───────────────────────────
-function payload(){
-  const c=CONFIG.CONTRACT, amount=formatEther(qrAmountWei);
-  return CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",c).replaceAll("{amount}",amount);
+function payLink(amountWei){
+  return CONFIG.GNOSIS_TEMPLATE.replaceAll("{contract}",CONFIG.CONTRACT).replaceAll("{amount}",formatEther(amountWei));
 }
-function buildPayload(){
-  const data=payload();
-  $("openApp").href = data;
-  renderQR(data);
-}
-
-/* Switch the right card between funding the pot (before seed) and bidding (after seed).
-   The QR encodes the seed amount when funding, the bid amount when bidding. */
-function setBidMode(mode){
-  if(mode==="fund"){
-    qrAmountWei = seedWei;
-    $("bidTitle").textContent="Start the game";
-    $("bidAmt").textContent=crc(seedWei);
-    $("bidSub").textContent=`Send ${crc(seedWei)} CRC to fund the pot and open bidding.`;
-  }else{
-    qrAmountWei = bidWei;
-    $("bidTitle").textContent="Place your bid";
-    $("bidAmt").textContent=crc(bidWei);
-    $("bidSub").textContent="Scan with the Gnosis app to send your bid and take the lead.";
-  }
-  try{ buildPayload(); }catch(e){ console.error(e); }
-}
-function renderQR(text){
-  const el=$("qr"); el.innerHTML="";
+function renderQR(text, elId){
+  const el=$(elId); el.innerHTML="";
   try{ if(typeof QRCode==="undefined") throw new Error("QR lib missing");
     new QRCode(el,{text,width:248,height:248,colorDark:"#1B1430",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.L});
   }catch(e){ console.error(e); el.innerHTML='<div style="color:#1B1430;font-size:11px;word-break:break-all;max-width:248px">'+text+'</div>'; }
 }
+function buildBidQR(){ const link=payLink(bidWei); $("openApp").href=link; renderQR(link,"qr"); }
+function buildStartQR(){ const link=payLink(seedQrWei); $("startOpen").href=link;
+  $("startOpen").textContent=`Open in the Gnosis app · start with ${crc(seedQrWei)} CRC →`; renderQR(link,"startQr"); }
 
 // ─────────────────────────── state rendering ───────────────────────────
 function setPill(cls,txt){ $("statusPill").className="pill "+cls; $("statusText").textContent=txt; }
@@ -437,125 +438,93 @@ async function setLeader(addr){
   $("leaderName").textContent=name;
 }
 
-/* How many more bids, placed AFTER you, until the NEXT bidder (position k = round+1)
-   is fully paid their CLAIM_SIZE. Each bid funds TO_CLAIMS toward the front of the FIFO
-   queue, so claim k is fully covered once TO_CLAIMS*T >= CLAIM_SIZE*k; the strict minimum
-   is ceil((CLAIM_SIZE-TO_CLAIMS)/TO_CLAIMS * k). We display it CONSERVATIVELY (+1): we do
-   not count your own bid's partial pre-payment toward your own claim, so the number is the
-   count of bids after you that *guarantee* the full payout, never an optimistic estimate. */
+/* Conservative count of bids-after-you needed for the next bidder (position round+1) to be
+   fully paid back: ceil((claim-toClaims)/toClaims * k) + 1 (don't credit your own bid). */
 function updateWaysLive(round){
   const k = (round || 0n) + 1n;
   if(toClaimsWei>0n && claimWei>0n){
     const num = (claimWei - toClaimsWei) * k;
-    let x = (num + toClaimsWei - 1n) / toClaimsWei; // ceil = strict minimum
-    x = x + 1n;                                     // conservative: only count bids after you
+    let x = (num + toClaimsWei - 1n) / toClaimsWei; x = x + 1n;
     const word = x === 1n ? "person bids" : "people bid";
     $("claimHead").textContent = `${x.toString()} ${word} after you`;
   }
 }
 
-async function render(){
-  const [seeded,finished,leader,round,pool,balance,lastBidTime,curTimer,timeLeft,head,headPaid,qlen]=state;
-  curWindow=Number(curTimer);
-  $("pool").textContent=crc(pool); $("sPool").textContent=crc(pool)+" CRC";
-  $("poolPrize").textContent=crc(pool>0n?pool:seedWei);  // prospective pot before it's funded
-  $("sRound").textContent=round.toString();
-  $("sWindow").textContent=fmtDur(Number(curTimer));
-  $("sClaims").textContent=(qlen-head).toString();
-  $("addr").textContent=CONFIG.CONTRACT;
-  const scan=`https://gnosisscan.io/address/${CONFIG.CONTRACT}`;
-  $("scanLink").href=scan; $("scanLink2").href=scan;
-  updateWaysLive(round);
-  if(pool>0n) lastKnownPrize=pool;   // remember the pot to show after it's paid out
-
-  // Won: either already settled, or the clock has hit zero (winner decided, payout pending).
-  const claimableNow = seeded && !finished && round!==0n && Number(timeLeft)===0;
-  if(finished || claimableNow){ await showWinner(finished, leader, pool); return; }
-
-  // Not a won state — restore the normal layout and pick fund-vs-bid mode.
-  setWonLayout(false);
-  $("leaderLabel").textContent="In the lead";
-  setBidMode(seeded ? "bid" : "fund");
-
-  if(!seeded){
-    setPill("","Getting ready");
-    $("countdown").textContent=fmtDur(Number(curTimer)); $("countdown").classList.remove("urgent");
-    $("countLabel").textContent="starts on the first bid";
-    $("barFill").style.width="100%"; $("claimBtn").disabled=true; localDeadline=null;
-    await setLeader(null); return;
-  }
-  if(round===0n){
-    setPill("live","Open — be the first!"); $("countdown").textContent=fmtDur(Number(curTimer));
-    $("countdown").classList.remove("urgent");
-    $("countLabel").textContent="be the first to bid"; $("barFill").style.width="100%";
-    $("claimBtn").disabled=true; localDeadline=null; await setLeader(null); return;
-  }
-
-  localDeadline=(Number(lastBidTime)+Number(curTimer))*1000; _zeroPolled=false;
-  await setLeader(leader);
-  $("leaderSub").textContent="leading since "+ago(Number(lastBidTime));
-  setPill("live","Live — bidding open"); $("countLabel").textContent="time left to win";
-  $("claimBtn").disabled=true;
-}
-
-// ─────────────────────────── winner state ───────────────────────────
-let lastKnownPrize=null, winPrizeFetched=false, payAction=null;
-
-/* best-effort: pull the prize from the GameWon event (for an already-settled game). */
-async function fetchWinPrize(){
-  if(winPrizeFetched) return; winPrizeFetched=true;
-  try{
-    const latest=await provider.getBlockNumber();
-    const logs=await contract.queryFilter(contract.filters.GameWon(), latest>200000?latest-200000:0, latest);
-    if(logs.length){ lastKnownPrize=logs[logs.length-1].args[1]; }
-  }catch(_){}
-}
-
-/* swap the page between the bidding layout and the single-card winner layout. */
-function setWonLayout(on){
-  $("countWrap").style.display = on?"none":"";
-  $("prizeRow").style.display  = on?"none":"";
-  $("claimBtn").style.display  = "none";   // settling is handled by the winner panel's button
-  $("winBox").style.display    = on?"block":"none";
-  $("bidCard").style.display   = on?"none":"";       // hide the bid QR once there's a winner
-  $("waysCard").style.display  = on?"none":"";       // hide "two ways to win" in the won view
+/* Switch between the three top-level views: start / game / winner. */
+function setView(mode){
+  $("startCard").style.display = mode==="start" ? "block":"none";
+  $("stage").style.display      = mode==="start" ? "none":"";
+  $("statsRow").style.display   = mode==="start" ? "none":"";
+  $("recentCard").style.display = mode==="start" ? "none":"";
+  $("waysCard").style.display   = mode==="game" ? "" : "none";
+  $("bidCard").style.display    = mode==="game" ? "" : "none";
+  $("countWrap").style.display  = mode==="winner" ? "none":"";
+  $("prizeRow").style.display   = mode==="winner" ? "none":"";
+  $("winBox").style.display     = mode==="winner" ? "block":"none";
+  $("claimBtn").style.display   = "none";
   const s=$("stage").style;
-  if(on){ s.gridTemplateColumns="1fr"; s.maxWidth="560px"; s.marginInline="auto"; }
-  else  { s.gridTemplateColumns=""; s.maxWidth=""; s.marginInline=""; }
+  if(mode==="winner"){ s.gridTemplateColumns="1fr"; s.maxWidth="560px"; s.marginInline="auto"; }
+  else { s.gridTemplateColumns=""; s.maxWidth=""; s.marginInline=""; }
 }
 
-async function showWinner(finished, winner, poolNominal){
-  setWonLayout(true);
-  localDeadline=null;
+async function showStart(){
+  setView("start"); localDeadline=null;
+  setPill("","No game running");
+  if(v && v.id>0n && short(v.lastBidder) && v.prize>0n){
+    $("startLastWin").style.display="flex";
+    $("startWinPrize").textContent=crc(v.prize);
+    const name=await paint($("startWinAv"), v.lastBidder);
+    $("startWinName").textContent=name;
+  } else { $("startLastWin").style.display="none"; }
+}
+
+async function showWinner(winner, poolNominal){
+  setView("winner"); localDeadline=null;
   $("leaderLabel").textContent="Winner";
   $("leaderAv").classList.add("ring");
   const name=await paint($("leaderAv"),winner);
   $("leaderName").textContent=name;
-  $("leaderSub").textContent= finished ? "won the auction" : "the clock hit zero";
+  $("leaderSub").textContent="the clock hit zero";
+  $("winMsg").innerHTML=`<b>${name}</b> won ${crc(poolNominal)} CRC`;
+  $("winState").className="winState pending"; $("winState").textContent="⏳ Payout pending";
+  const btn=$("payBtn"); btn.style.display="block"; btn.disabled=false; btn.textContent="Pay the winner";
+  payAction=()=>sendTx("claimPrize");
+  setPill("claim","Time's up — winner decided");
+}
 
-  // Is the prize still owed? Pending = clock elapsed but not settled, OR settled but the
-  // push to the winner failed (parked in failedCredits, recoverable).
-  let failWei=0n; try{ failWei=await contract.failedCredits(winner); }catch(_){}
-  let pending, prizeWei;
-  if(!finished){ pending=true; prizeWei=poolNominal; }
-  else if(failWei>0n){ pending=true; prizeWei=failWei; }
-  else { pending=false; prizeWei=lastKnownPrize; if(prizeWei==null) fetchWinPrize(); }
+async function render(){
+  const scan=`https://gnosisscan.io/address/${CONFIG.CONTRACT}`;
+  $("scanLink").href=scan; $("scanLink2").href=scan; $("addr").textContent=CONFIG.CONTRACT;
+  if(!v) return;
+  if(v.idle){ await showStart(); return; }
 
-  const amt = (prizeWei!=null && prizeWei>0n) ? crc(prizeWei)+" CRC" : "the pot";
-  $("winMsg").innerHTML = `<b>${name}</b> won ${amt}`;
+  // a game is running
+  bidWei=v.bid; claimWei=v.claimSize; toClaimsWei=v.toClaims;
+  initTimerS=Number(v.initialTimer); minTimerS=Number(v.minTimer); curWindow=Number(v.currentTimer);
+  const round=v.round, pool=v.poolNominal;
+  $("pool").textContent=crc(pool); $("sPool").textContent=crc(pool)+" CRC"; $("poolPrize").textContent=crc(pool);
+  $("sRound").textContent=round.toString(); $("sWindow").textContent=fmtDur(Number(v.currentTimer));
+  $("sClaims").textContent=(v.queueLength - v.head).toString();
+  $("claimBack").textContent=crc(claimWei); updateWaysLive(round);
 
-  const ws=$("winState"), btn=$("payBtn");
-  if(pending){
-    ws.className="winState pending"; ws.textContent="⏳ Payout pending";
-    btn.style.display="block"; btn.disabled=false;
-    if(!finished){ btn.textContent="Pay the winner"; payAction=()=>sendTx("claimPrize"); }
-    else { btn.textContent="Retry payout"; payAction=()=>sendTx("recoverFailedCredit", winner); }
-    setPill("claim", finished?"Payout pending":"Time's up — winner decided");
-  }else{
-    ws.className="winState paid"; ws.textContent="✓ Paid out";
-    btn.style.display="none"; payAction=null;
-    setPill("over","Game over");
+  const claimable = round!==0n && Number(v.timeLeft)===0;
+  if(claimable){ await showWinner(v.lastBidder, pool); return; }
+
+  setView("game");
+  $("leaderLabel").textContent="In the lead";
+  $("bidAmt").textContent=crc(bidWei); $("bidTitle").textContent="Place your bid";
+  $("bidSub").textContent="Scan with the Gnosis app to send your bid and take the lead.";
+  buildBidQR();
+
+  if(round===0n){
+    setPill("live","Open — be the first!"); $("countdown").textContent=fmtDur(Number(v.currentTimer));
+    $("countdown").classList.remove("urgent"); $("countLabel").textContent="be the first to bid";
+    $("barFill").style.width="100%"; localDeadline=null; await setLeader(null); return;
   }
+  localDeadline=(Number(v.lastBidTime)+Number(v.currentTimer))*1000; _zeroPolled=false;
+  await setLeader(v.lastBidder);
+  $("leaderSub").textContent="leading since "+ago(Number(v.lastBidTime));
+  setPill("live","Live — bidding open"); $("countLabel").textContent="time left to win";
 }
 
 function tick(){
@@ -570,16 +539,12 @@ function tick(){
   $("barFill").style.width=(frac*100).toFixed(1)+"%";
   if(left<=0){ $("countdown").textContent="00:00"; setPill("claim","Time's up — winner decided");
     $("countLabel").textContent="ready to settle";
-    // clock just crossed zero — refresh once to switch to the winner panel
     if(!_zeroPolled){ _zeroPolled=true; poll(); } }
 }
 
 // ─────────────────────────── recent bids (ring buffer) ───────────────────────────
 let lastBidsKey="";
-let recentRowData=[];   // [{metaEl, ts, win, nextTs, kind}] kept so the times update live every second
-
-// Window (seconds) granted to bid #r — replays the on-chain geometric timer decay, so we can
-// show how much time each leader had / has on the clock.
+let recentRowData=[];
 function windowForRound(r){
   let t = initTimerS || 0;
   for(let k=1; k<r; k++){ t=Math.floor(t*rNum/rDen); if(t<minTimerS) t=minTimerS; }
@@ -588,9 +553,7 @@ function windowForRound(r){
 function fmtShort(s){ s=Math.max(0,Math.floor(s));
   const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), x=s%60;
   if(h>0) return `${h}h ${m}m`; if(m>0) return `${m}m ${x}s`; return `${x}s`; }
-// Refresh "Xm ago · <time left>" on every row (called each second and each poll) so the recent
-// list stays consistent with the live countdown above it instead of freezing at render time.
-function leftColor(f){ f=Math.max(0,Math.min(1,f)); return `hsl(${Math.round(f*130)},78%,43%)`; } // 0=red → 1=green
+function leftColor(f){ f=Math.max(0,Math.min(1,f)); return `hsl(${Math.round(f*130)},78%,43%)`; }
 function renderBidTimes(){
   const now=Math.floor(Date.now()/1000);
   for(const r of recentRowData){
@@ -600,17 +563,17 @@ function renderBidTimes(){
     if(r.kind==="leader"){ left=r.ts+r.win-now; r.tlLab.textContent="left to win"; }
     else { left=r.ts+r.win-r.nextTs; r.tlLab.textContent="left when outbid"; }
     left=Math.max(0,left);
-    r.tlVal.textContent = fmtShort(left);                       // larger, centered value
-    r.tlVal.style.color = leftColor(r.win>0 ? left/r.win : 0);  // redder the closer it got to 0
+    r.tlVal.textContent = fmtShort(left);
+    r.tlVal.style.color = leftColor(r.win>0 ? left/r.win : 0);
   }
 }
 async function loadRecentBids(){
+  if(!v || v.idle){ return; }
   try{
-    // Read the on-chain ring buffer (one eth_call) — reliable everywhere, no getLogs.
-    const res=await contract.recentBids();           // [addresses[], times[]], most-recent first
+    const res=await contract.recentBids();
     const bidders=res[0], times=res[1];
-    const totalRound = state ? Number(state[3]) : bidders.length;
-    const finished   = state ? Boolean(state[1]) : false;
+    const totalRound = Number(v.round);
+    const finished = Boolean(v.finished);
     const rows=bidders.map((b,i)=>({ bidder:b, ts:Number(times[i]), round:totalRound-i, top:i===0,
                                      nextTs:i>0?Number(times[i-1]):0 }));
     const key=rows.map(r=>r.bidder+"#"+r.round).join(",");
@@ -621,7 +584,7 @@ async function loadRecentBids(){
       for(const r of rows){
         const row=document.createElement("div"); row.className="bidrow";
         const av=document.createElement("img"); av.className="av"; av.src=blockie(r.bidder);
-        const mid=document.createElement("div"); mid.style.cssText="min-width:0;flex:0 1 168px";  // fixed basis so the time-left column lines up across rows
+        const mid=document.createElement("div"); mid.style.cssText="min-width:0;flex:0 1 168px";
         const nm=document.createElement("div"); nm.className="nm";
         nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+(short(r.bidder)||"—");
         const meta=document.createElement("div"); meta.className="meta";
@@ -636,11 +599,10 @@ async function loadRecentBids(){
         list.appendChild(row);
         recentRowData.push({ metaEl:meta, tlVal, tlLab, ts:r.ts, win:windowForRound(r.round), nextTs:r.nextTs,
                              kind: r.top ? (finished?"won":"leader") : "outbid" });
-        // upgrade to profile name/avatar async
         paint(av,r.bidder).then(name=>{ nm.innerHTML=(r.top?'<span class="crown">♛ </span>':'')+name; });
       }
     } else if(recentRowData[0]){
-      recentRowData[0].kind = finished ? "won" : "leader";   // game may have settled since the last build
+      recentRowData[0].kind = finished ? "won" : "leader";
     }
     renderBidTimes();
   }catch(e){ console.warn("recent bids",e); }
@@ -648,11 +610,11 @@ async function loadRecentBids(){
 
 // ─────────────────────────── poll / actions ───────────────────────────
 async function poll(){
-  try{ state=await contract.gameInfo(); await render(); await loadRecentBids(); }
-  catch(e){ console.error(e); warn("Could not read the contract — check the address & network. "+(e.shortMessage||e.message)); }
+  try{ v=await contract.currentGameInfo(); await render(); await loadRecentBids(); }
+  catch(e){ console.error(e); warn("Could not read the hub — check the address & network. "+(e.shortMessage||e.message)); }
 }
 async function sendTx(method, ...args){
-  if(!window.ethereum){ alert("No wallet found. Anyone can trigger the payout — just connect a wallet on Gnosis Chain."); return; }
+  if(!window.ethereum){ alert("No wallet found. Anyone can trigger the payout — connect a wallet on Gnosis Chain."); return; }
   try{ const bp=new BrowserProvider(window.ethereum); await bp.send("eth_requestAccounts",[]);
     const tx=await new Contract(CONFIG.CONTRACT,ABI,await bp.getSigner())[method](...args);
     setPill("claim","Paying the winner… "+tx.hash.slice(0,10)); await tx.wait(); poll();
@@ -660,22 +622,20 @@ async function sendTx(method, ...args){
 }
 
 async function init(){
-  if(!/^0x[0-9a-fA-F]{40}$/.test(CONFIG.CONTRACT)) warn("Set CONFIG.CONTRACT to your deployed address.");
+  if(!/^0x[0-9a-fA-F]{40}$/.test(CONFIG.CONTRACT)) warn("Set CONFIG.CONTRACT to the deployed hub address.");
   contract=new Contract(CONFIG.CONTRACT,ABI,provider);
-  try{ acceptedId=await contract.ACCEPTED_ID(); bidWei=await contract.BID();
-       claimWei=await contract.CLAIM_SIZE(); toClaimsWei=await contract.TO_CLAIMS();
-       seedWei=await contract.STARTING_PRICE();
-       initTimerS=Number(await contract.initialTimer()); minTimerS=Number(await contract.minTimer());
-       rNum=Number(await contract.ratioNum()); rDen=Number(await contract.ratioDen()); }catch(_){}
-  qrAmountWei=bidWei;
-  $("bidAmt").textContent=crc(bidWei);
-  $("claimBack").textContent=crc(claimWei);
-  $("copyBtn").addEventListener("click",()=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
-    $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1200); });
+  try{ acceptedId=await contract.ACCEPTED_ID(); minSeedWei=await contract.MIN_SEED(); maxSeedWei=await contract.MAX_SEED(); }catch(_){}
+  seedQrWei=minSeedWei;
+  $("startMin").textContent=crc(minSeedWei); $("startMax").textContent=crc(maxSeedWei);
+  $("startAddr").textContent=CONFIG.CONTRACT; $("addr").textContent=CONFIG.CONTRACT;
+  buildStartQR();
+  const copy=(btn,txt)=>{ navigator.clipboard?.writeText(CONFIG.CONTRACT);
+    const o=btn.textContent; btn.textContent="Copied"; setTimeout(()=>btn.textContent=o,1200); };
+  $("copyBtn").addEventListener("click",()=>copy($("copyBtn")));
+  $("startCopy").addEventListener("click",()=>copy($("startCopy")));
   $("claimBtn").addEventListener("click",()=>sendTx("claimPrize"));
   $("payBtn").addEventListener("click",()=>{ if(payAction) payAction(); });
   await poll();
-  try{ buildPayload(); }catch(e){ console.error(e); }
   setInterval(poll,CONFIG.POLL_MS);
   setInterval(tick,1000);
 }

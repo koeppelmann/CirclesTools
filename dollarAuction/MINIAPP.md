@@ -36,11 +36,19 @@ pot, everyone else gets paid back +10% from the bids that follow them.
   failed payout also go through `sendTransactions`.
 - **Standalone** (regular browser): falls back to a **Gnosis-app deep-link QR** for the bid.
 
-## Contract
-- `CirclesDollarAuction` on Gnosis Chain: `0x7779d8b980a8c40A1Be5e8406955dD28A3252966`
-  (Etherscan-verified). Hub `0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8`, accepted group
+## Contracts (Gnosis Chain, Etherscan-verified)
+- **`CirclesDollarAuctionHub`** (the perpetual host the UI points at): `0x003D222feA904941bf28402422aCB2013e84300F`
+  — registered once as a Circles org, trusts the group, and runs an unbounded sequence of games.
+  **Whenever no game is running, anyone starts the next one by sending 10,000–1,000,000 group CRC to it**
+  (the sender becomes that game's owner; bid time / bid size are read from the transfer `data`, or
+  sensible defaults are used). It exposes `currentGameInfo()` and `canStart()` for the front-end.
+- **`CirclesDollarAuctionFactory`**: `0xC1179A884849b3940610F8E152e9bAd56A4DeD04` — deploys hubs and
+  keeps a registry (`allDeployments()`).
+- `CirclesDollarAuction` (the original single-game contract) remains in this folder for reference.
+- Hub: `0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8`; accepted group
   `0xC19BC204eb1c1D5B3FE500E5E5dfaBaB625F286c`. Source + Foundry tests in this folder.
-- Params: 10,000 CRC starting pot, 100 CRC bid, 1h initial timer → 5min floor.
+- Per-game bounds: seed 10k–1m CRC; start/end clocks 5min–1day with end ≤ start; bid ≤ 1/10 of the seed.
+  Includes the audit fixes (M-1 late-bid refund-before-settle, L-1 recover caps to balance).
 
 ## Registering on the Circles garage
 1. Builder profile: https://garage.aboutcircles.com/signup
