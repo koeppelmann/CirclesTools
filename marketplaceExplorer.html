@@ -1,0 +1,1821 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketplace Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <!-- ethers.js loaded lazily when Orders tab needs wallet connection -->
+    <script>
+    var ethersLoaded = false;
+    function loadEthers() {
+        if (ethersLoaded) return Promise.resolve();
+        return new Promise(function(resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+            s.onload = function() { ethersLoaded = true; resolve(); };
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+    </script>
+    <style>
+        :root {
+            --primary: #191568;
+            --accent: #ff491b;
+            --bg: #fff7f5;
+            --card-bg: #ffffff;
+            --border: #e5e3fb;
+            --text: #191568;
+            --text-muted: #666;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --success: #22c55e;
+        }
+        * { box-sizing: border-box; margin: 0; }
+        body {
+            font-family: "DM Sans", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-weight: 600; font-size: 1.3rem; }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .header-links a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .header-links a:hover { color: #fff; }
+        .wallet-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+        }
+        .wallet-status .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .wallet-status .dot.connected { background: var(--success); }
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .api-config {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .api-config code {
+            background: #f0eef9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        /* Tabs */
+        .tab-bar {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 20px;
+            gap: 4px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s, border-color 0.2s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            font-weight: 600;
+        }
+        .tab-btn .auth-badge {
+            font-size: 0.7rem;
+            background: var(--warning);
+            color: #fff;
+            padding: 1px 5px;
+            border-radius: 8px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #251b9f; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm { padding: 6px 14px; font-size: 0.85rem; border-radius: 4px; }
+        .btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+        .btn-outline:hover { background: var(--border); }
+        .btn-wallet { background: #f6851b; }
+        .btn-wallet:hover { background: #e2761b; }
+
+        /* Card grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .product-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: box-shadow 0.2s;
+        }
+        .product-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .product-card h3 { font-size: 1rem; margin: 0; }
+        .product-card .price {
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 1.1rem;
+        }
+        .product-card .meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .product-card .seller-link {
+            font-size: 0.85rem;
+            color: var(--primary);
+            text-decoration: none;
+        }
+        .product-card .seller-link:hover { text-decoration: underline; }
+        .product-img {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            border-radius: 6px;
+            background: var(--border);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        th, td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        th { background: #f0eef9; font-weight: 600; }
+        tr:hover td { background: #fafafa; }
+        .address-cell {
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        /* Form */
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-weight: 600; font-size: 0.85rem; }
+        .form-group input {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .form-group input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .pagination span { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* General */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px; height: 20px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error-msg { color: var(--error); padding: 12px; background: #fef2f2; border-radius: 6px; margin: 10px 0; }
+        .empty-state { text-align: center; color: var(--text-muted); padding: 40px 20px; }
+        .copy-btn {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-muted); font-size: 0.85rem; padding: 2px;
+        }
+        .copy-btn:hover { color: var(--primary); }
+
+        /* Click-to-show tooltip (replaces native title for touch support) */
+        .tip-wrap { cursor: help; }
+        .tip-bubble {
+            display: none;
+            position: fixed;
+            background: var(--text);
+            color: #fff;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            padding: 8px 10px;
+            border-radius: 6px;
+            white-space: pre-line;
+            min-width: 220px;
+            max-width: 320px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .tip-wrap.tip-open .tip-bubble { display: block; }
+
+        .tab-filter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .tab-filter input {
+            flex: 1;
+            max-width: 320px;
+            padding: 6px 12px 6px 32px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23999' viewBox='0 0 512 512'%3E%3Cpath d='M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208z'/%3E%3C/svg%3E") 10px center no-repeat var(--card-bg);
+        }
+        .tab-filter input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        .clickable-row { cursor: pointer; }
+
+        /* Auth panel */
+        .auth-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            max-width: 450px;
+            margin: 30px auto;
+        }
+        .auth-panel h3 { margin-bottom: 8px; }
+        .auth-panel p { color: var(--text-muted); margin-bottom: 16px; }
+        .auth-steps {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Order sub-tabs */
+        .sub-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .sub-tab {
+            padding: 6px 16px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: transparent;
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sub-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .sub-tab:hover:not(.active) { background: #f0eef9; }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-badge.open { background: #dcfce7; color: #166534; }
+        .status-badge.paid { background: #dbeafe; color: #1e40af; }
+        .status-badge.completed { background: #e0e7ff; color: #3730a3; }
+        .status-badge.cancelled { background: #fee2e2; color: #991b1b; }
+
+        /* Order detail */
+        .order-detail {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .order-detail h3 { margin-bottom: 12px; }
+        .detail-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 0.9rem; }
+        .detail-row .label { font-weight: 600; min-width: 140px; color: var(--text-muted); }
+
+        @media (max-width: 600px) {
+            .form-row { flex-direction: column; }
+            .card-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+    <script defer data-domain="aboutcircles.github.io/circlestools" src="https://plausible.io/js/script.js"></script>
+</head>
+<body>
+    <header>
+        <div>
+            <h1><i class="fas fa-store" style="margin-right: 8px;"></i>Marketplace Explorer</h1>
+        </div>
+        <div class="header-right">
+            <div class="wallet-status" id="walletStatus" style="display:none;">
+                <span class="dot" id="walletDot"></span>
+                <span id="walletText"></span>
+            </div>
+            <div class="header-links">
+                <a href="index.html"><i class="fas fa-home"></i> Tools</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="api-config">
+            <i class="fas fa-server"></i>
+            <select id="endpointSelect" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;">
+                <option value="https://market-api.aboutcircles.com">Production</option>
+                <option value="https://market-api.staging.aboutcircles.com">Staging</option>
+            </select>
+            <code id="apiUrlDisplay"></code>
+        </div>
+
+        <div class="tab-bar" id="tabBar"></div>
+
+        <div class="tab-content active" id="tab-catalog">
+            <div id="catalogContent"></div>
+        </div>
+
+        <div class="tab-content" id="tab-sellers">
+            <div id="sellersContent"></div>
+        </div>
+
+        <div class="tab-content" id="tab-payments">
+            <div id="paymentsContent"></div>
+        </div>
+
+        <div class="tab-content" id="tab-orders">
+            <div id="ordersContent"></div>
+        </div>
+
+    </div>
+
+    <script>
+    // ─── Configuration ───────────────────────────────────────────────
+    var DEFAULT_API = 'https://market-api.aboutcircles.com';
+    var PROFILES_API = 'https://rpc.aboutcircles.com/profiles';
+    var OPERATOR = '0x20ced4ed3b1651b832a77e13e54ea5cb14c8b95b';
+
+    var apiBase = DEFAULT_API;
+    var sellersList = [];
+    var catalogCursor = null;
+    var catalogItems = [];
+    var catalogFilterSeller = null; // when set, catalog shows only this seller
+    var currentTab = 'catalog';
+    var authToken = null;
+    var authAddress = null;
+    var signer = null;
+    var provider = null;
+    var orderSubTab = 'buyer';
+    var orderPage = 1;
+
+    // ─── Init (hoisted — actual call is at end of script) ─────────
+
+    // ─── DOM helper ──────────────────────────────────────────────────
+    function el(tag, attrs, children) {
+        var e = document.createElement(tag);
+        if (attrs) Object.keys(attrs).forEach(function(k) {
+            var v = attrs[k];
+            if (k === 'className') e.className = v;
+            else if (k === 'textContent') e.textContent = v;
+            else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
+            else if (v !== undefined && v !== null) e.setAttribute(k, v);
+        });
+        if (children !== undefined && children !== null) {
+            if (typeof children === 'string') e.textContent = children;
+            else if (Array.isArray(children)) children.forEach(function(c) { if (c) e.appendChild(c); });
+            else e.appendChild(children);
+        }
+        return e;
+    }
+
+    // Click-to-show tooltip: wraps content in a .tip-wrap with a fixed .tip-bubble
+    function positionBubble(wrap, bubble) {
+        var rect = wrap.getBoundingClientRect();
+        var bh = bubble.offsetHeight || 0;
+        var bw = bubble.offsetWidth || 280;
+        // prefer below, fall back above if near viewport bottom
+        var top = rect.bottom + 6;
+        if (top + bh > window.innerHeight) top = rect.top - bh - 6;
+        var left = rect.left + rect.width / 2 - bw / 2;
+        if (left < 8) left = 8;
+        if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+        bubble.style.top = top + 'px';
+        bubble.style.left = left + 'px';
+    }
+    function toggleTip(wrap, bubble) {
+        var wasOpen = wrap.classList.contains('tip-open');
+        document.querySelectorAll('.tip-open').forEach(function(o) { o.classList.remove('tip-open'); });
+        if (wasOpen) return;  // was open → just closed, done
+        // open: show first so offsetHeight is measurable, then position
+        wrap.classList.add('tip-open');
+        positionBubble(wrap, bubble);
+    }
+    function tipWrap(content, tipText) {
+        var wrap = el('span', {className: 'tip-wrap'});
+        if (typeof content === 'string') wrap.textContent = content;
+        else wrap.appendChild(content);
+        var bubble = el('div', {className: 'tip-bubble'}, tipText);
+        wrap.appendChild(bubble);
+        wrap.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleTip(wrap, bubble);
+        });
+        return wrap;
+    }
+    // Close tooltips when clicking outside or scrolling
+    document.addEventListener('click', function() {
+        document.querySelectorAll('.tip-open').forEach(function(o) { o.classList.remove('tip-open'); });
+    });
+    window.addEventListener('scroll', function() {
+        document.querySelectorAll('.tip-open').forEach(function(o) { o.classList.remove('tip-open'); });
+    }, true);
+
+    function truncAddr(a) {
+        if (!a) return '';
+        return a.slice(0, 6) + '...' + a.slice(-4);
+    }
+
+    function copyText(t) { navigator.clipboard.writeText(t); }
+
+    function clearEl(id) { var e = document.getElementById(id); e.textContent = ''; return e; }
+
+    function showLoading(container) {
+        container.textContent = '';
+        container.appendChild(el('div', {style: 'text-align:center;padding:30px;'}, [
+            el('span', {className: 'loader'}),
+            document.createTextNode(' Loading...')
+        ]));
+    }
+
+    function showError(container, msg) {
+        container.textContent = '';
+        container.appendChild(el('div', {className: 'error-msg'}, msg));
+    }
+
+    // ─── Tabs ────────────────────────────────────────────────────────
+    var TABS = [
+        {id: 'catalog', label: 'Catalog', icon: 'fa-boxes-stacked'},
+        {id: 'sellers', label: 'Sellers', icon: 'fa-users'},
+        {id: 'payments', label: 'Payments', icon: 'fa-credit-card'},
+        {id: 'orders', label: 'Orders', icon: 'fa-receipt', auth: true}
+    ];
+
+    function buildTabs() {
+        var bar = document.getElementById('tabBar');
+        bar.textContent = '';
+        TABS.forEach(function(t) {
+            var btn = el('button', {
+                className: 'tab-btn' + (currentTab === t.id ? ' active' : ''),
+                'data-tab': t.id,
+                onClick: function() { switchTab(t.id); }
+            });
+            btn.appendChild(el('i', {className: 'fas ' + t.icon, style: 'margin-right:6px;'}));
+            btn.appendChild(document.createTextNode(t.label));
+            if (t.auth) btn.appendChild(el('span', {className: 'auth-badge'}, 'AUTH'));
+            bar.appendChild(btn);
+        });
+    }
+
+    function switchTab(id) {
+        currentTab = id;
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-tab') === id);
+        });
+        document.querySelectorAll('.tab-content').forEach(function(tc) {
+            tc.classList.toggle('active', tc.id === 'tab-' + id);
+        });
+        if (id === 'orders') renderOrdersTab();
+        if (id === 'payments') loadPayments();
+        syncUrlState();
+    }
+
+    function syncUrlState() {
+        var params = new URLSearchParams();
+        if (currentTab !== 'catalog') params.set('tab', currentTab);
+        if (currentTab === 'catalog' && catalogFilterSeller) params.set('seller', catalogFilterSeller);
+        if (currentTab === 'payments' && paymentFilterSeller) params.set('payee', paymentFilterSeller);
+        if (currentTab === 'payments' && paymentFilterGateway) params.set('gateway', paymentFilterGateway);
+        if (apiBase !== DEFAULT_API) params.set('api', apiBase);
+        var qs = params.toString();
+        window.history.replaceState(null, '', qs ? '?' + qs : window.location.pathname);
+    }
+
+    // ─── Catalog + Sellers ───────────────────────────────────────────
+    async function loadSellersAndCatalog() {
+        var catalogContainer = document.getElementById('catalogContent');
+        showLoading(catalogContainer);
+
+        try {
+            var res = await fetch(apiBase + '/api/sellers');
+            if (!res.ok) throw new Error('Sellers API: ' + res.status);
+            var data = await res.json();
+            sellersList = data.sellers || data || [];
+
+            renderSellersTable();
+            await loadCatalog(true);
+        } catch (err) {
+            showError(catalogContainer, 'Failed to load: ' + err.message);
+        }
+    }
+
+    async function loadCatalog(reset) {
+        var container = document.getElementById('catalogContent');
+        if (reset) {
+            catalogItems = [];
+            catalogCursor = null;
+        }
+
+        var sellers = catalogFilterSeller
+            ? [{seller: catalogFilterSeller}]
+            : sellersList;
+        var avatarParams = sellers.map(function(s) {
+            return 'avatars=' + encodeURIComponent(s.seller || s.address || s);
+        }).join('&');
+
+        var url = apiBase + '/api/operator/' + OPERATOR + '/catalog?' + avatarParams + '&pageSize=20';
+        if (catalogCursor) url += '&cursor=' + encodeURIComponent(catalogCursor);
+
+        if (reset) showLoading(container);
+
+        try {
+            var res = await fetch(url);
+            if (!res.ok) throw new Error('Catalog API: ' + res.status);
+            var data = await res.json();
+
+            var items = data.items || data.products || data || [];
+            catalogCursor = data.cursor || data.nextCursor || null;
+            catalogItems = catalogItems.concat(items);
+
+            renderCatalog();
+        } catch (err) {
+            showError(container, 'Failed to load catalog: ' + err.message);
+        }
+    }
+
+    function scrollToSeller(addr) {
+        switchTab('sellers');
+        setTimeout(function() {
+            var card = document.getElementById('seller-' + addr.toLowerCase());
+            if (card) {
+                card.scrollIntoView({behavior: 'smooth', block: 'center'});
+                card.style.boxShadow = '0 0 0 3px var(--accent)';
+                setTimeout(function() { card.style.boxShadow = ''; }, 2000);
+            }
+        }, 50);
+    }
+
+    function filterCatalogBySeller(addr) {
+        catalogFilterSeller = addr;
+        switchTab('catalog');
+        loadCatalog(true);
+        syncUrlState();
+    }
+
+    function clearCatalogFilter() {
+        catalogFilterSeller = null;
+        loadCatalog(true);
+        syncUrlState();
+    }
+
+    // Shared fuzzy filter — hides children of `container` whose text doesn't match query
+    function addFilterBar(container, placeholder) {
+        var bar = el('div', {className: 'tab-filter'});
+        var input = el('input', {type: 'text', placeholder: placeholder || 'Filter...'});
+        input.addEventListener('input', function() {
+            var q = this.value.toLowerCase().trim();
+            // Find the filterable container (card-grid or table tbody)
+            var grid = container.querySelector('.card-grid');
+            var tbody = container.querySelector('tbody');
+            var items = grid ? grid.children : (tbody ? tbody.children : []);
+            for (var i = 0; i < items.length; i++) {
+                var text = (items[i].textContent || '').toLowerCase();
+                items[i].style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+            }
+        });
+        bar.appendChild(input);
+        return bar;
+    }
+
+    function renderCatalog() {
+        var container = clearEl('catalogContent');
+
+        // Show filter banner if filtering
+        if (catalogFilterSeller) {
+            var banner = el('div', {style: 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:#dbeafe;border-radius:6px;margin-bottom:12px;font-size:0.9rem;'});
+            banner.appendChild(el('i', {className: 'fas fa-filter', style: 'color:#1e40af;'}));
+            var info = sellerInfoCache[catalogFilterSeller.toLowerCase()];
+            var label = info && info.name ? info.name : truncAddr(catalogFilterSeller);
+            banner.appendChild(document.createTextNode('Filtered by seller: ' + label + ' '));
+            // Quick-jump links for this seller
+            var jumpPayments = el('button', {className: 'btn btn-sm btn-outline', style: 'margin-left:8px;',
+                onClick: (function(a) { return function() { filterPaymentsBySeller(a); }; })(catalogFilterSeller)});
+            jumpPayments.appendChild(el('i', {className: 'fas fa-credit-card', style: 'margin-right:4px;'}));
+            jumpPayments.appendChild(document.createTextNode('Payments'));
+            banner.appendChild(jumpPayments);
+            var jumpScan = el('a', {className: 'btn btn-sm btn-outline', href: 'https://gnosisscan.io/address/' + catalogFilterSeller,
+                target: '_blank', rel: 'noopener noreferrer', style: 'text-decoration:none;margin-left:4px;'});
+            jumpScan.appendChild(el('i', {className: 'fas fa-arrow-up-right-from-square', style: 'margin-right:4px;'}));
+            jumpScan.appendChild(document.createTextNode('Gnosisscan'));
+            banner.appendChild(jumpScan);
+            var clearBtn = el('button', {
+                className: 'btn btn-sm btn-outline',
+                style: 'margin-left:auto;',
+                onClick: clearCatalogFilter
+            });
+            clearBtn.appendChild(el('i', {className: 'fas fa-xmark', style: 'margin-right:4px;'}));
+            clearBtn.appendChild(document.createTextNode('Clear'));
+            banner.appendChild(clearBtn);
+            container.appendChild(banner);
+        }
+
+        if (catalogItems.length) container.appendChild(addFilterBar(container, 'Filter products...'));
+
+        if (!catalogItems.length) {
+            container.appendChild(el('div', {className: 'empty-state'}, 'No catalog items found.'));
+            return;
+        }
+
+        var grid = el('div', {className: 'card-grid'});
+
+        catalogItems.forEach(function(item) {
+            // Catalog items use nested schema.org structure: item.product.name, etc.
+            var p = item.product || item;
+            var offer = (p.offers && p.offers[0]) || {};
+            var card = el('div', {className: 'product-card'});
+
+            // Image: product.image is an array of URLs
+            var imgUrl = '';
+            if (Array.isArray(p.image) && p.image.length) imgUrl = p.image[0];
+            else if (typeof p.image === 'string') imgUrl = p.image;
+            else imgUrl = p.imageUrl || '';
+            if (imgUrl) {
+                var img = el('img', {className: 'product-img', alt: p.name || 'Product'});
+                img.src = imgUrl;
+                img.onerror = function() { this.style.display = 'none'; };
+                card.appendChild(img);
+            }
+
+            card.appendChild(el('h3', {}, p.name || p.title || 'Unnamed'));
+
+            if (p.description) {
+                var desc = p.description.length > 100 ? p.description.slice(0, 100) + '...' : p.description;
+                card.appendChild(el('p', {className: 'meta'}, desc));
+            }
+
+            var price = offer.price != null ? offer.price : p.price;
+            var currency = offer.priceCurrency || p.currency || '';
+            var priceStr = price != null ? String(price) : 'N/A';
+            if (currency) priceStr += ' ' + currency;
+            card.appendChild(el('div', {className: 'price'}, priceStr));
+
+            var sku = p.sku || item.sku || '';
+            if (sku) {
+                card.appendChild(el('div', {className: 'meta', style: 'font-family:monospace;font-size:0.8rem;'}, 'SKU: ' + sku));
+            }
+
+            // Bottom meta section — consistent link style
+            var sellerAddr = item.seller || p.seller || '';
+            var metaBottom = el('div', {style: 'margin-top:auto;padding-top:8px;border-top:1px solid var(--border);font-size:0.82rem;color:var(--text-muted);display:flex;flex-direction:column;gap:3px;'});
+
+            if (sellerAddr) {
+                var sellerLine = el('div', {style: 'display:flex;align-items:center;gap:4px;'});
+                var sellerLink = el('a', {href: '#', style: 'color:var(--primary);text-decoration:none;font-weight:500;',
+                    onClick: (function(a) { return function(e) { e.preventDefault(); scrollToSeller(a); }; })(sellerAddr)
+                }, truncAddr(sellerAddr));
+                sellerLine.appendChild(sellerLink);
+                metaBottom.appendChild(sellerLine);
+                // Async enrich
+                (function(line, link, addr) {
+                    enrichSeller(addr).then(function(info) {
+                        if (info.name) link.textContent = info.name;
+                        if (info.type) {
+                            line.appendChild(el('span', {
+                                style: 'font-size:0.7rem;padding:1px 5px;border-radius:8px;margin-left:4px;' +
+                                    (info.type === 'organization' ? 'background:#dbeafe;color:#1e40af;' :
+                                     info.type === 'human' ? 'background:#dcfce7;color:#166534;' :
+                                     'background:#f3f4f6;color:#374151;')
+                            }, info.type));
+                        }
+                    });
+                })(sellerLine, sellerLink, sellerAddr);
+            }
+            // Inventory badge — construct URL from seller + SKU
+            if (sku && sellerAddr) {
+                var invBadge = el('div', {style: 'font-size:0.8rem;'});
+                metaBottom.appendChild(invBadge);
+                (function(b, s, k) {
+                    var invUrl = apiBase + '/inventory/inventory/100/' + s + '/' + encodeURIComponent(k);
+                    fetch(invUrl).then(function(r) { return r.ok ? r.json() : null; }).then(function(data) {
+                        if (!data) return;
+                        var qty = data.value != null ? data.value : (data.quantity != null ? data.quantity : null);
+                        if (typeof qty === 'number') {
+                            var color = qty > 0 ? 'background:#dcfce7;color:#166534;' : 'background:#fee2e2;color:#991b1b;';
+                            b.appendChild(el('span', {style: 'font-size:0.7rem;padding:1px 6px;border-radius:8px;' + color},
+                                qty > 0 ? qty + ' in stock' : 'Out of stock'));
+                        }
+                    }).catch(function() {});
+                })(invBadge, sellerAddr, sku);
+            }
+            card.appendChild(metaBottom);
+
+            grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
+
+        if (catalogCursor) {
+            var pag = el('div', {className: 'pagination'});
+            var moreBtn = el('button', {className: 'btn btn-sm btn-outline',
+                onClick: function() { loadCatalog(false); }});
+            moreBtn.appendChild(el('i', {className: 'fas fa-chevron-down', style: 'margin-right:6px;'}));
+            moreBtn.appendChild(document.createTextNode('Load More'));
+            pag.appendChild(moreBtn);
+            container.appendChild(pag);
+        }
+    }
+
+    // ─── Sellers (card layout) ──────────────────────────────────────
+    function renderSellersTable() {
+        var container = clearEl('sellersContent');
+
+        if (sellersList.length) container.appendChild(addFilterBar(container, 'Filter sellers...'));
+
+        if (!sellersList.length) {
+            container.appendChild(el('div', {className: 'empty-state'}, 'No sellers found.'));
+            return;
+        }
+
+        var grid = el('div', {className: 'card-grid'});
+
+        sellersList.forEach(function(seller) {
+            var addr = seller.seller || seller.address || String(seller);
+            var chain = seller.chainId || '100';
+            var card = el('div', {className: 'product-card', id: 'seller-' + addr.toLowerCase()});
+
+            // Header: avatar + name + type badge
+            var headerRow = el('div', {style: 'display:flex;align-items:center;gap:10px;margin-bottom:4px;'});
+            var avatarImg = el('img', {style: 'width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--border);display:none;'});
+            avatarImg.id = 'seller-avatar-' + addr.toLowerCase();
+            headerRow.appendChild(avatarImg);
+            var nameEl = el('h3', {style: 'margin:0;'}, 'Loading...');
+            headerRow.appendChild(nameEl);
+            card.appendChild(headerRow);
+
+            // Address row
+            var addrRow = el('div', {className: 'meta', style: 'font-family:monospace;display:flex;align-items:center;gap:4px;'});
+            addrRow.appendChild(document.createTextNode(truncAddr(addr)));
+            var cpBtn = el('button', {className: 'copy-btn', title: 'Copy address',
+                onClick: function() { copyText(addr); }});
+            cpBtn.appendChild(el('i', {className: 'fas fa-copy'}));
+            addrRow.appendChild(cpBtn);
+            addrRow.appendChild(document.createTextNode(' \u00B7 Chain ' + chain));
+            card.appendChild(addrRow);
+
+            // Gateways (async — populated after allGateways loads)
+            var gwRow = el('div', {className: 'meta', style: 'margin-top:6px;'}, '');
+            gwRow.id = 'gw-' + addr.toLowerCase();
+            card.appendChild(gwRow);
+
+            // Actions row
+            var actions = el('div', {style: 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;'});
+            var btnStyle = 'display:inline-flex;align-items:center;gap:4px;font-size:0.8rem;padding:4px 10px;';
+
+            var productsBtn = el('button', {className: 'btn btn-sm btn-outline', style: btnStyle,
+                onClick: (function(a) { return function() { filterCatalogBySeller(a); }; })(addr)});
+            productsBtn.appendChild(el('i', {className: 'fas fa-boxes-stacked'}));
+            productsBtn.appendChild(document.createTextNode(' Products'));
+            actions.appendChild(productsBtn);
+
+            var payBtn = el('button', {className: 'btn btn-sm btn-outline', style: btnStyle,
+                onClick: (function(a) { return function() { filterPaymentsBySeller(a); }; })(addr)});
+            payBtn.appendChild(el('i', {className: 'fas fa-credit-card'}));
+            payBtn.appendChild(document.createTextNode(' Payments'));
+            actions.appendChild(payBtn);
+
+            var scanBtn = el('a', {className: 'btn btn-sm btn-outline',
+                href: 'https://gnosisscan.io/address/' + addr, target: '_blank', rel: 'noopener noreferrer',
+                style: 'text-decoration:none;' + btnStyle});
+            scanBtn.appendChild(el('i', {className: 'fas fa-arrow-up-right-from-square'}));
+            scanBtn.appendChild(document.createTextNode(' Gnosisscan'));
+            actions.appendChild(scanBtn);
+
+            card.appendChild(actions);
+
+            // Async enrich name + type + avatar
+            (function(ne, addr) {
+                enrichSeller(addr).then(function(info) {
+                    ne.textContent = info.name || truncAddr(addr);
+                    if (info.type) {
+                        var badge = el('span', {
+                            style: 'font-size:0.7rem;padding:1px 6px;border-radius:8px;margin-left:6px;' +
+                                (info.type === 'human' ? 'background:#dcfce7;color:#166534;' :
+                                 info.type === 'organization' ? 'background:#dbeafe;color:#1e40af;' :
+                                 info.type === 'group' ? 'background:#e0e7ff;color:#3730a3;' :
+                                 'background:#f3f4f6;color:#374151;')
+                        }, info.type);
+                        ne.appendChild(badge);
+                    }
+                    // Show avatar if available
+                    if (info.imageUrl) {
+                        var av = document.getElementById('seller-avatar-' + addr.toLowerCase());
+                        if (av) { av.src = info.imageUrl; av.style.display = ''; }
+                    }
+                });
+            })(nameEl, addr);
+
+            grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
+
+        // Populate gateway info after gateways are loaded
+        loadGatewaysForSellers();
+    }
+
+    async function loadGatewaysForSellers() {
+        // Ensure gateways are loaded
+        if (!Object.keys(allGateways).length) {
+            try {
+                var gwResult = await rpcQuery('CrcV2_PaymentGateway', 'GatewayCreated',
+                    ['owner', 'gateway', 'blockNumber', 'timestamp'], [], 200);
+                (gwResult.rows || []).forEach(function(r) {
+                    allGateways[r[1].toLowerCase()] = { owner: r[0], gateway: r[1], block: r[2], created: r[3] };
+                });
+            } catch (e) { return; }
+        }
+
+        // Group gateways by owner
+        var byOwner = {};
+        Object.values(allGateways).forEach(function(gw) {
+            var key = gw.owner.toLowerCase();
+            if (!byOwner[key]) byOwner[key] = [];
+            byOwner[key].push(gw);
+        });
+
+        // Render into each seller card
+        sellersList.forEach(function(seller) {
+            var addr = (seller.seller || seller.address || String(seller)).toLowerCase();
+            var gwRow = document.getElementById('gw-' + addr);
+            if (!gwRow) return;
+
+            var gws = byOwner[addr] || [];
+            if (!gws.length) {
+                gwRow.appendChild(el('span', {style: 'color:var(--text-muted);'}, 'No payment gateway'));
+                return;
+            }
+
+            gwRow.appendChild(el('i', {className: 'fas fa-landmark', style: 'margin-right:4px;color:var(--primary);'}));
+            gwRow.appendChild(document.createTextNode(gws.length + ' gateway' + (gws.length > 1 ? 's' : '') + ': '));
+
+            gws.forEach(function(gw, i) {
+                if (i > 0) gwRow.appendChild(document.createTextNode(', '));
+                var gwLink = el('a', {href: '#', className: 'seller-link', style: 'font-family:monospace;font-size:0.8rem;',
+                    onClick: (function(g) { return function(e) {
+                        e.preventDefault();
+                        // Filter payments by this specific gateway
+                        paymentFilterSeller = null;
+                        paymentFilterGateway = g;
+                        paymentsLoaded = false;
+                        switchTab('payments');
+                        loadPayments();
+                    }; })(gw.gateway)
+                }, truncAddr(gw.gateway));
+                gwRow.appendChild(gwLink);
+                var cp = el('button', {className: 'copy-btn', title: 'Copy gateway address',
+                    onClick: function() { copyText(gw.gateway); }});
+                cp.appendChild(el('i', {className: 'fas fa-copy', style: 'font-size:0.7rem;'}));
+                gwRow.appendChild(cp);
+            });
+        });
+    }
+
+    // Seller info cache: { address: { name, type, hasCidHistory } }
+    var sellerInfoCache = {};
+
+    // Cache stores promises to deduplicate in-flight requests
+    function enrichSeller(address) {
+        var key = address.toLowerCase();
+        if (sellerInfoCache[key]) return sellerInfoCache[key];
+        sellerInfoCache[key] = _enrichSellerImpl(key);
+        return sellerInfoCache[key];
+    }
+
+    async function _enrichSellerImpl(key) {
+        var info = { name: null, type: null };
+
+        // Profile name + CID from pinning service
+        var profileCid = null;
+        try {
+            var res = await fetch(PROFILES_API + '/search?address=' + key);
+            if (res.ok) {
+                var data = await res.json();
+                if (Array.isArray(data)) {
+                    var profile = data.find(function(p) { return p.address && p.address.toLowerCase() === key; });
+                    if (profile) {
+                        info.name = profile.name || null;
+                        profileCid = profile.CID || null;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // Fetch CID content for profile image (non-blocking for cache)
+        if (profileCid) {
+            try {
+                var cidRes = await fetch(PROFILES_API + '/get?cid=' + profileCid);
+                if (cidRes.ok) {
+                    var cidData = await cidRes.json();
+                    info.imageUrl = cidData.previewImageUrl || cidData.imageUrl || null;
+                }
+            } catch (e) {}
+        }
+
+        // On-chain type from Circles RPC (structured DTO, not raw SQL)
+        try {
+            var rpcRes = await fetch('https://rpc.aboutcircles.com/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({jsonrpc:'2.0',id:1,method:'circles_query',params:[{
+                    Namespace: 'V_Crc',
+                    Table: 'Avatars',
+                    Columns: ['avatar', 'type'],
+                    Filter: [{
+                        Type: 'FilterPredicate',
+                        FilterType: 'Equals',
+                        Column: 'avatar',
+                        Value: key
+                    }],
+                    Limit: 1
+                }]})
+            });
+            if (rpcRes.ok) {
+                var rpcData = await rpcRes.json();
+                var rows = rpcData.result && rpcData.result.rows;
+                if (rows && rows.length) {
+                    var raw = (rows[0][1] || '').toLowerCase();
+                    if (raw.indexOf('human') !== -1) info.type = 'human';
+                    else if (raw.indexOf('organization') !== -1) info.type = 'organization';
+                    else if (raw.indexOf('group') !== -1) info.type = 'group';
+                    else info.type = raw;
+                }
+            }
+        } catch (e) {}
+
+
+        return info;
+    }
+
+    function renderSellerInfo(container, info, addr) {
+        // Name or address
+        var label = info.name || truncAddr(addr);
+        container.appendChild(document.createTextNode(label));
+
+        // On-chain type badge
+        if (info.type) {
+            var badge = el('span', {
+                style: 'margin-left:6px;font-size:0.75rem;padding:1px 6px;border-radius:8px;' +
+                    (info.type === 'human' ? 'background:#dcfce7;color:#166534;' :
+                     info.type === 'organization' ? 'background:#dbeafe;color:#1e40af;' :
+                     info.type === 'group' ? 'background:#e0e7ff;color:#3730a3;' :
+                     'background:#f3f4f6;color:#374151;')
+            }, info.type);
+            container.appendChild(badge);
+        }
+    }
+
+    // ─── Pricing API (CRC → EUR conversion via metrics-exporter) ────
+    // Endpoint may not be available on all nodes (deploy_metrics_exporter flag)
+    var PRICING_API = 'https://rpc.staging.aboutcircles.com/metrics-api/pricing';
+    var priceCache = {};
+    var priceInflight = {};  // dedup concurrent requests for same date
+
+    async function getCrcPrice(unixTimestamp) {
+        var dateStr = new Date(unixTimestamp * 1000).toISOString().split('T')[0];
+        if (priceCache[dateStr]) return priceCache[dateStr];
+        if (priceInflight[dateStr]) return priceInflight[dateStr];
+        priceInflight[dateStr] = (async function() {
+            try {
+                var resp = await fetch(PRICING_API + '?date=' + dateStr);
+                if (!resp.ok) return null;
+                var data = await resp.json();
+                var valid = data && (data.dcrc_xdai > 0 || data.dcrc_eur > 0);
+                if (valid) priceCache[dateStr] = data;
+                return valid ? data : null;
+            } catch (e) {
+                console.warn('Price fetch failed for ' + dateStr, e);
+                return null;
+            } finally {
+                delete priceInflight[dateStr];
+            }
+        })();
+        return priceInflight[dateStr];
+    }
+
+    // ─── Payments tab (on-chain data from indexer) ─────────────────
+    var RPC_URL = 'https://rpc.aboutcircles.com/';
+    var paymentsLoaded = false;
+    var paymentsPage = 0;
+    var paymentsPageSize = 25;
+    var allPayments = [];
+    var allGateways = {};
+    var paymentFilterSeller = null;
+    var paymentFilterGateway = null;
+
+    function rpcQuery(namespace, table, columns, filter, limit, order) {
+        var params = {Namespace: namespace, Table: table, Columns: columns, Filter: filter || [], Limit: limit || 50};
+        if (order) params.Order = order;
+        return fetch(RPC_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({jsonrpc:'2.0', id:1, method:'circles_query', params:[params]})
+        }).then(function(r) { return r.json(); }).then(function(d) { return d.result; });
+    }
+
+    function hexToUtf8(hex) {
+        if (!hex || !hex.startsWith('0x')) return hex || '';
+        try {
+            var bytes = [];
+            for (var i = 2; i < hex.length; i += 2)
+                bytes.push(parseInt(hex.substr(i, 2), 16));
+            return new TextDecoder().decode(new Uint8Array(bytes));
+        } catch (e) { return hex; }
+    }
+
+    function formatCrc(amountWei) {
+        if (!amountWei) return '0';
+        var s = String(amountWei);
+        if (s.length <= 18) { var f = s.replace(/0+$/, ''); return f ? '0.' + '0'.repeat(18 - s.length) + f : '0'; }
+        var whole = s.slice(0, s.length - 18);
+        var frac = s.slice(s.length - 18).replace(/0+$/, '');
+        return frac ? whole + '.' + frac : whole;
+    }
+
+    async function loadPayments() {
+        if (paymentsLoaded && !paymentFilterSeller && !paymentFilterGateway) return;
+        var container = document.getElementById('paymentsContent');
+        showLoading(container);
+
+        try {
+            // Load gateways if not cached
+            if (!Object.keys(allGateways).length) {
+                var gwResult = await rpcQuery('CrcV2_PaymentGateway', 'GatewayCreated',
+                    ['owner', 'gateway', 'blockNumber', 'timestamp'], [], 200);
+                (gwResult.rows || []).forEach(function(r) {
+                    allGateways[r[1].toLowerCase()] = { owner: r[0], gateway: r[1], block: r[2], created: r[3] };
+                });
+            }
+
+            // Load payments with filters
+            var filter = [];
+            if (paymentFilterSeller) {
+                filter.push({Type:'FilterPredicate', FilterType:'Equals', Column:'payee', Value: paymentFilterSeller.toLowerCase()});
+            }
+            if (paymentFilterGateway) {
+                filter.push({Type:'FilterPredicate', FilterType:'Equals', Column:'gateway', Value: paymentFilterGateway.toLowerCase()});
+            }
+            var result = await rpcQuery('CrcV2_PaymentGateway', 'PaymentReceived',
+                ['payer', 'payee', 'gateway', 'amount', 'data', 'timestamp', 'transactionHash', 'blockNumber'],
+                filter, 200,
+                [{Column:'blockNumber', SortOrder:'DESC'}]);
+
+            allPayments = result.rows || [];
+            paymentsLoaded = !paymentFilterSeller && !paymentFilterGateway;
+            renderPayments();
+        } catch (err) {
+            showError(container, 'Failed to load payments: ' + err.message);
+        }
+    }
+
+    function filterPaymentsBySeller(addr) {
+        paymentFilterSeller = addr;
+        paymentFilterGateway = null;
+        paymentsLoaded = false;
+        paymentsPage = 0;
+        switchTab('payments');
+        loadPayments();
+    }
+
+    function clearPaymentFilter() {
+        paymentFilterSeller = null;
+        paymentFilterGateway = null;
+        paymentsLoaded = false;
+        paymentsPage = 0;
+        loadPayments();
+        syncUrlState();
+    }
+
+    function renderPayments() {
+        var container = clearEl('paymentsContent');
+
+        // Gateway filter dropdown — scoped to current seller filter if active
+        var relevantGws = Object.values(allGateways);
+        if (paymentFilterSeller) {
+            relevantGws = relevantGws.filter(function(gw) {
+                return gw.owner.toLowerCase() === paymentFilterSeller.toLowerCase();
+            });
+        }
+        if (relevantGws.length) {
+            var filterBar = el('div', {style: 'display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:0.85rem;'});
+            filterBar.appendChild(el('i', {className: 'fas fa-landmark', style: 'color:var(--text-muted);'}));
+            filterBar.appendChild(document.createTextNode('Gateway: '));
+            var gwSelect = el('select', {style: 'padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;'});
+            gwSelect.appendChild(el('option', {value: ''}, relevantGws.length > 1 ? 'All (' + relevantGws.length + ')' : 'All'));
+            relevantGws.forEach(function(gw) {
+                var info = sellerInfoCache[gw.owner.toLowerCase()];
+                var ownerLabel = info && info.name ? info.name : truncAddr(gw.owner);
+                var opt = el('option', {value: gw.gateway}, truncAddr(gw.gateway) + ' \u2014 ' + ownerLabel);
+                if (paymentFilterGateway && paymentFilterGateway.toLowerCase() === gw.gateway.toLowerCase()) opt.selected = true;
+                gwSelect.appendChild(opt);
+            });
+            gwSelect.addEventListener('change', function() {
+                paymentFilterGateway = this.value || null;
+                paymentsLoaded = false;
+                loadPayments();
+            });
+            filterBar.appendChild(gwSelect);
+            container.appendChild(filterBar);
+        }
+
+        // Summary stats
+        var totalVolume = 0;
+        var uniquePayers = {};
+        var uniquePayees = {};
+        allPayments.forEach(function(r) {
+            totalVolume += parseFloat(formatCrc(r[3]));
+            uniquePayers[r[0]] = true;
+            uniquePayees[r[1]] = true;
+        });
+
+        var stats = el('div', {style: 'display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;'});
+        [['Payments', allPayments.length], ['Volume', totalVolume.toFixed(2) + ' CRC'],
+         ['Buyers', Object.keys(uniquePayers).length], ['Sellers', Object.keys(uniquePayees).length]
+        ].forEach(function(s) {
+            var card = el('div', {style: 'background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:120px;'});
+            card.appendChild(el('div', {style: 'font-size:0.8rem;color:var(--text-muted);'}, s[0]));
+            card.appendChild(el('div', {style: 'font-size:1.3rem;font-weight:700;'}, String(s[1])));
+            stats.appendChild(card);
+        });
+        // EUR Volume card (async, filled when price data arrives)
+        var eurCard = el('div', {style: 'background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;min-width:120px;'});
+        eurCard.appendChild(el('div', {style: 'font-size:0.8rem;color:var(--text-muted);'}, 'EUR Volume'));
+        var eurValue = el('div', {style: 'font-size:1.3rem;font-weight:700;'}, '\u2026');
+        eurCard.appendChild(eurValue);
+        var eurSource = el('div', {style: 'font-size:0.65rem;color:var(--text-muted);margin-top:2px;'});
+        eurCard.appendChild(eurSource);
+        stats.appendChild(eurCard);
+        container.appendChild(stats);
+
+        // Compute EUR volume async (batch unique dates to minimize API calls).
+        // Stored as volumeDone so per-row lookups can chain on it (avoids rate-limit race).
+        var volumeDone = (async function() {
+            try {
+                var dateBuckets = {};  // { "2026-04-20": { crc: 123.4, ts: 1713571200 } }
+                allPayments.forEach(function(r) {
+                    var ts = Number(r[5]);
+                    if (!isFinite(ts) || ts <= 0) return;  // skip bad timestamps
+                    var dateStr = new Date(ts * 1000).toISOString().split('T')[0];
+                    if (!dateBuckets[dateStr]) dateBuckets[dateStr] = { crc: 0, ts: ts };
+                    dateBuckets[dateStr].crc += parseFloat(formatCrc(r[3]));
+                });
+                var totalEur = 0;
+                var hasEur = false;
+                var hasXdaiFallback = false;
+                for (var dateStr in dateBuckets) {
+                    var bucket = dateBuckets[dateStr];
+                    var price = await getCrcPrice(bucket.ts);
+                    if (price && price.dcrc_eur > 0) {
+                        totalEur += bucket.crc * price.dcrc_eur;
+                        hasEur = true;
+                    } else if (price && price.dcrc_xdai > 0) {
+                        totalEur += bucket.crc * price.dcrc_xdai;
+                        hasEur = true;
+                        hasXdaiFallback = true;
+                    }
+                }
+                if (!eurValue.isConnected) return;
+                if (hasEur) {
+                    eurValue.textContent = (hasXdaiFallback ? '~' : '') + '\u20AC' + totalEur.toFixed(2);
+                    eurSource.textContent = 'Balancer V3 + CoinGecko, daily rate' + (hasXdaiFallback ? ' (partial xDAI fallback)' : '');
+                } else {
+                    eurValue.textContent = '\u2014';
+                    eurSource.textContent = 'Rate data unavailable';
+                }
+            } catch (err) {
+                console.warn('EUR volume computation failed', err);
+                if (eurValue.isConnected) {
+                    eurValue.textContent = '\u2014';
+                    eurSource.textContent = 'Computation error';
+                }
+            }
+        })();
+
+        // Filter banner
+        if (paymentFilterSeller || paymentFilterGateway) {
+            var banner = el('div', {style: 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:#dbeafe;border-radius:6px;margin-bottom:12px;font-size:0.9rem;flex-wrap:wrap;'});
+            banner.appendChild(el('i', {className: 'fas fa-filter', style: 'color:#1e40af;'}));
+            if (paymentFilterGateway) {
+                banner.appendChild(document.createTextNode('Gateway: ' + truncAddr(paymentFilterGateway) + ' '));
+            } else {
+                var info = sellerInfoCache[paymentFilterSeller.toLowerCase()];
+                var label = info && info.name ? info.name : truncAddr(paymentFilterSeller);
+                banner.appendChild(document.createTextNode('Payments to: ' + label + ' '));
+            }
+            // Only show seller-specific links when filtering by seller (not gateway-only)
+            if (paymentFilterSeller) {
+                var jumpProducts = el('button', {className: 'btn btn-sm btn-outline', style: 'margin-left:8px;',
+                    onClick: (function(a) { return function() { filterCatalogBySeller(a); }; })(paymentFilterSeller)});
+                jumpProducts.appendChild(el('i', {className: 'fas fa-boxes-stacked', style: 'margin-right:4px;'}));
+                jumpProducts.appendChild(document.createTextNode('Products'));
+                banner.appendChild(jumpProducts);
+                var jumpScan = el('a', {className: 'btn btn-sm btn-outline', href: 'https://gnosisscan.io/address/' + paymentFilterSeller,
+                    target: '_blank', rel: 'noopener noreferrer', style: 'text-decoration:none;margin-left:4px;'});
+                jumpScan.appendChild(el('i', {className: 'fas fa-arrow-up-right-from-square', style: 'margin-right:4px;'}));
+                jumpScan.appendChild(document.createTextNode('Gnosisscan'));
+                banner.appendChild(jumpScan);
+            }
+            var clearBtn = el('button', {className: 'btn btn-sm btn-outline', style: 'margin-left:auto;', onClick: clearPaymentFilter});
+            clearBtn.appendChild(el('i', {className: 'fas fa-xmark', style: 'margin-right:4px;'}));
+            clearBtn.appendChild(document.createTextNode('Clear'));
+            banner.appendChild(clearBtn);
+            container.appendChild(banner);
+        }
+
+        // Gateways summary
+        var gwCount = Object.keys(allGateways).length;
+        if (gwCount && !paymentFilterSeller) {
+            var gwSection = el('div', {style: 'margin-bottom:16px;'});
+            gwSection.appendChild(el('h4', {style: 'margin-bottom:8px;font-size:0.95rem;'}, 'Payment Gateways (' + gwCount + ')'));
+            var gwTable = el('table');
+            var gwTh = el('thead');
+            var gwHr = el('tr');
+            ['Owner', 'Gateway Address', 'Created'].forEach(function(h) { gwHr.appendChild(el('th', {}, h)); });
+            gwTh.appendChild(gwHr);
+            gwTable.appendChild(gwTh);
+            var gwTb = el('tbody');
+            Object.values(allGateways).forEach(function(gw) {
+                var row = el('tr');
+                // Owner — clickable to filter payments
+                var ownerCell = el('td', {className: 'address-cell'});
+                var ownerLink = el('a', {href: '#', className: 'seller-link',
+                    onClick: (function(a) { return function(e) { e.preventDefault(); filterPaymentsBySeller(a); }; })(gw.owner)
+                }, truncAddr(gw.owner));
+                ownerCell.appendChild(ownerLink);
+                // Async enrich owner name
+                (function(link, addr) {
+                    enrichSeller(addr).then(function(info) { if (info.name) link.textContent = info.name; });
+                })(ownerLink, gw.owner);
+                ownerCell.appendChild(document.createTextNode(' '));
+                var cpBtn = el('button', {className: 'copy-btn', title: 'Copy', onClick: function() { copyText(gw.owner); }});
+                cpBtn.appendChild(el('i', {className: 'fas fa-copy'}));
+                ownerCell.appendChild(cpBtn);
+                row.appendChild(ownerCell);
+
+                var gwCell = el('td', {className: 'address-cell'});
+                gwCell.appendChild(document.createTextNode(truncAddr(gw.gateway) + ' '));
+                var gwCp = el('button', {className: 'copy-btn', title: 'Copy', onClick: function() { copyText(gw.gateway); }});
+                gwCp.appendChild(el('i', {className: 'fas fa-copy'}));
+                gwCell.appendChild(gwCp);
+                row.appendChild(gwCell);
+
+                row.appendChild(el('td', {}, new Date(gw.created * 1000).toLocaleString()));
+                gwTb.appendChild(row);
+            });
+            gwTable.appendChild(gwTb);
+            gwSection.appendChild(gwTable);
+            container.appendChild(gwSection);
+        }
+
+        // Payments table
+        if (allPayments.length) container.appendChild(addFilterBar(container, 'Filter payments...'));
+
+        if (!allPayments.length) {
+            container.appendChild(el('div', {className: 'empty-state'}, 'No payments found.'));
+            return;
+        }
+
+        container.appendChild(el('h4', {style: 'margin-bottom:8px;font-size:0.95rem;'}, 'Recent Payments'));
+        var table = el('table');
+        var thead = el('thead');
+        var hr = el('tr');
+        ['Time', 'Payer', 'Payee', 'Amount', 'EUR Value', 'Reference', 'Tx'].forEach(function(h) {
+            var th = el('th', {}, h);
+            if (h === 'EUR Value') {
+                var infoIcon = el('span', {style: 'margin-left:4px;font-weight:400;opacity:0.6;'}, '\u24D8');
+                th.appendChild(tipWrap(infoIcon,
+                    'CRC/EUR rate: Balancer V3 pool price (live for today, historic for past dates) + CoinGecko DAI/EUR.\n'
+                    + 'Granularity: one rate per calendar day (UTC).\n'
+                    + 'Click each row\u2019s EUR value for exact rate, date, and source.\n'
+                    + 'If EUR unavailable, xDAI equivalent shown instead.'));
+            }
+            hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        var tbody = el('tbody');
+        // Paginate
+        var start = paymentsPage * paymentsPageSize;
+        var page = allPayments.slice(start, start + paymentsPageSize);
+
+        page.forEach(function(r) {
+            var row = el('tr');
+            // Time
+            row.appendChild(el('td', {style: 'white-space:nowrap;font-size:0.85rem;'}, new Date(r[5] * 1000).toLocaleString()));
+
+            // Payer — clickable to filter
+            var payerCell = el('td', {className: 'address-cell'});
+            var payerLink = el('a', {href: 'profileChecker.html?address=' + r[0], target: '_blank', rel: 'noopener noreferrer',
+                className: 'seller-link'}, truncAddr(r[0]));
+            payerCell.appendChild(payerLink);
+            payerCell.appendChild(document.createTextNode(' '));
+            var payerScan = el('a', {href: 'https://gnosisscan.io/address/' + r[0], target: '_blank', rel: 'noopener noreferrer',
+                title: 'Gnosisscan', style: 'color:var(--text-muted);font-size:0.75rem;'});
+            payerScan.appendChild(el('i', {className: 'fas fa-arrow-up-right-from-square'}));
+            payerCell.appendChild(payerScan);
+            (function(link, addr) {
+                enrichSeller(addr).then(function(info) { if (info.name) link.textContent = info.name; });
+            })(payerLink, r[0]);
+            row.appendChild(payerCell);
+
+            // Payee — link to seller card
+            var payeeCell = el('td', {className: 'address-cell'});
+            var payeeLink = el('a', {href: '#', className: 'seller-link',
+                onClick: (function(a) { return function(e) { e.preventDefault(); scrollToSeller(a); }; })(r[1])
+            }, truncAddr(r[1]));
+            payeeCell.appendChild(payeeLink);
+            (function(link, addr) {
+                enrichSeller(addr).then(function(info) { if (info.name) link.textContent = info.name; });
+            })(payeeLink, r[1]);
+            row.appendChild(payeeCell);
+
+            // Amount
+            row.appendChild(el('td', {style: 'font-weight:600;color:var(--accent);white-space:nowrap;'}, formatCrc(r[3]) + ' CRC'));
+
+            // EUR Value — waits for volumeDone so all dates are cached (avoids rate-limit race)
+            var eurCell = el('td', {className: 'tip-wrap', style: 'white-space:nowrap;font-size:0.85rem;color:var(--text-muted);'});
+            var eurLabel = el('span', {}, '\u2026');
+            var eurBubble = el('div', {className: 'tip-bubble'});
+            eurCell.appendChild(eurLabel);
+            eurCell.appendChild(eurBubble);
+            eurCell.addEventListener('click', function(e) {
+                if (!eurBubble.textContent) return;
+                e.stopPropagation();
+                toggleTip(eurCell, eurBubble);
+            });
+            row.appendChild(eurCell);
+            (function(label, bubble, cell, amount, timestamp) {
+                var txDate = new Date(timestamp * 1000).toISOString().split('T')[0];
+                volumeDone.then(function() {
+                    return getCrcPrice(timestamp);
+                }).then(function(price) {
+                    var crc = parseFloat(formatCrc(amount));
+                    var rateDate = (price && price.date) ? price.date : txDate;
+                    var source = price ? (price.source || 'unknown') : '';
+                    var sourceLabel = source === 'balancer_live' ? 'Balancer V3 live'
+                        : source === 'balancer_historic' ? 'Balancer V3 historic' : source;
+                    if (price && price.dcrc_eur > 0) {
+                        var eur = (crc * price.dcrc_eur).toFixed(2);
+                        label.textContent = '\u20AC' + eur;
+                        cell.style.color = 'var(--text)';
+                        bubble.textContent = '1 CRC = \u20AC' + price.dcrc_eur.toFixed(6) + '\n'
+                            + 'Rate date: ' + rateDate + '\n'
+                            + 'Source: ' + sourceLabel + ' + CoinGecko DAI/EUR';
+                    } else if (price && price.dcrc_xdai > 0) {
+                        var xdai = (crc * price.dcrc_xdai).toFixed(4);
+                        label.textContent = '~$' + xdai + ' xDAI';
+                        label.style.fontSize = '0.8rem';
+                        bubble.textContent = 'CoinGecko DAI/EUR unavailable \u2014 showing xDAI equivalent\n'
+                            + '1 CRC = $' + price.dcrc_xdai.toFixed(6) + ' xDAI\n'
+                            + 'Rate date: ' + rateDate + '\n'
+                            + 'Source: ' + sourceLabel;
+                    } else {
+                        label.textContent = '\u2014';
+                        bubble.textContent = 'Price data unavailable for ' + txDate;
+                    }
+                }).catch(function(err) {
+                    console.warn('EUR conversion failed for ' + txDate, err);
+                    label.textContent = '\u2014';
+                    bubble.textContent = 'Price conversion error';
+                });
+            })(eurLabel, eurBubble, eurCell, r[3], r[5]);
+
+            // Reference (decoded from hex)
+            var ref = hexToUtf8(r[4]);
+            var refCell = el('td', {style: 'font-family:monospace;font-size:0.8rem;'});
+            refCell.appendChild(document.createTextNode(ref.length > 20 ? ref.slice(0, 20) + '...' : ref));
+            var refCp = el('button', {className: 'copy-btn', title: 'Copy reference', onClick: (function(t) { return function() { copyText(t); }; })(ref)});
+            refCp.appendChild(el('i', {className: 'fas fa-copy'}));
+            refCell.appendChild(refCp);
+            row.appendChild(refCell);
+
+            // Tx link
+            var txCell = el('td');
+            txCell.appendChild(el('a', {
+                href: 'https://gnosisscan.io/tx/' + r[6],
+                target: '_blank', rel: 'noopener noreferrer',
+                className: 'seller-link',
+                style: 'font-size:0.8rem;'
+            }, truncAddr(r[6])));
+            row.appendChild(txCell);
+
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+
+        // Pagination
+        var totalPages = Math.ceil(allPayments.length / paymentsPageSize);
+        if (totalPages > 1) {
+            var pag = el('div', {className: 'pagination'});
+            pag.appendChild(el('button', {
+                className: 'btn btn-sm btn-outline',
+                disabled: paymentsPage <= 0 ? 'true' : undefined,
+                onClick: function() { paymentsPage--; renderPayments(); }
+            }, 'Prev'));
+            pag.appendChild(el('span', {}, 'Page ' + (paymentsPage + 1) + ' of ' + totalPages));
+            pag.appendChild(el('button', {
+                className: 'btn btn-sm btn-outline',
+                disabled: paymentsPage >= totalPages - 1 ? 'true' : undefined,
+                onClick: function() { paymentsPage++; renderPayments(); }
+            }, 'Next'));
+            container.appendChild(pag);
+        }
+    }
+
+    // ─── Cross-tab navigation helpers ────────────────────────────────
+    // Used by sellers table → payments, catalog → seller filter, etc.
+    function viewSellerPayments(addr) { filterPaymentsBySeller(addr); }
+
+
+    // ─── SIWE Auth ───────────────────────────────────────────────────
+    async function connectWallet() {
+        if (!window.ethereum) {
+            alert('Please install a Web3 wallet (e.g. MetaMask).');
+            return;
+        }
+        try {
+            await loadEthers();
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send('eth_requestAccounts', []);
+            signer = provider.getSigner();
+            var address = await signer.getAddress();
+            updateWalletStatus(address, false);
+            return address;
+        } catch (err) {
+            console.error('Wallet connect failed:', err);
+            throw err;
+        }
+    }
+
+    async function signIn() {
+        try {
+            var address = signer ? await signer.getAddress() : await connectWallet();
+
+            var challengeRes = await fetch(apiBase + '/api/auth/challenge', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({address: address, chainId: 100})
+            });
+            if (!challengeRes.ok) throw new Error('Challenge failed: ' + challengeRes.status);
+            var challenge = await challengeRes.json();
+
+            var signature = await signer.signMessage(challenge.message);
+
+            var verifyRes = await fetch(apiBase + '/api/auth/verify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({challengeId: challenge.challengeId, signature: signature})
+            });
+            if (!verifyRes.ok) throw new Error('Verification failed: ' + verifyRes.status);
+            var verifyData = await verifyRes.json();
+
+            authToken = verifyData.token;
+            authAddress = verifyData.address || address;
+            updateWalletStatus(authAddress, true);
+            renderOrdersTab();
+        } catch (err) {
+            console.error('Sign in failed:', err);
+            var oc = document.getElementById('ordersContent');
+            if (oc) showError(oc, 'Authentication failed: ' + err.message);
+        }
+    }
+
+    function updateWalletStatus(address, authed) {
+        document.getElementById('walletStatus').style.display = '';
+        document.getElementById('walletDot').classList.add('connected');
+        document.getElementById('walletText').textContent = truncAddr(address) + (authed ? ' (authed)' : '');
+    }
+
+    function authedFetch(url) {
+        return fetch(url, { headers: {'Authorization': 'Bearer ' + authToken} });
+    }
+
+    // ─── Orders tab ──────────────────────────────────────────────────
+    function renderOrdersTab() {
+        var container = clearEl('ordersContent');
+
+        if (!authToken) {
+            var panel = el('div', {className: 'auth-panel'});
+            panel.appendChild(el('h3', {}, 'Authentication Required'));
+            panel.appendChild(el('p', {}, 'Connect your wallet and sign in with Ethereum (SIWE) to view orders.'));
+            var steps = el('div', {className: 'auth-steps'});
+            var connectBtn = el('button', {className: 'btn btn-wallet', onClick: connectWallet});
+            connectBtn.appendChild(el('i', {className: 'fas fa-plug', style: 'margin-right:6px;'}));
+            connectBtn.appendChild(document.createTextNode('Connect Wallet'));
+            steps.appendChild(connectBtn);
+            var signBtn = el('button', {className: 'btn', onClick: signIn});
+            signBtn.appendChild(el('i', {className: 'fas fa-signature', style: 'margin-right:6px;'}));
+            signBtn.appendChild(document.createTextNode('Sign In'));
+            steps.appendChild(signBtn);
+            panel.appendChild(steps);
+            container.appendChild(panel);
+            return;
+        }
+
+        var subTabs = el('div', {className: 'sub-tabs'});
+        ['buyer', 'seller'].forEach(function(role) {
+            subTabs.appendChild(el('button', {
+                className: 'sub-tab' + (orderSubTab === role ? ' active' : ''),
+                onClick: function() { orderSubTab = role; orderPage = 1; renderOrdersTab(); }
+            }, 'As ' + role.charAt(0).toUpperCase() + role.slice(1)));
+        });
+        container.appendChild(subTabs);
+        container.appendChild(el('div', {id: 'ordersListContainer'}));
+        loadOrders();
+    }
+
+    async function loadOrders() {
+        var container = document.getElementById('ordersListContainer');
+        if (!container) return;
+        showLoading(container);
+
+        var endpoint = orderSubTab === 'buyer'
+            ? '/api/cart/v1/orders/by-buyer'
+            : '/api/cart/v1/orders/by-seller';
+
+        try {
+            var res = await authedFetch(apiBase + endpoint + '?page=' + orderPage + '&pageSize=20');
+            if (!res.ok) {
+                if (res.status === 401) { authToken = null; renderOrdersTab(); return; }
+                throw new Error('Orders API: ' + res.status);
+            }
+            var data = await res.json();
+            var orders = data.orders || data.items || data || [];
+            var total = data.total || data.totalCount || orders.length;
+            renderOrders(orders, total);
+        } catch (err) {
+            showError(container, 'Failed to load orders: ' + err.message);
+        }
+    }
+
+    function renderOrders(orders, total) {
+        var container = clearEl('ordersListContainer');
+        if (!orders.length) {
+            container.appendChild(el('div', {className: 'empty-state'}, 'No orders found.'));
+            return;
+        }
+
+        var table = el('table');
+        var thead = el('thead');
+        var hr = el('tr');
+        ['Order #', 'Status', 'Items', 'Payment Ref', 'Date'].forEach(function(h) { hr.appendChild(el('th', {}, h)); });
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        var tbody = el('tbody');
+        orders.forEach(function(order) {
+            var row = el('tr', {className: 'clickable-row'});
+            row.addEventListener('click', function() { viewOrderDetail(order.orderId || order.id); });
+            row.appendChild(el('td', {}, String(order.orderNumber || order.orderId || order.id || '')));
+
+            var statusTd = el('td');
+            statusTd.appendChild(el('span', {className: 'status-badge ' + (order.status || '').toLowerCase()}, order.status || 'unknown'));
+            row.appendChild(statusTd);
+
+            var itemCount = order.items ? order.items.length : (order.itemCount || '?');
+            row.appendChild(el('td', {}, String(itemCount) + ' item(s)'));
+            row.appendChild(el('td', {className: 'address-cell'}, order.paymentReference || 'N/A'));
+
+            var dateStr = order.createdAt || order.date || '';
+            if (dateStr) try { dateStr = new Date(dateStr).toLocaleDateString(); } catch(e) {}
+            row.appendChild(el('td', {}, dateStr));
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+
+        var totalPages = Math.ceil(total / 20) || 1;
+        if (totalPages > 1) {
+            var pag = el('div', {className: 'pagination'});
+            pag.appendChild(el('button', {
+                className: 'btn btn-sm btn-outline',
+                disabled: orderPage <= 1 ? 'true' : undefined,
+                onClick: function() { orderPage--; loadOrders(); }
+            }, 'Prev'));
+            pag.appendChild(el('span', {}, 'Page ' + orderPage + ' of ' + totalPages));
+            pag.appendChild(el('button', {
+                className: 'btn btn-sm btn-outline',
+                disabled: orderPage >= totalPages ? 'true' : undefined,
+                onClick: function() { orderPage++; loadOrders(); }
+            }, 'Next'));
+            container.appendChild(pag);
+        }
+        container.appendChild(el('div', {id: 'orderDetailContainer'}));
+    }
+
+    async function viewOrderDetail(orderId) {
+        var dc = document.getElementById('orderDetailContainer');
+        if (!dc) return;
+        dc.textContent = '';
+        showLoading(dc);
+
+        try {
+            var [orderRes, historyRes] = await Promise.allSettled([
+                authedFetch(apiBase + '/api/cart/v1/orders/' + orderId),
+                authedFetch(apiBase + '/api/cart/v1/orders/' + orderId + '/status-history')
+            ]);
+
+            dc.textContent = '';
+            var detail = el('div', {className: 'order-detail'});
+
+            if (orderRes.status === 'fulfilled' && orderRes.value.ok) {
+                var order = await orderRes.value.json();
+                detail.appendChild(el('h3', {}, 'Order #' + (order.orderNumber || order.orderId || orderId)));
+
+                [['Status', order.status], ['Order ID', order.orderId || order.id],
+                 ['Payment Reference', order.paymentReference],
+                 ['Created', order.createdAt ? new Date(order.createdAt).toLocaleString() : null],
+                 ['Updated', order.updatedAt ? new Date(order.updatedAt).toLocaleString() : null]
+                ].forEach(function(f) {
+                    if (!f[1]) return;
+                    var r = el('div', {className: 'detail-row'});
+                    r.appendChild(el('span', {className: 'label'}, f[0] + ':'));
+                    r.appendChild(el('span', {}, String(f[1])));
+                    detail.appendChild(r);
+                });
+
+                if (order.items && order.items.length) {
+                    detail.appendChild(el('h4', {style: 'margin-top:12px;margin-bottom:6px;'}, 'Items'));
+                    var it = el('table');
+                    var ith = el('thead'); var ithr = el('tr');
+                    ['Name', 'SKU', 'Qty', 'Price'].forEach(function(h) { ithr.appendChild(el('th', {}, h)); });
+                    ith.appendChild(ithr); it.appendChild(ith);
+                    var itb = el('tbody');
+                    order.items.forEach(function(item) {
+                        var r = el('tr');
+                        r.appendChild(el('td', {}, item.name || item.title || 'N/A'));
+                        r.appendChild(el('td', {}, item.sku || 'N/A'));
+                        r.appendChild(el('td', {}, String(item.quantity || item.qty || 1)));
+                        r.appendChild(el('td', {}, String(item.price != null ? item.price : 'N/A')));
+                        itb.appendChild(r);
+                    });
+                    it.appendChild(itb); detail.appendChild(it);
+                }
+            } else {
+                detail.appendChild(el('div', {className: 'error-msg'}, 'Failed to load order detail.'));
+            }
+
+            if (historyRes.status === 'fulfilled' && historyRes.value.ok) {
+                var hist = await historyRes.value.json();
+                var arr = hist.history || hist || [];
+                if (arr.length) {
+                    detail.appendChild(el('h4', {style: 'margin-top:16px;margin-bottom:6px;'}, 'Status History'));
+                    arr.forEach(function(h) {
+                        var r = el('div', {className: 'detail-row'});
+                        r.appendChild(el('span', {className: 'status-badge ' + (h.status || '').toLowerCase()}, h.status || ''));
+                        if (h.timestamp || h.createdAt)
+                            r.appendChild(el('span', {style: 'margin-left:8px;color:var(--text-muted);font-size:0.85rem;'},
+                                new Date(h.timestamp || h.createdAt).toLocaleString()));
+                        detail.appendChild(r);
+                    });
+                }
+            }
+            dc.appendChild(detail);
+        } catch (err) {
+            showError(dc, 'Failed to load order: ' + err.message);
+        }
+    }
+
+
+    // ─── Init (runs after all declarations) ──────────────────────────
+    window.addEventListener('pageshow', function(e) {
+        if (e.persisted && !catalogItems.length) loadSellersAndCatalog();
+    });
+
+    (function init() {
+        var params = new URLSearchParams(window.location.search);
+        var override = params.get('marketplaceApi') || params.get('api');
+        if (override) apiBase = override.replace(/\/+$/, '');
+
+        var sel = document.getElementById('endpointSelect');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === apiBase) { sel.selectedIndex = i; break; }
+        }
+        document.getElementById('apiUrlDisplay').textContent = apiBase;
+
+        sel.addEventListener('change', function() {
+            apiBase = this.value;
+            document.getElementById('apiUrlDisplay').textContent = apiBase;
+            authToken = null; authAddress = null; signer = null; provider = null;
+            document.getElementById('walletStatus').style.display = 'none';
+            document.getElementById('walletDot').classList.remove('connected');
+            document.getElementById('walletText').textContent = '';
+            catalogItems = []; catalogCursor = null; sellersList = []; sellerInfoCache = {};
+            loadSellersAndCatalog();
+
+        });
+
+        // Restore state from URL
+        var urlTab = params.get('tab');
+        var urlSeller = params.get('seller');
+        var urlPayee = params.get('payee');
+        var urlGateway = params.get('gateway');
+        if (urlSeller) catalogFilterSeller = urlSeller;
+        if (urlPayee) paymentFilterSeller = urlPayee;
+        if (urlGateway) paymentFilterGateway = urlGateway;
+
+        buildTabs();
+        loadSellersAndCatalog();
+
+        if (urlTab && urlTab !== 'catalog') {
+            setTimeout(function() { switchTab(urlTab); }, 100);
+        }
+    })();
+    </script>
+</body>
+</html>

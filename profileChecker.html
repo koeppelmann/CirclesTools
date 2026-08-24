@@ -150,6 +150,10 @@
                 background: #e5e3fb;
                 font-weight: 600;
                 border-bottom: 1px solid #eee;
+                user-select: none;
+            }
+            th[style*="cursor: pointer"]:hover {
+                background: #d5d3fb;
             }
             tr {
                 background: #fff;
@@ -200,6 +204,62 @@
             strong {
                 font-weight: 600;
             }
+            /* Token Balances Section */
+            .token-summary {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin: 20px 0 12px;
+            }
+            .token-summary-card {
+                background: #fff;
+                border: 1px solid #e5e3fb;
+                border-radius: 8px;
+                padding: 10px 14px;
+                min-width: 110px;
+            }
+            .token-summary-card .label {
+                font-size: 0.78rem;
+                color: #666;
+                margin-bottom: 2px;
+            }
+            .token-summary-card .value {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #191568;
+            }
+            .token-filters {
+                display: flex;
+                gap: 6px;
+                margin-bottom: 10px;
+                flex-wrap: wrap;
+            }
+            .token-filter-btn {
+                padding: 4px 12px;
+                border: 1px solid #e5e3fb;
+                border-radius: 16px;
+                background: transparent;
+                font-family: inherit;
+                font-size: 0.82rem;
+                cursor: pointer;
+                transition: all 0.2s;
+                color: #191568;
+            }
+            .token-filter-btn:hover { background: #f0eef9; }
+            .token-filter-btn.active { background: #191568; color: #fff; border-color: #191568; }
+            .type-badge {
+                display: inline-block;
+                font-size: 0.72rem;
+                padding: 1px 6px;
+                border-radius: 8px;
+                font-weight: 600;
+            }
+            .type-badge.human { background: #dcfce7; color: #166534; }
+            .type-badge.group { background: #e0e7ff; color: #3730a3; }
+            .type-badge.wrapped { background: #dbeafe; color: #1e40af; }
+            .type-badge.v1 { background: #f3f4f6; color: #374151; }
+            th.sortable { cursor: pointer; user-select: none; }
+            th.sortable:hover { background: #d5d2f5; }
             .loader {
                 border: 4px solid #f3f3f3;
                 border-top: 4px solid #191568;
@@ -236,11 +296,20 @@
             /********************************************************
              *  Contract ABIs and addresses
              ********************************************************/
-            // 1) Profile Checker Helper contract
+            // 1) Profile Checker Helper contract (V2 - with pagination + group treasury support)
             const helperABI = [
-                "function getAllDataForUser(address user) external view returns (tuple(bool isOrg, bool isHuman, uint256 totalSupply, bool stopped, uint256 lastTouched) v1Data, tuple(bool isHuman, bool isOrg, bool isGroup, uint256 crcAmount, uint256 ts1, uint256 ts2, uint256 totalSupply) v2Data, tuple(address trustedAddress, uint256 expiry, bool v1Org, bool v1Human, bool v2Human, bool v2Org, bool v2Group, uint256 v2TotalSupply, uint256 userHolds)[] trustedAddresses)"
+                "function getUserDataWithTrustPage(address user, address startMarker, uint256 pageSize) external view returns (tuple(bool isOrg, bool isHuman, uint256 totalSupply, bool stopped, uint256 lastTouched) v1Data, tuple(bool isHuman, bool isOrg, bool isGroup, uint256 crcAmount, uint256 ts1, uint256 ts2, uint256 totalSupply) v2Data, tuple(tuple(address trustedAddress, uint256 expiry, bool v1Org, bool v1Human, bool v2Human, bool v2Org, bool v2Group, uint256 v2TotalSupply, uint256 userHolds)[] entries, address nextMarker) trustPage)",
+                "function getUserDataWithTrustPageFor(address user, address balanceHolder, address startMarker, uint256 pageSize) external view returns (tuple(bool isOrg, bool isHuman, uint256 totalSupply, bool stopped, uint256 lastTouched) v1Data, tuple(bool isHuman, bool isOrg, bool isGroup, uint256 crcAmount, uint256 ts1, uint256 ts2, uint256 totalSupply) v2Data, tuple(tuple(address trustedAddress, uint256 expiry, bool v1Org, bool v1Human, bool v2Human, bool v2Org, bool v2Group, uint256 v2TotalSupply, uint256 userHolds)[] entries, address nextMarker) trustPage)",
+                "function getTrustedAddressesPage(address user, address startMarker, uint256 pageSize) external view returns (tuple(tuple(address trustedAddress, uint256 expiry, bool v1Org, bool v1Human, bool v2Human, bool v2Org, bool v2Group, uint256 v2TotalSupply, uint256 userHolds)[] entries, address nextMarker) page)",
+                "function getTrustedAddressesPageFor(address user, address balanceHolder, address startMarker, uint256 pageSize) external view returns (tuple(tuple(address trustedAddress, uint256 expiry, bool v1Org, bool v1Human, bool v2Human, bool v2Org, bool v2Group, uint256 v2TotalSupply, uint256 userHolds)[] entries, address nextMarker) page)"
             ];
-            const helperAddress = "0xD5934724C19f9DbEeBC263066D627872e55e63Aa";
+            const helperAddress = "0x6885E3e0B510715A86B40818b45fbF69d37204fd";
+
+            // 1b) Group info getter (to find treasury for groups)
+            const groupGetterABI = [
+                "function getGroupsInfo(address[] calldata groups) external view returns (tuple(address owner, address service, address feeCollection, address[] membershipConditions, address baseMintHandler, address baseMintPolicy, address baseTreasury, address hub, address staticERC20, address demurragedERC20, address nameRegistry, uint256 maxConditions, uint256 erc1155TotalSupply, uint256 staticERC20TotalSupply, uint256 demurragedERC20TotalSupply, uint256 balance)[] memory)"
+            ];
+            const groupGetterAddress = "0x3cd1c2be7ce9fc45b4c9a97ac9ef534fa85fc19d";
 
             // 2) Avatar ERC20 contract
             const avatarERC20ABI = [
@@ -248,12 +317,31 @@
             ];
             const avatarERC20Address = "0xeBe64dd348d1204391f6617f632cF99Af0b75561";
 
+            // 3) V1 Hub + migration contract (for V1 migration check)
+            const v1HubABI = [
+                "function userToToken(address) external view returns (address)",
+                "function organizations(address) external view returns (bool)"
+            ];
+            const v1HubAddress = "0x29b9a7fBb8995b2423a71cC17cf9810798F6C543";
+            const v2HubABI = [
+                "function isHuman(address) external view returns (bool)",
+                "function isOrganization(address) external view returns (bool)",
+                "function isGroup(address) external view returns (bool)"
+            ];
+            const v2HubAddress = "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8";
+            const v1TokenABI = ["function balanceOf(address) external view returns (uint256)"];
+            const migrationABI = ["function convertFromV1ToDemurrage(uint256) external view returns (uint256)"];
+            const migrationContractAddress = "0xD44B8dcFBaDfC78EA64c55B705BFc68199B56376";
+
             // Ethers.js provider (Gnosis chain)
             const provider = new ethers.providers.JsonRpcProvider("https://rpc.aboutcircles.com");
 
             // Contract instances
             const helperContract = new ethers.Contract(helperAddress, helperABI, provider);
             const avatarERC20Contract = new ethers.Contract(avatarERC20Address, avatarERC20ABI, provider);
+            const groupGetterContract = new ethers.Contract(groupGetterAddress, groupGetterABI, provider);
+            const v1HubContract = new ethers.Contract(v1HubAddress, v1HubABI, provider);
+            const v2HubContract = new ethers.Contract(v2HubAddress, v2HubABI, provider);
 
             // Elements
             const checkButton = document.getElementById("checkButton");
@@ -263,7 +351,7 @@
             /********************************************************
              *  Async Data Fetching Functions (Profile Name, Price, Pools)
              ********************************************************/
-            // --- getProfileName ---
+            // --- getProfileName (single) ---
              async function getProfileName(address) {
                  if (!address || address === ethers.constants.AddressZero) return "None";
                  try {
@@ -283,21 +371,77 @@
                  }
              }
 
-            // --- getPrice ---
-            async function getPrice(erc20Address) {
-                if (!erc20Address || erc20Address === ethers.constants.AddressZero) return "N/A";
+            // --- batchGetProfileNames: fetch names for many addresses with concurrency limit ---
+            // The Circles profile API only supports one address per request,
+            // so we use a worker pool pattern to parallelize with bounded concurrency.
+            async function batchGetProfileNames(addresses, concurrency = 15) {
+                const nameMap = {};
+                let idx = 0;
+                async function worker() {
+                    while (idx < addresses.length) {
+                        const i = idx++;
+                        const addr = addresses[i];
+                        try {
+                            const queryAddr = addr.toLowerCase();
+                            const resp = await fetch(`https://rpc.aboutcircles.com/profiles/search?address=${queryAddr}`);
+                            if (resp.ok) {
+                                const data = await resp.json();
+                                if (Array.isArray(data)) {
+                                    const profile = data.find(e => e.address.toLowerCase() === queryAddr);
+                                    if (profile?.name) nameMap[queryAddr] = profile.name;
+                                }
+                            }
+                        } catch {}
+                    }
+                }
+                const workers = [];
+                for (let w = 0; w < Math.min(concurrency, addresses.length); w++) {
+                    workers.push(worker());
+                }
+                await Promise.all(workers);
+                return nameMap;
+            }
+
+            // --- getPrice (in xDAI per CRC) ---
+            // Balancer pools only have liquidity for sCRC (inflationary/static tokens),
+            // so we first get the sCRC/xDAI price from Balancer, then convert to CRC price
+            // by dividing by the sCRC→CRC conversion factor from the V2 Hub.
+            // This factor changes daily as demurrage accrues (currently ~0.676, i.e. 1 sCRC ≈ 0.676 CRC).
+            let _cachedConvFactor = null;
+            async function getConvFactor() {
+                if (_cachedConvFactor) return _cachedConvFactor;
                 try {
-                    const query = `{ sorGetSwapPaths( chain: GNOSIS, swapAmount: "0.1", swapType: EXACT_IN, tokenIn: "${erc20Address}", tokenOut: "0xaf204776c7245bf4147c2612bf6e5972ee483701" ) { returnAmount } }`;
+                    const hubForConv = new ethers.Contract("0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8", [
+                        "function convertInflationaryToDemurrageValue(uint256, uint64) external view returns (uint256)",
+                        "function day(uint256) external view returns (uint64)"
+                    ], provider);
+                    const today = await hubForConv.day(Math.floor(Date.now() / 1000));
+                    const oneUnit = ethers.utils.parseUnits("1", 18);
+                    const crcAmount = await hubForConv.convertInflationaryToDemurrageValue(oneUnit, today);
+                    _cachedConvFactor = parseFloat(ethers.utils.formatUnits(crcAmount, 18));
+                } catch {
+                    _cachedConvFactor = 1;
+                }
+                return _cachedConvFactor;
+            }
+
+            async function getPrice(sCRCAddress) {
+                if (!sCRCAddress || sCRCAddress === ethers.constants.AddressZero) return "N/A";
+                try {
+                    const WXDAI = "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d";
+                    const query = `{ sorGetSwapPaths( chain: GNOSIS, swapAmount: "0.1", swapType: EXACT_IN, tokenIn: "${sCRCAddress}", tokenOut: "${WXDAI}" ) { returnAmount } }`;
                     const response = await fetch("https://api-v3.balancer.fi/graphql", {
                         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query })
                     });
                     const data = await response.json();
                     if (data.data?.sorGetSwapPaths?.returnAmount) {
-                        return (Number(data.data.sorGetSwapPaths.returnAmount) * 10).toFixed(6); // Price for 1 unit
+                        const sCRCPrice = Number(data.data.sorGetSwapPaths.returnAmount) * 10;
+                        const convFactor = await getConvFactor();
+                        return (sCRCPrice / convFactor).toFixed(6); // Price for 1 CRC in xDAI
                     }
                     return "N/A";
                 } catch (err) {
-                    console.warn("Error fetching price for", erc20Address, err);
+                    console.warn("Error fetching price for", sCRCAddress, err);
                     return "Error";
                 }
             }
@@ -357,8 +501,10 @@
             }
 
             function formatExpiry(expiry) {
+                const expiryBN = ethers.BigNumber.from(expiry);
+                if (expiryBN.eq(0)) return "N/A";
                 const indefiniteVal = ethers.BigNumber.from("79228162514264337593543950335");
-                if (ethers.BigNumber.from(expiry).eq(indefiniteVal)) return "indefinite";
+                if (expiryBN.eq(indefiniteVal)) return "indefinite";
                 const expiryNum = Number(expiry);
                 const date = new Date(expiryNum * 1000);
                 if (isNaN(date.getTime())) return "Invalid Date";
@@ -368,6 +514,21 @@
             function truncateAddress(address) {
                 if (!address) return '';
                 return address.slice(0, 6) + '...' + address.slice(-4);
+            }
+
+            function copyToClipboard(text) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
             }
 
             /********************************************************
@@ -390,32 +551,100 @@
                 resultDiv.appendChild(loader);
 
                 try {
-                    // 1) Get core data from helper contract
-                    const data = await helperContract.getAllDataForUser(inputAddress);
-                    const v1Data = data.v1Data;
-                    const v2Data = data.v2Data;
-                    const trustedAddressesData = data.trustedAddresses;
+                    // 1) Set up constants and detect if this is a group
+                    const SENTINEL = "0x0000000000000000000000000000000000000001";
+                    const PAGE_SIZE = 200;
+                    const indefiniteExpiry = ethers.BigNumber.from("79228162514264337593543950335");
 
-                    // 2) Get ERC20 tokens for all relevant addresses
-                    const addressesForErc20 = [inputAddress, ...trustedAddressesData.map(t => t.trustedAddress)];
-                    const erc20Array = await avatarERC20Contract.getAvatarsERC20(addressesForErc20);
+                    // First, get basic user data (small page) to determine if this is a group
+                    const initialData = await helperContract.getUserDataWithTrustPage(inputAddress, SENTINEL, 0);
+                    const isGroup = initialData.v2Data.isGroup;
+
+                    // If it's a group, look up the treasury address for correct balance queries
+                    let balanceHolder = inputAddress;
+                    if (isGroup) {
+                        loadingText.textContent = "Detected group, fetching treasury...";
+                        try {
+                            const [groupInfo] = await groupGetterContract.getGroupsInfo([inputAddress]);
+                            if (groupInfo.baseTreasury && groupInfo.baseTreasury !== ethers.constants.AddressZero) {
+                                balanceHolder = groupInfo.baseTreasury;
+                            }
+                        } catch (err) {
+                            console.warn("Could not fetch group treasury:", err);
+                        }
+                    }
+
+                    // Now fetch user data + first page of trust connections.
+                    // For groups, use the "For" variant which queries balanceOf(treasury, tokenId)
+                    // instead of balanceOf(group, tokenId), since group collateral sits in the treasury.
+                    const helperData = isGroup
+                        ? await helperContract.getUserDataWithTrustPageFor(inputAddress, balanceHolder, SENTINEL, PAGE_SIZE)
+                        : await helperContract.getUserDataWithTrustPage(inputAddress, SENTINEL, PAGE_SIZE);
+                    const v1Data = helperData.v1Data;
+                    const v2Data = helperData.v2Data;
+
+                    // 2) Walk the on-chain V2 trust linked list (paginated, no limit).
+                    //    The linked list contains both active and expired/untrusted entries.
+                    //    Untrusting does NOT remove entries; it sets expiry to the current time.
+                    loadingText.textContent = "Fetching trust connections...";
+                    const onChainTrusts = [...helperData.trustPage[0]];
+                    let nextMarker = helperData.trustPage.nextMarker;
+                    let pageNum = 1;
+                    while (nextMarker !== ethers.constants.AddressZero) {
+                        pageNum++;
+                        loadingText.textContent = `Fetching trust connections (page ${pageNum})...`;
+                        const page = isGroup
+                            ? await helperContract.getTrustedAddressesPageFor(inputAddress, balanceHolder, nextMarker, PAGE_SIZE)
+                            : await helperContract.getTrustedAddressesPage(inputAddress, nextMarker, PAGE_SIZE);
+                        onChainTrusts.push(...page[0]);
+                        nextMarker = page.nextMarker;
+                    }
+
+                    // 3) Build trust data from on-chain linked list only
+                    const trustedAddressesData = onChainTrusts.map(entry => ({
+                        trustedAddress: entry.trustedAddress,
+                        expiry: entry.expiry,
+                        trustLimit: -1, // on-chain, use expiry to determine active
+                        v1Org: entry.v1Org, v1Human: entry.v1Human,
+                        v2Human: entry.v2Human, v2Org: entry.v2Org, v2Group: entry.v2Group,
+                        v2TotalSupply: entry.v2TotalSupply,
+                        userHolds: entry.userHolds,
+                    }));
+
+                    // 4) Get ERC20 tokens for the main user (skip per-row ERC20 for huge lists)
+                    loadingText.textContent = "Fetching ERC20 data...";
                     const erc20Map = {};
-                    addressesForErc20.forEach((addr, idx) => {
-                        erc20Map[addr.toLowerCase()] = erc20Array[idx];
-                    });
+                    const allAddrs = [inputAddress, ...trustedAddressesData.map(t => t.trustedAddress)];
+                    const ERC20_CHUNK = 200;
+                    for (let i = 0; i < allAddrs.length; i += ERC20_CHUNK) {
+                        const chunk = allAddrs.slice(i, i + ERC20_CHUNK);
+                        try {
+                            const erc20Array = await avatarERC20Contract.getAvatarsERC20(chunk);
+                            chunk.forEach((addr, idx) => {
+                                erc20Map[addr.toLowerCase()] = erc20Array[idx];
+                            });
+                        } catch (err) {
+                            console.warn("ERC20 batch failed for chunk at offset", i, err);
+                        }
+                    }
 
-                    // 3) Remove loader
+                    // 5) Remove loader
                     resultDiv.innerHTML = "";
 
-                    // 4) Display main user summary
-                    const mainERC20 = erc20Map[inputAddress.toLowerCase()]?.demurragedERC20;
+                    // 6) Display main user summary
+                    // Note: avatarERC20 returns (staticERC20, demurragedERC20) but the names
+                    // are misleading: staticERC20 is actually the demurraged CRC token,
+                    // and demurragedERC20 is actually the static/inflationary sCRC token.
+                    const mainSCRC = erc20Map[inputAddress.toLowerCase()]?.demurragedERC20; // sCRC (inflationary/static)
                     let summaryHtml = '';
-                    summaryHtml += `<div class="info"><strong>Address:</strong> <span id="main-user-name">Loading...</span></div>`;
-                    summaryHtml += `<div class="info"><strong>Price:</strong> <span id="main-user-price">Loading...</span></div>`;
+                    summaryHtml += `<div id="topSection" class="info" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><strong>Address:</strong> <span id="main-user-name">Loading...</span><span style="margin-left:auto;display:flex;gap:8px;font-size:0.85rem;"><a href="profileHistory.html?address=${inputAddress}" style="color:#191568;">CID History &rarr;</a><a href="#trustSection" style="color:#191568;">Trust &darr;</a><a href="#tokenBalancesSection" style="color:#191568;">Balances &darr;</a></span></div>`;
+                    summaryHtml += `<div class="info"><strong>Price:</strong> $<span id="main-user-price">...</span> / CRC</div>`;
                     // V1 Info
                     summaryHtml += `<div class="info"><strong>[V1] Status:</strong> ${v1Data.isHuman ? 'human' : (v1Data.isOrg ? 'org' : 'none')}</div>`;
                     if (v1Data.isHuman) {
-                        summaryHtml += `<div class="info"><strong>[V1] Total Supply:</strong> ${ethers.utils.formatUnits(v1Data.totalSupply, 18)}</div>`;
+                        const v1SupplyExact = ethers.utils.formatUnits(v1Data.totalSupply, 18);
+                        const v1SupplyFmt = Number(v1SupplyExact).toLocaleString(undefined, {maximumFractionDigits: 2});
+                        summaryHtml += `<div class="info"><strong>[V1] Total Supply:</strong> ${v1SupplyFmt} <button class="icon-btn" title="Copy exact value" onclick="copyToClipboard('${v1SupplyExact}')"><svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg></button> <span id="v1-migration" style="color: #666;"></span></div>`;
                         summaryHtml += `<div class="info"><strong>[V1] Stopped:</strong> ${v1Data.stopped}</div>`;
                         const lastMintV1 = v1Data.lastTouched.eq(0) ? "N/A" : new Date(v1Data.lastTouched.toNumber() * 1000).toLocaleString();
                         summaryHtml += `<div class="info"><strong>[V1] Last Mint:</strong> ${lastMintV1}</div>`;
@@ -423,53 +652,236 @@
                     // V2 Info
                     summaryHtml += `<div class="info"><strong>[V2] Status:</strong> ${v2Data.isHuman ? 'human' : (v2Data.isOrg ? 'org' : (v2Data.isGroup ? 'group' : 'none'))}</div>`;
                     if (v2Data.isHuman || v2Data.isGroup) { // Assuming groups might have CRC too
-                        summaryHtml += `<div class="info"><strong>[V2] CRC Amount:</strong> ${ethers.utils.formatUnits(v2Data.crcAmount, 18)}</div>`;
+                        summaryHtml += `<div class="info"><strong>[V2] CRC Amount:</strong> ${Number(ethers.utils.formatUnits(v2Data.crcAmount, 18)).toLocaleString(undefined, {maximumFractionDigits: 2})}</div>`;
                         const lastMintV2 = v2Data.ts1.eq(0) ? "N/A" : relativeTimeSince(v2Data.ts1.toNumber());
                         summaryHtml += `<div class="info"><strong>[V2] Last Mint:</strong> ${lastMintV2}</div>`;
-                        summaryHtml += `<div class="info"><strong>[V2] Total Supply:</strong> ${ethers.utils.formatUnits(v2Data.totalSupply, 18)}</div>`;
+                        summaryHtml += `<div class="info"><strong>[V2] Total Supply:</strong> ${Number(ethers.utils.formatUnits(v2Data.totalSupply, 18)).toLocaleString(undefined, {maximumFractionDigits: 2})}</div>`;
                     }
-                    summaryHtml += `<div class="info"><strong>ERC20 (static):</strong> ${mainERC20 && mainERC20 !== ethers.constants.AddressZero ? mainERC20 : 'N/A'}</div>`;
-                    
-                    // Filter out expired trusts for the count
-                    const indefiniteValBN = ethers.BigNumber.from("79228162514264337593543950335");
-                    const nowMs = Date.now();
+                    if (mainSCRC && mainSCRC !== ethers.constants.AddressZero) {
+                        summaryHtml += `<div class="info"><strong>ERC20 (sCRC):</strong> <a class="address-link" href="https://gnosisscan.io/token/${mainSCRC}" target="_blank" rel="noopener noreferrer">${mainSCRC}</a>`;
+                        summaryHtml += ` <a class="address-link" href="https://swap.cow.fi/#/100/swap/WXDAI/${mainSCRC}" target="_blank" rel="noopener noreferrer" title="Buy on CowSwap">🐄 Buy</a>`;
+                        summaryHtml += `</div>`;
+                    } else {
+                        summaryHtml += `<div class="info"><strong>ERC20 (sCRC):</strong> N/A</div>`;
+                    }
 
-                    const activeTrustedAddresses = trustedAddressesData.filter(trust => {
-                        const expiryBN = ethers.BigNumber.from(trust.expiry);
-                        if (expiryBN.eq(indefiniteValBN)) {
-                            return true; // Indefinite trusts are always active
+                    // Filter: active vs expired/untrusted
+                    // For on-chain entries (trustLimit == -1), use expiry to determine active
+                    // For indexer-only entries, use trustLimit
+                    const nowMs = Date.now();
+                    const activeTrustedAddresses = trustedAddressesData.filter(t => {
+                        if (t.trustLimit === -1) {
+                            // On-chain entry: check expiry
+                            const expiryBN = ethers.BigNumber.from(t.expiry);
+                            if (expiryBN.eq(indefiniteExpiry)) return true;
+                            if (expiryBN.eq(0)) return false;
+                            return Number(t.expiry) * 1000 >= nowMs;
                         }
-                        const expiryMs = Number(trust.expiry) * 1000;
-                        return expiryMs >= nowMs; // Active if expiry is in the future or now
+                        return t.trustLimit > 0;
                     });
 
-                    summaryHtml += `<div class="info"><strong>[V2] Trusted Connections Count:</strong> ${activeTrustedAddresses.length}</div>`;
+                    const totalInList = trustedAddressesData.length;
+                    const activeCount = activeTrustedAddresses.length;
+                    const expiredCount = totalInList - activeCount;
+                    summaryHtml += `<div class="info"><strong>Trust Connections (V2 linked list):</strong> ${activeCount} active of ${totalInList} total${expiredCount > 0 ? ` (${expiredCount} expired/untrusted)` : ''}</div>`;
+                    if (isGroup && balanceHolder !== inputAddress) {
+                        summaryHtml += `<div class="info"><strong>Treasury:</strong> <a class="address-link" href="https://gnosisscan.io/address/${balanceHolder}" target="_blank" rel="noopener noreferrer">${balanceHolder}</a> (balances held here)</div>`;
+                    }
+
+                    // Compute totals for summary
+                    const fmtNum = (bn) => Number(ethers.utils.formatUnits(bn, 18)).toLocaleString(undefined, {maximumFractionDigits: 2});
+                    let totalV2Supply = ethers.BigNumber.from(0);
+                    let activeHolds = ethers.BigNumber.from(0);
+                    let expiredHolds = ethers.BigNumber.from(0);
+                    const activeSet = new Set(activeTrustedAddresses);
+                    for (const t of trustedAddressesData) {
+                        if (activeSet.has(t)) {
+                            totalV2Supply = totalV2Supply.add(t.v2TotalSupply);
+                            activeHolds = activeHolds.add(t.userHolds);
+                        } else {
+                            expiredHolds = expiredHolds.add(t.userHolds);
+                        }
+                    }
+                    const allHolds = activeHolds.add(expiredHolds);
+                    const holdsLabel = isGroup ? 'Treasury' : 'User';
+
+                    summaryHtml += `<div class="info"><strong>Total Receivable CRC:</strong> ${fmtNum(totalV2Supply)}</div>`;
+                    summaryHtml += `<div class="info"><strong>Total ${holdsLabel} Holds:</strong> ${fmtNum(allHolds)}</div>`;
+                    if (!expiredHolds.eq(0)) {
+                        const expiredPct = allHolds.gt(0) ? (Number(ethers.utils.formatUnits(expiredHolds, 18)) / Number(ethers.utils.formatUnits(allHolds, 18)) * 100).toFixed(1) : '0';
+                        summaryHtml += `<div class="info"><strong>Untrusted Holds:</strong> ${fmtNum(expiredHolds)} (${expiredPct}% of total holds)</div>`;
+                    }
+                    if (isGroup) {
+                        const groupSupply = v2Data.totalSupply;
+                        const diff = groupSupply.sub(allHolds);
+                        const diffSign = diff.isNegative() ? '' : '+';
+                        summaryHtml += `<div class="info"><strong>Group Total Supply:</strong> ${fmtNum(groupSupply)} <span style="color: #666;">(difference to treasury: ${diffSign}${fmtNum(diff)})</span></div>`;
+                    }
                     resultDiv.innerHTML = summaryHtml;
 
                     // Async update main user name and price
                     getProfileName(inputAddress).then(name => { document.getElementById('main-user-name').textContent = name; });
-                    getPrice(mainERC20).then(price => { document.getElementById('main-user-price').textContent = price; });
+                    getPrice(mainSCRC).then(price => {
+                        const el = document.getElementById('main-user-price');
+                        if (el) el.textContent = (price === 'N/A' || price === 'Error') ? price : Number(price).toFixed(4);
+                    });
 
-                    // 5) Display trusted addresses table
-                    if (activeTrustedAddresses.length > 0) {
+                    // Async V1 migration check
+                    if (v1Data.isHuman && !v1Data.totalSupply.eq(0)) {
+                        (async () => {
+                            try {
+                                const v1TokenAddr = await v1HubContract.userToToken(inputAddress);
+                                const v1Token = new ethers.Contract(v1TokenAddr, v1TokenABI, provider);
+                                const migrationContract = new ethers.Contract(migrationContractAddress, migrationABI, provider);
+                                const [migratedBal, convRate] = await Promise.all([
+                                    v1Token.balanceOf(migrationContractAddress),
+                                    migrationContract.convertFromV1ToDemurrage(ethers.utils.parseUnits("1", 18))
+                                ]);
+                                const migratedNum = parseFloat(ethers.utils.formatUnits(migratedBal, 18));
+                                const v2Equivalent = migratedNum * parseFloat(ethers.utils.formatUnits(convRate, 18));
+                                const el = document.getElementById('v1-migration');
+                                if (el) {
+                                    const migratedFmt = migratedNum.toLocaleString(undefined, {maximumFractionDigits: 2});
+                                    const v2Fmt = v2Equivalent.toLocaleString(undefined, {maximumFractionDigits: 2});
+                                    el.textContent = `(${migratedFmt} migrated to V2 = ${v2Fmt} CRC today)`;
+                                }
+                            } catch (err) {
+                                console.warn('V1 migration check failed:', err);
+                            }
+                        })();
+                    }
+
+                    // 8) Display trusted addresses table
+                    // For large lists (>100), skip per-row async calls (price, bot, balancer)
+                    const isLargeList = trustedAddressesData.length > 100;
+                    if (trustedAddressesData.length > 0) {
+                        const trustAnchor = document.createElement("div");
+                        trustAnchor.id = "trustSection";
+                        trustAnchor.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:16px;';
+                        const trustLabel = document.createElement("strong");
+                        trustLabel.textContent = "Trust Connections";
+                        trustLabel.style.fontSize = "1.1rem";
+                        trustAnchor.appendChild(trustLabel);
+                        const trustTopLink = document.createElement("a");
+                        trustTopLink.href = "#topSection";
+                        trustTopLink.style.cssText = "font-size:0.8rem;color:#191568;";
+                        trustTopLink.textContent = "\u2191 Top";
+                        trustAnchor.appendChild(trustTopLink);
+                        const trustTokenLink = document.createElement("a");
+                        trustTokenLink.href = "#tokenBalancesSection";
+                        trustTokenLink.style.cssText = "font-size:0.8rem;color:#191568;";
+                        trustTokenLink.textContent = "Token Balances \u2193";
+                        trustAnchor.appendChild(trustTokenLink);
+                        resultDiv.appendChild(trustAnchor);
                         const table = document.createElement("table");
                         const thead = document.createElement("thead");
                         const headerRow = document.createElement("tr");
-                        const headers = ['Trusted Address', 'Price', 'Expiry', 'V1 State', 'V2 State', 'V2 Supply', 'User Holds', 'Bot Status', 'ERC20 (static)'];
-                        headers.forEach(headerText => {
+                        const holdsHeader = isGroup ? 'Treasury Holds' : 'User Holds';
+                        const headers = isLargeList
+                            ? ['Trusted Address', 'Expiry', 'V1 State', 'V2 State', 'V2 Supply', holdsHeader, 'ERC20 (sCRC)']
+                            : ['Trusted Address', 'Price', 'Expiry', 'V1 State', 'V2 State', 'V2 Supply', holdsHeader, 'Bot Status', 'ERC20 (sCRC)'];
+                        const sortableColumns = ['V2 Supply', holdsHeader];
+                        const sortableThs = {};
+                        headers.forEach((headerText, colIdx) => {
                             const th = document.createElement("th");
                             th.textContent = headerText;
+                            if (sortableColumns.includes(headerText)) {
+                                th.style.cursor = 'pointer';
+                                th.title = 'Click to sort';
+                                th.dataset.colName = headerText;
+                                th.dataset.sortDir = 'none';
+                                th.innerHTML = headerText + ' <span style="opacity:0.4">\u21C5</span>';
+                                sortableThs[headerText] = th;
+                                th.addEventListener('click', () => {
+                                    const tbody = table.querySelector('tbody');
+                                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                                    const newDir = th.dataset.sortDir === 'desc' ? 'asc' : 'desc';
+                                    // Reset all sortable headers
+                                    for (const [name, sth] of Object.entries(sortableThs)) {
+                                        sth.innerHTML = name + ' <span style="opacity:0.4">\u21C5</span>';
+                                        sth.dataset.sortDir = 'none';
+                                    }
+                                    th.dataset.sortDir = newDir;
+                                    th.innerHTML = headerText + (newDir === 'desc' ? ' \u25BC' : ' \u25B2');
+                                    const sortKey = 'sort' + colIdx;
+                                    rows.sort((a, b) => {
+                                        const va = parseFloat(a.dataset[sortKey]) || 0;
+                                        const vb = parseFloat(b.dataset[sortKey]) || 0;
+                                        return newDir === 'desc' ? vb - va : va - vb;
+                                    });
+                                    rows.forEach(r => tbody.appendChild(r));
+                                });
+                            }
                             headerRow.appendChild(th);
                         });
                         thead.appendChild(headerRow);
                         table.appendChild(thead);
 
+                        // Filter controls
+                        const filterDiv = document.createElement("div");
+                        filterDiv.style.cssText = "margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.9rem;";
+                        const activeFilters = { status: 'all', v1: 'all', v2: 'all' };
+
+                        function createFilterGroup(label, key, options) {
+                            const group = document.createElement('span');
+                            group.innerHTML = `<strong>${label}:</strong> `;
+                            options.forEach(([value, text]) => {
+                                const btn = document.createElement('button');
+                                btn.textContent = text;
+                                btn.dataset.filterKey = key;
+                                btn.dataset.filterValue = value;
+                                btn.style.cssText = 'padding: 3px 10px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 0.85rem; background: ' + (value === 'all' ? '#191568; color: #fff;' : '#fff; color: #191568;');
+                                btn.addEventListener('click', () => {
+                                    activeFilters[key] = value;
+                                    group.querySelectorAll('button').forEach(b => {
+                                        b.style.background = b.dataset.filterValue === value ? '#191568' : '#fff';
+                                        b.style.color = b.dataset.filterValue === value ? '#fff' : '#191568';
+                                    });
+                                    applyFilters();
+                                });
+                                group.appendChild(btn);
+                                group.appendChild(document.createTextNode(' '));
+                            });
+                            return group;
+                        }
+
+                        filterDiv.appendChild(createFilterGroup('Status', 'status', [['all', 'All'], ['active', 'Active'], ['expired', 'Expired']]));
+                        filterDiv.appendChild(createFilterGroup('V1', 'v1', [['all', 'All'], ['human', 'Human'], ['org', 'Org'], ['none', 'None']]));
+                        filterDiv.appendChild(createFilterGroup('V2', 'v2', [['all', 'All'], ['human', 'Human'], ['org', 'Org'], ['group', 'Group'], ['none', 'None']]));
+                        resultDiv.appendChild(filterDiv);
+
+                        function applyFilters() {
+                            const rows = tbody.querySelectorAll('tr');
+                            let visible = 0;
+                            rows.forEach(row => {
+                                const st = row.dataset.status || '';
+                                const v1s = row.dataset.v1state || '';
+                                const v2s = row.dataset.v2state || '';
+                                const show = (activeFilters.status === 'all' || st === activeFilters.status)
+                                    && (activeFilters.v1 === 'all' || v1s === activeFilters.v1)
+                                    && (activeFilters.v2 === 'all' || v2s === activeFilters.v2);
+                                row.style.display = show ? '' : 'none';
+                                if (show) visible++;
+                            });
+                            filterCount.textContent = `${visible} / ${rows.length}`;
+                        }
+                        const filterCount = document.createElement('span');
+                        filterCount.style.cssText = 'margin-left: 8px; color: #666;';
+                        filterCount.textContent = `${trustedAddressesData.length} / ${trustedAddressesData.length}`;
+                        filterDiv.appendChild(filterCount);
+
                         const tbody = document.createElement("tbody");
-                        for (let i = 0; i < activeTrustedAddresses.length; i++) {
-                            const addrData = activeTrustedAddresses[i];
+                        const activeSetForTable = new Set(activeTrustedAddresses);
+                        for (let i = 0; i < trustedAddressesData.length; i++) {
+                            const addrData = trustedAddressesData[i];
+                            const isActive = activeSetForTable.has(addrData);
                             const row = document.createElement("tr");
+                            row.dataset.status = isActive ? 'active' : 'expired';
+                            if (!isActive) {
+                                row.style.opacity = '0.5';
+                            }
                             const trustedAddr = addrData.trustedAddress;
-                            const trustedErc20 = erc20Map[trustedAddr.toLowerCase()]?.demurragedERC20;
+                            const trustedErc20 = erc20Map[trustedAddr.toLowerCase()]?.demurragedERC20; // actual sCRC token
 
                             // Trusted Address Cell (Name + Address + Copy/Link)
                             const addressCell = document.createElement("td");
@@ -492,7 +904,7 @@
                             copyBtnAddr.title = 'Copy Address';
                             copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`;
                             copyBtnAddr.onclick = () => {
-                                navigator.clipboard.writeText(trustedAddr);
+                                copyToClipboard(trustedAddr);
                                 copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#191568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
                                 setTimeout(() => { copyBtnAddr.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`; }, 1500);
                             };
@@ -504,61 +916,79 @@
                             profileBtn.innerHTML = `<svg width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="6.5" r="3.5" stroke="#191568" stroke-width="1.5"/><path d="M2.5 15c0-2.485 2.91-4.5 6.5-4.5s6.5 2.015 6.5 4.5" stroke="#191568" stroke-width="1.5" stroke-linecap="round"/></svg>`;
                             profileBtn.onclick = (e) => {
                                 e.preventDefault();
-                                // Open self in new tab
                                 window.open(`profileChecker.html?address=${trustedAddr}`, '_blank');
                             };
                             addrMain.appendChild(profileBtn);
                             addrContainer.appendChild(addrMain);
-                            // Name Span (updated async)
+                            // Name Span (updated async - but throttled for large lists)
                             const nameSpan = document.createElement('span');
                             nameSpan.className = 'address-cell-name';
-                            nameSpan.textContent = 'Loading...';
+                            nameSpan.dataset.addr = trustedAddr.toLowerCase();
                             addrContainer.appendChild(nameSpan);
                             addressCell.appendChild(addrContainer);
                             row.appendChild(addressCell);
-                            // Async update name
-                            getProfileName(trustedAddr).then(name => { nameSpan.textContent = name; });
 
-                            // Price Cell (updated async)
-                            const priceCell = document.createElement("td");
-                            priceCell.textContent = 'Loading...';
-                            row.appendChild(priceCell);
-                            getPrice(trustedErc20).then(price => { priceCell.textContent = price; });
+                            // Compute state strings for display and filtering
+                            const v1State = addrData.v1Human ? 'human' : (addrData.v1Org ? 'org' : 'none');
+                            const v2State = addrData.v2Human ? 'human' : (addrData.v2Org ? 'org' : (addrData.v2Group ? 'group' : 'none'));
+                            row.dataset.v1state = v1State;
+                            row.dataset.v2state = v2State;
 
-                            // Expiry (use expiry from next row, or N/A for last row)
-                            let expiryValue;
-                            if (i < activeTrustedAddresses.length - 1) {
-                                expiryValue = activeTrustedAddresses[i + 1].expiry;
-                            } else {
-                                expiryValue = 0; // Last row gets N/A
+                            // Price Cell (only for small lists - Balancer API rate limits)
+                            if (!isLargeList) {
+                                const priceCell = document.createElement("td");
+                                priceCell.textContent = 'Loading...';
+                                row.appendChild(priceCell);
+                                getPrice(trustedErc20).then(price => { priceCell.textContent = price; });
                             }
-                            row.appendChild(document.createElement("td")).textContent = expiryValue === 0 ? 'N/A' : formatExpiry(expiryValue);
+
+                            // Expiry
+                            row.appendChild(document.createElement("td")).textContent = formatExpiry(addrData.expiry);
                             // V1 State
-                            row.appendChild(document.createElement("td")).textContent = addrData.v1Human ? 'human' : (addrData.v1Org ? 'org' : 'none');
+                            row.appendChild(document.createElement("td")).textContent = v1State;
                             // V2 State
-                            row.appendChild(document.createElement("td")).textContent = addrData.v2Human ? 'human' : (addrData.v2Org ? 'org' : (addrData.v2Group ? 'group' : 'none'));
+                            row.appendChild(document.createElement("td")).textContent = v2State;
                             // V2 Total Supply
-                            row.appendChild(document.createElement("td")).textContent = addrData.v2TotalSupply.eq(0) ? '-' : ethers.utils.formatUnits(addrData.v2TotalSupply, 18);
-                            // User Holds
-                            row.appendChild(document.createElement("td")).textContent = ethers.utils.formatUnits(addrData.userHolds, 18);
+                            const supplyVal = parseFloat(ethers.utils.formatUnits(addrData.v2TotalSupply, 18));
+                            const supplyIdx = headers.indexOf('V2 Supply');
+                            const supplyDisplay = addrData.v2TotalSupply.eq(0)
+                                ? (addrData.v2Human || addrData.v2Group ? '0 (never minted)' : '-')
+                                : supplyVal.toLocaleString(undefined, {maximumFractionDigits: 2});
+                            row.appendChild(document.createElement("td")).textContent = supplyDisplay;
+                            row.dataset['sort' + supplyIdx] = supplyVal;
+                            // User/Treasury Holds
+                            const holdsVal = parseFloat(ethers.utils.formatUnits(addrData.userHolds, 18));
+                            const holdsIdx = headers.indexOf(holdsHeader);
+                            row.appendChild(document.createElement("td")).textContent = holdsVal.toLocaleString(undefined, {maximumFractionDigits: 2});
+                            row.dataset['sort' + holdsIdx] = holdsVal;
 
-                            // Bot Status Cell (updated async)
-                            const botCell = document.createElement("td");
-                            botCell.textContent = 'Loading...';
-                            row.appendChild(botCell);
-                            getBotClassification(trustedAddr).then(botData => {
-                                if (botData) {
-                                    if (botData.is_bot) {
-                                        botCell.innerHTML = `<span style="color: #cc0000;">Bot (${botData.category})</span>`;
+                            // Bot Status Cell (only for small lists)
+                            if (!isLargeList) {
+                                const botCell = document.createElement("td");
+                                botCell.textContent = 'Loading...';
+                                row.appendChild(botCell);
+                                getBotClassification(trustedAddr).then(botData => {
+                                    if (botData) {
+                                        if (botData.is_bot) {
+                                            const s = document.createElement('span');
+                                            s.style.color = '#cc0000';
+                                            s.textContent = 'Bot (' + (botData.category || 'unknown') + ')';
+                                            botCell.textContent = '';
+                                            botCell.appendChild(s);
+                                        } else {
+                                            const s = document.createElement('span');
+                                            s.style.color = '#006600';
+                                            s.textContent = 'Human';
+                                            botCell.textContent = '';
+                                            botCell.appendChild(s);
+                                        }
                                     } else {
-                                        botCell.innerHTML = `<span style="color: #006600;">Human</span>`;
+                                        botCell.textContent = 'Unknown';
                                     }
-                                } else {
-                                    botCell.textContent = 'Unknown';
-                                }
-                            });
+                                });
+                            }
 
-                            // ERC20 (static) Cell (Address + Copy/CowSwap/Balancer)
+                            // ERC20 (static) Cell
                             const erc20Cell = document.createElement("td");
                             if (trustedErc20 && trustedErc20 !== ethers.constants.AddressZero) {
                                 const erc20Container = document.createElement('div');
@@ -573,7 +1003,7 @@
                                 copyBtnErc20.title = 'Copy Address';
                                 copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`;
                                 copyBtnErc20.onclick = () => {
-                                    navigator.clipboard.writeText(trustedErc20);
+                                    copyToClipboard(trustedErc20);
                                     copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="#191568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
                                     setTimeout(() => { copyBtnErc20.innerHTML = `<svg width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="10" height="10" rx="2" stroke="#191568" stroke-width="1.5"/><rect x="6" y="6" width="7" height="7" rx="1.5" stroke="#191568" stroke-width="1.5"/></svg>`; }, 1500);
                                 };
@@ -588,20 +1018,6 @@
                                     window.open(`https://swap.cow.fi/#/100/swap/WXDAI/${trustedErc20}`, '_blank');
                                 };
                                 erc20Container.appendChild(cowBtn);
-                                // Balancer pool buttons (append async)
-                                getPoolsForToken(trustedErc20).then(pools => {
-                                    pools.forEach(pool => {
-                                        const balancerBtn = document.createElement('button');
-                                        balancerBtn.className = 'icon-btn';
-                                        balancerBtn.title = 'View on Balancer';
-                                        balancerBtn.innerHTML = `<svg width='22' height='22' viewBox='0 0 512 512' fill='none' xmlns='http://www.w3.org/2000/svg'><rect x='2' y='2' width='508' height='508' rx='254' fill='#004293'/><path d='M375.644 126.065C375.644 148.144 322.077 166.043 255.999 166.043C189.921 166.043 136.355 148.144 136.355 126.065C136.355 103.985 189.921 86.0862 255.999 86.0862C322.077 86.0862 375.644 103.985 375.644 126.065Z' fill='white'/><path d='M455.407 343.283C455.407 316.07 406.59 292.669 336.623 282.322L334.811 282.69C311.212 287.346 284.413 289.978 256 289.978C226.856 289.978 199.409 287.208 175.376 282.322C105.409 292.669 56.5918 316.07 56.5918 343.283C56.5918 380.082 145.869 409.914 256 409.914C366.13 409.914 455.407 380.082 455.407 343.283Z' fill='white'/><path d='M415.526 223.347C415.526 199.799 369.838 179.82 306.468 172.762L304.833 173.026C289.752 175.398 273.267 176.704 256 176.704C238.105 176.704 221.053 175.302 205.531 172.764C142.161 179.819 96.4734 199.801 96.4734 223.347C96.4734 252.786 167.895 276.652 256 276.652C344.104 276.652 415.526 252.786 415.526 223.347Z' fill='white'/><rect x='2' y='2' width='508' height='508' rx='254' stroke='#E5E7EB' stroke-width='4'/></svg>`;
-                                        balancerBtn.onclick = (e) => {
-                                            e.preventDefault();
-                                            window.open(`https://balancer.fi/pools/gnosis/v2/${pool.id}`, '_blank');
-                                        };
-                                        erc20Container.appendChild(balancerBtn);
-                                    });
-                                }).catch(err => console.warn('Error appending pools for', trustedErc20, err));
 
                                 erc20Cell.appendChild(erc20Container);
                             } else {
@@ -613,11 +1029,272 @@
                         }
                         table.appendChild(tbody);
                         resultDiv.appendChild(table);
+
+                        // (totals already shown in summary at top)
+
+                        // Batch-fetch all profile names and update name spans
+                        const allAddrsForNames = trustedAddressesData.map(t => t.trustedAddress);
+                        batchGetProfileNames(allAddrsForNames).then(nameMap => {
+                            const nameSpans = tbody.querySelectorAll('.address-cell-name');
+                            nameSpans.forEach(span => {
+                                const addr = span.dataset.addr;
+                                if (addr && nameMap[addr]) {
+                                    span.textContent = nameMap[addr];
+                                }
+                            });
+                        });
                     }
+
+                    // ─── Token Balances Section ──────────────────────
+                    fetchTokenBalances(inputAddress, resultDiv);
 
                 } catch (error) {
                     console.error("Error in checkAddress:", error);
                     resultDiv.innerHTML = `<p style='color:red;'>Error: ${error.message || 'Failed to fetch data.'}</p>`;
+                }
+            }
+
+            /********************************************************
+             *  Token Balances (via circles_getTokenBalances RPC)
+             ********************************************************/
+            function classifyToken(t) {
+                if ((t.tokenType || '').startsWith('CrcV1')) return 'v1';
+                if (t.isWrapped) return 'wrapped';
+                if (t.isGroup) return 'group';
+                return 'personal';
+            }
+
+            function typeBadgeEl(t) {
+                const cls = classifyToken(t);
+                const labels = { personal: 'human', group: 'group', wrapped: t.isInflationary ? 'wrapped-infl' : 'wrapped-dem', v1: 'v1' };
+                const cssCls = cls === 'personal' ? 'human' : cls;
+                const span = document.createElement('span');
+                span.className = 'type-badge ' + cssCls;
+                span.textContent = labels[cls] || cls;
+                return span;
+            }
+
+            function fmtBal(n) {
+                if (n == null || isNaN(n)) return '0';
+                return Number(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+
+            function mkSummaryCard(label, value) {
+                const card = document.createElement('div');
+                card.className = 'token-summary-card';
+                const lbl = document.createElement('div');
+                lbl.className = 'label';
+                lbl.textContent = label;
+                const val = document.createElement('div');
+                val.className = 'value';
+                val.textContent = value;
+                card.appendChild(lbl);
+                card.appendChild(val);
+                return card;
+            }
+
+            async function fetchTokenBalances(address, container) {
+                const section = document.createElement('div');
+                section.id = 'tokenBalancesSection';
+                const heading = document.createElement('h3');
+                heading.style.cssText = 'margin-top:24px;font-size:1.1rem;';
+                heading.textContent = 'Token Balances ';
+                const trustLink2 = document.createElement('a');
+                trustLink2.href = '#trustSection';
+                trustLink2.style.cssText = 'font-size:0.8rem;color:#191568;margin-left:8px;font-weight:400;';
+                trustLink2.textContent = 'Trust \u2191';
+                heading.appendChild(trustLink2);
+                const topLink = document.createElement('a');
+                topLink.href = '#topSection';
+                topLink.style.cssText = 'font-size:0.8rem;color:#191568;margin-left:8px;font-weight:400;';
+                topLink.textContent = 'Top \u2191';
+                heading.appendChild(topLink);
+                const spinner = document.createElement('span');
+                spinner.className = 'loader';
+                spinner.id = 'tokenLoader';
+                heading.appendChild(spinner);
+                section.appendChild(heading);
+                container.appendChild(section);
+
+                try {
+                    const res = await fetch('https://rpc.aboutcircles.com/', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({jsonrpc:'2.0', id:2, method:'circles_getTokenBalances', params:[address]})
+                    });
+                    const rpcData = await res.json();
+                    const tokens = rpcData.result || [];
+                    const loader = document.getElementById('tokenLoader');
+                    if (loader) loader.remove();
+
+                    if (!tokens.length) {
+                        const p = document.createElement('p');
+                        p.className = 'info';
+                        p.style.color = '#666';
+                        p.textContent = 'No token balances found.';
+                        section.appendChild(p);
+                        return;
+                    }
+
+                    // Summaries
+                    let totalCircles = 0, wrappedCircles = 0, unwrappedCircles = 0, groupCircles = 0, groupCount = 0, v1Circles = 0;
+                    tokens.forEach(t => {
+                        const bal = Number(t.circles) || 0;
+                        totalCircles += bal;
+                        if (t.isWrapped) wrappedCircles += bal;
+                        else if (!(t.tokenType || '').startsWith('CrcV1')) unwrappedCircles += bal;
+                        if (t.isGroup) { groupCircles += bal; groupCount++; }
+                        if ((t.tokenType || '').startsWith('CrcV1')) v1Circles += bal;
+                    });
+
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'token-summary';
+                    summaryDiv.appendChild(mkSummaryCard('Total Circles', fmtBal(totalCircles)));
+                    summaryDiv.appendChild(mkSummaryCard('Unwrapped', fmtBal(unwrappedCircles)));
+                    summaryDiv.appendChild(mkSummaryCard('Wrapped ERC20', fmtBal(wrappedCircles)));
+                    summaryDiv.appendChild(mkSummaryCard('Group Tokens', groupCount + ' (' + fmtBal(groupCircles) + ')'));
+                    summaryDiv.appendChild(mkSummaryCard('V1', fmtBal(v1Circles)));
+                    section.appendChild(summaryDiv);
+
+                    // Filter buttons
+                    const filterDiv = document.createElement('div');
+                    filterDiv.className = 'token-filters';
+                    let currentFilter = 'all';
+                    const filterNames = ['all', 'personal', 'group', 'wrapped', 'v1'];
+
+                    function renderFilters() {
+                        filterDiv.textContent = '';
+                        filterNames.forEach(f => {
+                            const btn = document.createElement('button');
+                            btn.className = 'token-filter-btn' + (currentFilter === f ? ' active' : '');
+                            btn.textContent = f.charAt(0).toUpperCase() + f.slice(1);
+                            btn.onclick = () => { currentFilter = f; renderFilters(); renderTokenTable(); };
+                            filterDiv.appendChild(btn);
+                        });
+                    }
+                    renderFilters();
+                    section.appendChild(filterDiv);
+
+                    const tableContainer = document.createElement('div');
+                    tableContainer.id = 'tokenTableContainer';
+                    section.appendChild(tableContainer);
+
+                    let sortCol = 'circles';
+                    let sortAsc = false;
+
+                    function renderTokenTable() {
+                        let filtered = currentFilter === 'all' ? tokens : tokens.filter(t => classifyToken(t) === currentFilter);
+                        filtered.sort((a, b) => {
+                            const va = sortCol === 'circles' ? (Number(a.circles)||0) : (Number(a.staticCircles)||0);
+                            const vb = sortCol === 'circles' ? (Number(b.circles)||0) : (Number(b.staticCircles)||0);
+                            return sortAsc ? va - vb : vb - va;
+                        });
+
+                        tableContainer.textContent = '';
+                        if (!filtered.length) {
+                            const p = document.createElement('p');
+                            p.className = 'info';
+                            p.style.color = '#666';
+                            p.textContent = 'No tokens match this filter.';
+                            tableContainer.appendChild(p);
+                            return;
+                        }
+
+                        const table = document.createElement('table');
+                        const thead = document.createElement('thead');
+                        const headerRow = document.createElement('tr');
+                        const cols = [
+                            {key:'owner', label:'Token Owner', sort:false},
+                            {key:'type', label:'Type', sort:false},
+                            {key:'circles', label:'Balance (Circles)', sort:true},
+                            {key:'static', label:'Balance (static)', sort:true},
+                            {key:'wrapped', label:'Wrapped', sort:false}
+                        ];
+                        cols.forEach(col => {
+                            const th = document.createElement('th');
+                            th.textContent = col.label + (col.sort && sortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '');
+                            if (col.sort) {
+                                th.className = 'sortable';
+                                th.onclick = () => {
+                                    if (sortCol === col.key) sortAsc = !sortAsc;
+                                    else { sortCol = col.key; sortAsc = false; }
+                                    renderTokenTable();
+                                };
+                            }
+                            headerRow.appendChild(th);
+                        });
+                        thead.appendChild(headerRow);
+                        table.appendChild(thead);
+
+                        const tbody = document.createElement('tbody');
+                        filtered.forEach(t => {
+                            const row = document.createElement('tr');
+
+                            // Owner
+                            const ownerCell = document.createElement('td');
+                            const ownerLink = document.createElement('a');
+                            ownerLink.href = 'profileChecker.html?address=' + t.tokenOwner;
+                            ownerLink.className = 'address-link';
+                            ownerLink.textContent = truncateAddress(t.tokenOwner);
+                            ownerLink.dataset.addr = t.tokenOwner;
+                            ownerCell.appendChild(ownerLink);
+                            row.appendChild(ownerCell);
+
+                            // Type
+                            const typeCell = document.createElement('td');
+                            typeCell.appendChild(typeBadgeEl(t));
+                            row.appendChild(typeCell);
+
+                            // Circles
+                            const crcCell = document.createElement('td');
+                            crcCell.textContent = fmtBal(t.circles);
+                            crcCell.style.fontWeight = '500';
+                            row.appendChild(crcCell);
+
+                            // Static
+                            const staticCell = document.createElement('td');
+                            staticCell.textContent = fmtBal(t.staticCircles);
+                            row.appendChild(staticCell);
+
+                            // Wrapped
+                            const wrappedCell = document.createElement('td');
+                            wrappedCell.textContent = t.isWrapped ? '✓' : '–';
+                            wrappedCell.style.textAlign = 'center';
+                            row.appendChild(wrappedCell);
+
+                            tbody.appendChild(row);
+                        });
+                        table.appendChild(tbody);
+                        tableContainer.appendChild(table);
+
+                        // Batch-fetch names for token owners
+                        const ownerAddrs = filtered.map(t => t.tokenOwner);
+                        batchGetProfileNames(ownerAddrs).then(nameMap => {
+                            tbody.querySelectorAll('a[data-addr]').forEach(link => {
+                                const addr = link.dataset.addr;
+                                if (addr && nameMap[addr] && nameMap[addr] !== 'No name') {
+                                    link.textContent = nameMap[addr];
+                                    link.title = addr;
+                                }
+                            });
+                        });
+
+                        const countLabel = document.createElement('p');
+                        countLabel.className = 'info';
+                        countLabel.style.color = '#666';
+                        countLabel.textContent = 'Showing ' + filtered.length + ' of ' + tokens.length + ' tokens';
+                        tableContainer.appendChild(countLabel);
+                    }
+                    renderTokenTable();
+                } catch (err) {
+                    console.error('Token balances failed:', err);
+                    const loader = document.getElementById('tokenLoader');
+                    if (loader) loader.remove();
+                    const p = document.createElement('p');
+                    p.className = 'info';
+                    p.style.color = 'red';
+                    p.textContent = 'Failed to load token balances: ' + err.message;
+                    section.appendChild(p);
                 }
             }
 

@@ -725,6 +725,19 @@
         .json-display .null { color: #569cd6; }
         .json-display .key { color: #9cdcfe; }
         .json-display .bracket { color: #ffd700; }
+        .hex-decode-badge {
+            display: inline;
+            cursor: pointer;
+            margin-left: 4px;
+            color: #569cd6;
+            opacity: 0.6;
+            font-size: 0.85em;
+        }
+        .hex-decode-badge:hover { opacity: 1; }
+        .hex-decoded {
+            color: #4ec9b0;
+            font-style: italic;
+        }
 
         .curl-display {
             font-family: 'SF Mono', Monaco, monospace;
@@ -1212,11 +1225,10 @@
             <div class="server-select">
                 <label>Server:</label>
                 <select id="serverSelect" onchange="onServerChange()">
-                    <option value="staging2">Staging2 (New)</option>
-                    <option value="staging">Staging</option>
                     <option value="prod">Production</option>
+                    <option value="staging">Staging</option>
                 </select>
-                <span class="server-url" id="serverUrl">staging.circlesubi.network</span>
+                <span class="server-url" id="serverUrl">rpc.aboutcircles.com</span>
             </div>
             <div class="server-status" id="serverStatus">
                 <span class="status-dot loading"></span>
@@ -1395,17 +1407,11 @@
     <script>
     // Server Configuration
     const SERVERS = {
-        staging2: {
-            name: 'Staging2 (New)',
-            rpc: 'https://staging.circlesubi.network/',
-            pathfinder: 'https://staging.circlesubi.network/',  // Also on root
-            chainRpc: 'https://rpc.gnosischain.com'
-        },
         staging: {
             name: 'Staging',
-            rpc: 'https://rpc.circlesubi.network/',
-            pathfinder: 'https://rpc.circlesubi.network/',
-            chainRpc: 'https://rpc.circlesubi.network/'
+            rpc: 'https://rpc.staging.aboutcircles.com/',
+            pathfinder: 'https://rpc.staging.aboutcircles.com/',
+            chainRpc: 'https://rpc.gnosischain.com'
         },
         prod: {
             name: 'Production',
@@ -1415,12 +1421,14 @@
         }
     };
 
-    let currentServer = 'staging2';
+    let currentServer = 'prod';
     let currentMethod = null;
     let lastResult = null;
     let lastRequest = null;
     let history = [];
     let batchQueue = [];
+    let tableCatalogByServer = {};
+    let tableCatalogLoadingByServer = {};
 
     // Method Registry - all RPC methods with their parameter schemas
     const METHODS = {
@@ -1443,7 +1451,7 @@
         },
         circles_getTokenBalances: {
             category: 'balance',
-            description: 'Get all token balances with full metadata for an address',
+            description: 'Get all token balances with full metadata. Response includes isWrapped, isGroup, isInflationary, tokenType flags for client-side filtering (wrapped vs unwrapped, group, v1).',
             params: [
                 { name: 'address', type: 'address', required: true, description: 'Address to get balances for' }
             ]
@@ -1478,14 +1486,14 @@
         },
         circles_getProfileByAddress: {
             category: 'avatar',
-            description: 'Get profile data for an avatar address',
+            description: 'Get profile data for an avatar address. May also return extended fields (omitted when unset): externalLinks.website, membershipCriteria.{minRepScore, membershipFee, additionalCriteria}, groupType, contactInfo.{email, website}.',
             params: [
                 { name: 'address', type: 'address', required: true, description: 'Avatar address' }
             ]
         },
         circles_getProfileByAddressBatch: {
             category: 'avatar',
-            description: 'Get profiles for multiple addresses',
+            description: 'Get profiles for multiple addresses. May also return extended fields per item (omitted when unset): externalLinks.website, membershipCriteria.{minRepScore, membershipFee, additionalCriteria}, groupType, contactInfo.{email, website}.',
             params: [
                 { name: 'addresses', type: 'address[]', required: true, description: 'Array of avatar addresses' }
             ]
@@ -1499,19 +1507,20 @@
         },
         circles_getProfileByCid: {
             category: 'avatar',
-            description: 'Retrieve a profile from IPFS by its CID',
+            description: 'Retrieve a profile from IPFS by its CID. May also return extended fields (omitted when unset): externalLinks.website, membershipCriteria.{minRepScore, membershipFee, additionalCriteria}, groupType, contactInfo.{email, website}.',
             params: [
                 { name: 'cid', type: 'string', required: true, description: 'CIDv0 string' }
             ]
         },
         circles_searchProfiles: {
             category: 'avatar',
-            description: 'Full-text search for profiles',
+            description: "Full-text search for profiles. Each result item's Profile sub-object may also include the extended group-profile fields (flat shape, omitted when unset): externalWebsite, minRepScore, membershipFee, additionalCriteria, groupType, contactEmail, contactWebsite.",
             params: [
                 { name: 'text', type: 'string', required: true, description: 'Search query (max 3 tokens)' },
                 { name: 'limit', type: 'number', required: false, default: 20, description: 'Max results (max 100)' },
                 { name: 'offset', type: 'number', required: false, default: 0, description: 'Pagination offset' },
-                { name: 'types', type: 'string[]', required: false, description: 'Filter by avatar types' }
+                { name: 'types', type: 'string[]', required: false, description: 'Filter by avatar types' },
+                { name: 'groupType', type: 'string', required: false, description: "Filter by group type: 'open' or 'closed'" }
             ]
         },
         circles_searchProfileByAddressOrName: {
@@ -1549,8 +1558,8 @@
         },
         circles_findGroups: {
             category: 'trust',
-            description: 'Find groups with filters (staging2 only)',
-            serverNote: 'Only available on Staging2',
+            description: 'Find groups with filters (staging only)',
+            serverNote: 'Only available on Staging',
             params: [
                 { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results' },
                 { name: 'queryParams', type: 'object', required: false, description: 'Filter params (nameStartsWith, symbolStartsWith, ownerIn)' },
@@ -1573,6 +1582,53 @@
                 { name: 'memberAddress', type: 'address', required: true, description: 'Member address' },
                 { name: 'limit', type: 'number', required: false, default: 50, description: 'Max results' },
                 { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getAvatarCommunitiesWishlist: {
+            category: 'trust',
+            description: 'Communities: the groups an avatar has signalled on-chain intent to join (the wishlist), each with its membershipFee (percent of daily gCRC mint, or null), plus the summed totalFeePercentage.',
+            params: [
+                { name: 'avatar', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAvatarCommunities: {
+            category: 'trust',
+            description: 'Confirmed-membership subset of an avatar\'s community wishlist: only groups that currently trust the avatar on-chain (the bilateral handshake; reflects TMS delay). totalFeePercentage is summed over this subset.',
+            params: [
+                { name: 'avatar', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAvatarCommunityFeesPercentage: {
+            category: 'trust',
+            description: 'An avatar\'s total committed membership-fee percentage across its community wishlist. Used to block joins that would exceed the 100% cap.',
+            params: [
+                { name: 'avatar', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getCommunityMembersWishlist: {
+            category: 'trust',
+            description: 'Communities: the avatars that have signalled intent to join a community (the community\'s members wishlist). Paginated. This is the set the TMS reconciles trust against.',
+            params: [
+                { name: 'communityAddress', type: 'address', required: true, description: 'Community address' },
+                { name: 'limit', type: 'number', required: false, default: 100, description: 'Max results (1-1000)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getCommunityMembers: {
+            category: 'trust',
+            description: 'Confirmed-membership subset of a community\'s wishlist: only avatars the community actually trusts on-chain (reflects TMS delay). Paginated.',
+            params: [
+                { name: 'communityAddress', type: 'address', required: true, description: 'Community address' },
+                { name: 'limit', type: 'number', required: false, default: 100, description: 'Max results (1-1000)' },
+                { name: 'cursor', type: 'string', required: false, description: 'Pagination cursor' }
+            ]
+        },
+        circles_getScoreGroupMintLimits: {
+            category: 'trust',
+            description: 'Per-(group, collateral) headroom for score-group mints; optional collateralToken filter returns a single row',
+            params: [
+                { name: 'group', type: 'address', required: true, description: 'Score-group address' },
+                { name: 'collateralToken', type: 'address', required: false, description: 'Optional collateral token filter' }
             ]
         },
         circles_getNetworkSnapshot: {
@@ -1615,7 +1671,7 @@
         },
         circles_getTransferData: {
             category: 'tx',
-            description: 'Get transfer data (calldata bytes) for ERC-1155 transfers',
+            description: 'Get the data bytes parameter from ERC-1155 transfer calls',
             params: [
                 { name: 'address', type: 'address', required: true, description: 'Primary address to filter' },
                 { name: 'direction', type: 'string', required: false, description: '"sent", "received", or null (both)' },
@@ -1648,12 +1704,16 @@
                 'CrcV2_DepositInflationary', 'CrcV2_WithdrawInflationary',
                 'CrcV2_DepositDemurraged', 'CrcV2_WithdrawDemurraged',
                 'CrcV2_StreamCompleted', 'CrcV2_DiscountCost', 'CrcV2_GroupMint',
-                'CrcV2_FlowEdgesScopeSingleStarted', 'CrcV2_FlowEdgesScopeLastEnded'
+                'CrcV2_FlowEdgesScopeSingleStarted', 'CrcV2_FlowEdgesScopeLastEnded',
+                'CrcV2_ScoreGroup_GroupInitialized', 'CrcV2_ScoreGroup_MerkleRootUpdated',
+                'CrcV2_ScoreGroup_HistoricalSupply', 'CrcV2_ScoreGroup_PersonalMinted',
+                'CrcV2_ScoreGroup_RouterMinted',
+                'CrcV2_ScoreGroup_ScoreGroupInitialized', 'CrcV2_ScoreGroup_OptOutStatusChanged'
             ]
         },
         circles_query: {
             category: 'query',
-            description: 'Generic database query using structured DTOs',
+            description: 'Generic database query (returns bare rows array, backwards compatible)',
             params: [
                 { name: 'namespace', type: 'string', required: true, description: 'Database namespace' },
                 { name: 'table', type: 'string', required: true, description: 'Table name' },
@@ -1801,6 +1861,59 @@
                 { name: 'filter', type: 'object', required: true, description: 'Filter: {fromBlock, toBlock, address, topics[]}. Example: {"fromBlock":"latest","toBlock":"latest","address":"0x..."}' }
             ]
         },
+        circles_getProfileCidBatch: {
+            category: 'avatar',
+            description: 'Get IPFS CIDs for multiple avatar profiles (batch)',
+            params: [
+                { name: 'addresses', type: 'address[]', required: true, description: 'Array of avatar addresses' }
+            ]
+        },
+        circles_getProfileByCidBatch: {
+            category: 'avatar',
+            description: 'Get multiple profile contents by IPFS CIDs (batch). May also return extended fields per item (omitted when unset): externalLinks.website, membershipCriteria.{minRepScore, membershipFee, additionalCriteria}, groupType, contactInfo.{email, website}.',
+            params: [
+                { name: 'cids', type: 'string[]', required: true, description: 'Array of IPFS CIDs' }
+            ]
+        },
+        circles_getTrustInvitations: {
+            category: 'sdk',
+            description: 'Trust-based invitations (addresses that trust the target with sufficient balance)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' },
+                { name: 'minimumBalance', type: 'string', required: false, description: 'Minimum CRC balance required (in wei)' }
+            ]
+        },
+        circles_getEscrowInvitations: {
+            category: 'sdk',
+            description: 'Escrow-based invitations (CRC escrowed for the target address)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getAtScaleInvitations: {
+            category: 'sdk',
+            description: 'At-scale invitations (pre-created unclaimed accounts)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Avatar address' }
+            ]
+        },
+        circles_getInvitationsFrom: {
+            category: 'sdk',
+            description: 'Accounts invited by a specific avatar (accepted or pending)',
+            params: [
+                { name: 'address', type: 'address', required: true, description: 'Inviter avatar address' },
+                { name: 'accepted', type: 'boolean', required: false, default: false, description: 'true=registered accounts, false=pending invitations' }
+            ]
+        },
+        circles_paginated_query: {
+            category: 'query',
+            description: 'Paginated query returning {rows, hasMore, nextCursor} wrapper',
+            isQueryBuilder: true,
+            params: [
+                { name: 'query', type: 'object', required: true, description: 'SelectDto query definition' },
+                { name: 'cursor', type: 'string', required: false, description: 'Cursor from previous response for next page' }
+            ]
+        },
         circles_health: {
             category: 'system',
             description: 'Health check endpoint',
@@ -1813,17 +1926,34 @@
         balance: [
             { name: 'Get V2 Total Balance', method: 'circlesV2_getTotalBalance', params: { address: '' } },
             { name: 'Get V1 Total Balance', method: 'circles_getTotalBalance', params: { address: '' } },
-            { name: 'Get All Token Balances', method: 'circles_getTokenBalances', params: { address: '' } }
+            { name: 'Get All Token Balances', method: 'circles_getTokenBalances', params: { address: '' } },
+            { name: 'Token Balances (example address)', method: 'circles_getTokenBalances', params: { address: '0x42cEDde51198D1773590311E2A340DC06B24cB37' } }
         ],
         avatar: [
             { name: 'Get Avatar Info', method: 'circles_getAvatarInfo', params: { address: '' } },
             { name: 'Get Full Profile', method: 'circles_getProfileByAddress', params: { address: '' } },
-            { name: 'Search Profiles', method: 'circles_searchProfiles', params: { text: 'circles', limit: 20 } }
+            { name: 'Search Profiles', method: 'circles_searchProfiles', params: { text: 'circles', limit: 20 } },
+            { name: 'Search Open Groups', method: 'circles_searchProfiles', params: { text: 'group', groupType: 'open', limit: 20 } },
+            { name: 'Search Closed Groups', method: 'circles_searchProfiles', params: { text: 'group', groupType: 'closed', limit: 20 } }
         ],
         trust: [
             { name: 'Get Trust Relations', method: 'circles_getTrustRelations', params: { address: '' } },
             { name: 'Find All Groups', method: 'circles_findGroups', params: { limit: 50 } },
-            { name: 'Get Group Members', method: 'circles_getGroupMembers', params: { groupAddress: '' } }
+            { name: 'All Groups with Member Count', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'Groups', order: [{ Column: 'memberCount', SortOrder: 'DESC' }], limit: 50 } },
+            { name: 'Get Group Members', method: 'circles_getGroupMembers', params: { groupAddress: '' } },
+            { name: 'Score Group Mint Limits (all collateral)', method: 'circles_getScoreGroupMintLimits', params: { group: '' } },
+            { name: 'Score Group Mint Limits (single collateral)', method: 'circles_getScoreGroupMintLimits', params: { group: '', collateralToken: '' } },
+            { name: 'gCRC Affiliate Members (daily)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'AffiliateMembersCount_1d', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '0x93ed5a96347927ff6ff6b790f8cf5258240c321f' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'gCRC Affiliate Members (hourly)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'AffiliateMembersCount_1h', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '0x93ed5a96347927ff6ff6b790f8cf5258240c321f' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 48 } },
+            { name: 'Affiliate Members (any group, daily)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'AffiliateMembersCount_1d', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'Raw Affiliate Group Changes', method: 'circles_query', params: { namespace: 'CrcV2', table: 'AffiliateGroupChanged', filter: [{ Type: 'FilterPredicate', Column: 'newGroup', FilterType: 'Equals', Value: '0x93ed5a96347927ff6ff6b790f8cf5258240c321f' }], order: [{ Column: 'blockNumber', SortOrder: 'DESC' }], limit: 50 } },
+            { name: 'Group Collateral by Token', hint: 'Returns 0 rows if the group has not yet received any collateral deposits.', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupCollateralByToken', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], limit: 50 } },
+            { name: 'Group Mint/Redeem Activity (daily)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupMintRedeem_1d', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'Group Token Supply', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupTokenSupply', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], limit: 10 } },
+            { name: 'Group Collateral Diff by Token', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupCollateralDiffByToken', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 50 } },
+            { name: 'Vault Balances by Token (current)', hint: 'Filter by vault address (treasury contract). Returns 0 rows if no tokens are held. Use circles_getScoreGroupMintLimits for a summary view.', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupVaultBalancesByToken', filter: [{ Type: 'FilterPredicate', Column: 'vault', FilterType: 'Equals', Value: '' }], limit: 50 } },
+            { name: 'Balancer Vault Balance (daily)', hint: 'Filter by tokenAddress (ERC20). Returns 0 rows if the token has never been deposited into a Balancer vault.', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'Erc20BalancerVaultBalance_1d', filter: [{ Type: 'FilterPredicate', Column: 'tokenAddress', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'Receive Count (who can receive)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'ReceiveCount', order: [{ Column: 'receive_count', SortOrder: 'DESC' }], limit: 50 } }
         ],
         tx: [
             { name: 'Recent Transactions', method: 'circles_getTransactionHistory', params: { avatarAddress: '', limit: 20 } },
@@ -1832,9 +1962,24 @@
             { name: 'Transfer Data (pair)', method: 'circles_getTransferData', params: { address: '', counterparty: '', limit: 20 } }
         ],
         query: [
+            { name: 'Network Stats', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Stats', limit: 1 } },
             { name: 'Query Avatars Table', method: 'circles_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 50 } },
+            { name: 'Paginated Avatars Query', method: 'circles_paginated_query', params: { namespace: 'V_Crc', table: 'Avatars', limit: 10 } },
             { name: 'Recent V2 Transfers', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferSingle'] } },
             { name: 'TransferData Events', method: 'circles_events', params: { eventTypes: ['CrcV2_TransferData'] } },
+            { name: 'V2 Total Supply', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'TotalSupply', limit: 10 } },
+            { name: 'Group Wrap/Unwrap Activity (daily)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupWrapUnWrap_1d', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'Group Member Count Over Time (daily)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupMembersCount_1d', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 30 } },
+            { name: 'Group Token Holders & Balances', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupTokenHoldersBalance', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], limit: 50 } },
+            { name: 'Vault Balances by Token (hourly)', method: 'circles_query', params: { namespace: 'V_CrcV2', table: 'GroupVaultBalancesByToken_1h', filter: [{ Type: 'FilterPredicate', Column: 'group', FilterType: 'Equals', Value: '' }], order: [{ Column: 'timestamp', SortOrder: 'DESC' }], limit: 24 } },
+            { name: 'Score Group Initialized Events (policy)', method: 'circles_events', params: { eventTypes: ['CrcV2_ScoreGroup_GroupInitialized'] } },
+            { name: 'Score Group Contract Initialized Events', method: 'circles_events', params: { eventTypes: ['CrcV2_ScoreGroup_ScoreGroupInitialized'] } },
+            { name: 'Score Group OptOut Status Changes', method: 'circles_events', params: { eventTypes: ['CrcV2_ScoreGroup_OptOutStatusChanged'] } },
+            { name: 'Score Group Personal Mints', method: 'circles_events', params: { eventTypes: ['CrcV2_ScoreGroup_PersonalMinted'] } },
+            { name: 'Query Score Group Initialized (policy)', method: 'circles_query', params: { namespace: 'CrcV2_ScoreGroup', table: 'GroupInitialized', limit: 50 } },
+            { name: 'Query Score Group Contract Initialized', method: 'circles_query', params: { namespace: 'CrcV2_ScoreGroup', table: 'ScoreGroupInitialized', limit: 50 } },
+            { name: 'Query Score Group OptOut Changes', method: 'circles_query', params: { namespace: 'CrcV2_ScoreGroup', table: 'OptOutStatusChanged', limit: 50 } },
+            { name: 'Query Score Group Mint Limits', method: 'circles_query', params: { namespace: 'CrcV2_ScoreGroup', table: 'HistoricalSupply', limit: 50 } },
             { name: 'List All Tables', method: 'circles_tables', params: {} }
         ],
         sdk: [
@@ -2007,17 +2152,74 @@
         initSidebarResize();  // Setup sidebar collapse/resize
         loadHistory();
         loadLayoutPreference();  // This calls updateGridColumns()
-        // Set initial server URL display
-        var server = SERVERS[currentServer];
-        document.getElementById('serverUrl').textContent = server.rpc.replace('https://', '').replace(/\/$/, '');
-        checkServerStatus();
-
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 executeRequest();
             }
         });
+
+        // URL query parameter support: ?method=circlesV2_findPath&server=staging
+        var urlParams = new URLSearchParams(window.location.search);
+        var paramServer = urlParams.get('server');
+        if (paramServer && SERVERS[paramServer]) {
+            currentServer = paramServer;
+            document.getElementById('serverSelect').value = paramServer;
+        }
+        // Set server URL display and check status once (after param override)
+        var server = SERVERS[currentServer];
+        document.getElementById('serverUrl').textContent = server.rpc.replace('https://', '').replace(/\/$/, '');
+        checkServerStatus();
+        loadTableCatalog(true);
+        var paramMethod = urlParams.get('method');
+        if (paramMethod && METHODS[paramMethod]) {
+            // Find the sidebar item and select it
+            var sidebarItem = document.querySelector('.method-item[data-method="' + paramMethod + '"]');
+            if (sidebarItem) {
+                // Expand the category if collapsed
+                var categoryList = sidebarItem.closest('.category-list');
+                if (categoryList && categoryList.classList.contains('collapsed')) {
+                    var header = categoryList.previousElementSibling;
+                    if (header) {
+                        header.classList.remove('collapsed');
+                        categoryList.classList.remove('collapsed');
+                    }
+                }
+                selectMethod(paramMethod, sidebarItem);
+                sidebarItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+                // Pre-fill form fields from URL params (e.g. &address=0x...&direction=sent)
+                var config = METHODS[paramMethod];
+                if (config.params) {
+                    config.params.forEach(function(param) {
+                        var val = urlParams.get(param.name);
+                        if (val !== null) {
+                            var el = document.getElementById('param-' + param.name);
+                            if (el) {
+                                if (param.type === 'boolean') {
+                                    el.checked = val === 'true' || val === '1';
+                                } else {
+                                    el.value = val;
+                                }
+                                // Expand optional section if an optional param is pre-filled
+                                if (!param.required) {
+                                    var optContent = el.closest('.optional-content');
+                                    if (optContent && !optContent.classList.contains('visible')) {
+                                        var toggle = optContent.previousElementSibling;
+                                        if (toggle) toggleOptional(toggle);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Auto-execute if &run=1 is set
+                if (urlParams.get('run') === '1') {
+                    setTimeout(function() { executeRequest(); }, 300);
+                }
+            }
+        }
     });
 
     function initSidebar() {
@@ -2314,6 +2516,7 @@
         var server = SERVERS[currentServer];
         document.getElementById('serverUrl').textContent = server.rpc.replace('https://', '').replace(/\/$/, '');
         checkServerStatus();
+        loadTableCatalog(true);
     }
 
     async function checkServerStatus() {
@@ -2350,6 +2553,11 @@
         if (element) element.classList.add('active');
 
         currentMethod = methodName;
+        // Update URL without reloading so links can be shared
+        var newUrl = new URL(window.location);
+        newUrl.searchParams.set('method', methodName);
+        window.history.replaceState(null, '', newUrl);
+
         var config = METHODS[methodName];
 
         var builder = document.getElementById('builderCard');
@@ -2358,7 +2566,8 @@
 
         // Build header
         var presetOptions = (PRESETS[config.category] || []).map(function(p, i) {
-            return '<option value="' + i + '">' + escapeHtml(p.name) + '</option>';
+            var title = p.hint ? ' title="' + escapeHtml(p.hint) + '"' : '';
+            return '<option value="' + i + '"' + title + '>' + escapeHtml(p.name) + '</option>';
         }).join('');
 
         var serverNote = config.serverNote
@@ -2467,20 +2676,14 @@
     function buildQueryBuilderForm() {
         return '<div class="form-group"><label class="form-label">namespace <span class="required">*</span>' +
             '<span class="type-badge">string</span></label>' +
-            '<select class="form-input" id="param-namespace" onchange="updateTableOptions()">' +
-            '<option value="CrcV1">CrcV1</option><option value="CrcV2">CrcV2</option>' +
-            '<option value="V_Crc" selected>V_Crc</option><option value="V_CrcV1">V_CrcV1</option>' +
-            '<option value="V_CrcV2">V_CrcV2</option><option value="V_Safe">V_Safe</option>' +
-            '<option value="Safe">Safe</option><option value="CrcV2_InvitationEscrow">CrcV2_InvitationEscrow</option>' +
-            '<option value="CrcV2_InvitationsAtScale">CrcV2_InvitationsAtScale</option>' +
-            '<option value="CrcV2_PaymentGateway">CrcV2_PaymentGateway</option>' +
-            '<option value="CrcV2_TokenOffers">CrcV2_TokenOffers</option></select></div>' +
+            '<input class="form-input" id="param-namespace" list="namespace-options" value="V_Crc" onchange="updateTableOptions(true)" oninput="updateTableOptions(false)" placeholder="CrcV2_ScoreGroup">' +
+            '<datalist id="namespace-options">' + buildNamespaceOptionsHtml() + '</datalist>' +
+            '<div class="form-hint">Type any namespace from circles_tables, or pick a known namespace.</div></div>' +
             '<div class="form-group"><label class="form-label">table <span class="required">*</span>' +
             '<span class="type-badge">string</span></label>' +
-            '<select class="form-input" id="param-table">' +
-            '<option value="Avatars">Avatars</option><option value="Stats">Stats</option>' +
-            '<option value="Tokens">Tokens</option><option value="Transfers">Transfers</option>' +
-            '<option value="TransferSummary">TransferSummary</option><option value="TrustRelations">TrustRelations</option></select></div>' +
+            '<input class="form-input" id="param-table" list="table-options" value="Avatars" placeholder="GroupInitialized">' +
+            '<datalist id="table-options">' + buildTableOptionsHtml('V_Crc') + '</datalist>' +
+            '<div class="form-hint">Type any table in the selected namespace; suggestions are prefilled for common namespaces.</div></div>' +
             '<div class="form-group"><label class="form-label">limit <span class="type-badge">number</span></label>' +
             '<input type="number" class="form-input" id="param-limit" placeholder="50" value="50"></div>' +
 
@@ -2588,19 +2791,103 @@
         'CrcV2_InvitationsAtScale': ['AccountClaimed', 'AccountCreated', 'AdminSet', 'BotCreated', 'FarmGrown',
             'InvitationModuleUpdated', 'InviterQuotaUpdated', 'InvitesClaimed', 'MaintainerSet', 'RegisterHuman', 'SeederSet'],
         'CrcV2_PaymentGateway': ['GatewayCreated', 'PaymentReceived', 'TrustUpdated'],
+        'CrcV2_ScoreGroup': ['GroupInitialized', 'MerkleRootUpdated', 'HistoricalSupply', 'PersonalMinted', 'RouterMinted', 'ScoreGroupInitialized', 'OptOutStatusChanged'],
         'CrcV2_TokenOffers': ['AccountWeightProviderCreated', 'AccountWeightSet', 'CycleConfiguration',
             'ERC20TokenOfferCreated', 'ExactInputPathComputed', 'ExactInputResult', 'ExactOutputPathComputed',
             'ExactOutputResult', 'MultiTrustNetworkMint', 'OfferDeleted', 'OfferUpdated', 'TokenOfferCreated']
     };
 
-    function updateTableOptions() {
-        var namespace = document.getElementById('param-namespace').value;
-        var tableSelect = document.getElementById('param-table');
-        var tables = NAMESPACE_TABLES[namespace] || ['Avatars'];
+    function getNamespaceTables() {
+        return Object.assign({}, NAMESPACE_TABLES, tableCatalogByServer[currentServer] || {});
+    }
 
-        tableSelect.innerHTML = tables.map(function(t) {
-            return '<option value="' + t + '">' + t + '</option>';
+    function getTablesForNamespace(namespace) {
+        var tablesByNamespace = getNamespaceTables();
+        return tablesByNamespace[namespace] || ['Avatars'];
+    }
+
+    function buildNamespaceOptionsHtml() {
+        return Object.keys(getNamespaceTables()).sort().map(function(namespace) {
+            return '<option value="' + escapeHtml(namespace) + '">';
         }).join('');
+    }
+
+    function buildTableOptionsHtml(namespace) {
+        return getTablesForNamespace(namespace).map(function(table) {
+            return '<option value="' + escapeHtml(table) + '">';
+        }).join('');
+    }
+
+    function updateNamespaceOptions() {
+        var namespaceOptions = document.getElementById('namespace-options');
+        if (namespaceOptions) {
+            namespaceOptions.innerHTML = buildNamespaceOptionsHtml();
+        }
+    }
+
+    async function loadTableCatalog(force) {
+        var serverKey = currentServer;
+        if (!force && tableCatalogByServer[serverKey]) return;
+        if (tableCatalogLoadingByServer[serverKey]) return;
+
+        tableCatalogLoadingByServer[serverKey] = true;
+        var endpoint = SERVERS[serverKey].rpc;
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() {
+            controller.abort();
+        }, 8000);
+
+        try {
+            var response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'circles_tables', params: [] })
+            });
+            clearTimeout(timeoutId);
+            var data = await response.json();
+            var catalog = {};
+            (data.result || []).forEach(function(namespaceEntry) {
+                var namespace = namespaceEntry.namespace || namespaceEntry.Namespace;
+                var tables = namespaceEntry.tables || namespaceEntry.Tables || [];
+                if (!namespace) return;
+
+                catalog[namespace] = Array.from(new Set(tables
+                    .map(function(tableEntry) { return tableEntry.table || tableEntry.Table; })
+                    .filter(Boolean))).sort();
+            });
+            if (Object.keys(catalog).length > 0) {
+                tableCatalogByServer[serverKey] = catalog;
+                if (serverKey === currentServer) {
+                    updateNamespaceOptions();
+                    updateTableOptions(false);
+                }
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.warn('Timed out loading circles_tables catalog for server:', serverKey);
+            } else {
+                console.warn('Could not load circles_tables catalog for server:', serverKey, error);
+            }
+        } finally {
+            clearTimeout(timeoutId);
+            tableCatalogLoadingByServer[serverKey] = false;
+        }
+    }
+
+    function updateTableOptions(resetUnknownTable) {
+        var namespaceInput = document.getElementById('param-namespace');
+        var tableInput = document.getElementById('param-table');
+        var tableOptions = document.getElementById('table-options');
+        if (!namespaceInput || !tableInput || !tableOptions) return;
+
+        var namespace = namespaceInput.value;
+        var tables = getTablesForNamespace(namespace);
+
+        tableOptions.innerHTML = buildTableOptionsHtml(namespace);
+        if ((resetUnknownTable || !tableInput.value) && !tables.includes(tableInput.value)) {
+            tableInput.value = tables[0] || '';
+        }
     }
 
     function buildEventTypesSelector(eventTypes) {
@@ -3033,6 +3320,22 @@
                     return '<span class="' + cls + '">' + match;
                 } else {
                     cls = 'string';
+                    // Detect hex data (0x... or \\x... from PostgreSQL bytea) and offer UTF-8 decode
+                    var innerVal = match.slice(1, -1);
+                    var hexBody = null;
+                    if (/^0x[0-9a-fA-F]{4,}$/.test(innerVal)) {
+                        hexBody = innerVal.slice(2);
+                    } else if (/^\\\\x[0-9a-fA-F]{4,}$/.test(innerVal)) {
+                        hexBody = innerVal.slice(3);
+                    }
+                    if (hexBody) {
+                        var decoded = tryDecodeHexUtf8(hexBody);
+                        if (decoded) {
+                            return '<span class="' + cls + '">' + match + '</span>' +
+                                '<span class="hex-decode-badge" onclick="toggleHexDecode(this)" title="Decode hex as UTF-8"><i class="fas fa-language"></i></span>' +
+                                '<span class="hex-decoded" style="display:none;"> \u2192 "' + escapeHtml(decoded) + '"</span>';
+                        }
+                    }
                 }
             } else if (/true|false/.test(match)) {
                 cls = 'boolean';
@@ -3116,6 +3419,58 @@
         var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Decode CrcV2 transfer data: [version:1B][type:2B][length:2B][payload]
+    // Types: 0x0001=UTF-8 text, 0x0002=32B hex ID, 0x0003=IPFS CID, 0x1001=text+metadata, 0x0004=ABI calldata
+    function tryDecodeHexUtf8(hexBody) {
+        if (hexBody.length < 4 || hexBody.length % 2 !== 0) return null;
+        try {
+            var bytes = new Uint8Array(hexBody.length / 2);
+            for (var i = 0; i < hexBody.length; i += 2) {
+                bytes[i / 2] = parseInt(hexBody.substr(i, 2), 16);
+            }
+            // Try structured CrcV2 format: version=0x01, type, length, payload
+            if (bytes.length >= 5 && bytes[0] === 0x01) {
+                var type = (bytes[1] << 8) | bytes[2];
+                var len = (bytes[3] << 8) | bytes[4];
+                if (len > 0 && bytes.length === 5 + len) {
+                    var payload = bytes.slice(5, 5 + len);
+                    if (type === 0x0001) {
+                        return new TextDecoder('utf-8', { fatal: true }).decode(payload);
+                    }
+                    if (type === 0x1001) {
+                        // Text + metadata separated by 0x480a868a
+                        var sep = [0x48, 0x0a, 0x86, 0x8a];
+                        for (var s = 0; s <= payload.length - 4; s++) {
+                            if (payload[s] === sep[0] && payload[s+1] === sep[1] && payload[s+2] === sep[2] && payload[s+3] === sep[3]) {
+                                var msg = new TextDecoder('utf-8', { fatal: true }).decode(payload.slice(0, s));
+                                var meta = new TextDecoder('utf-8', { fatal: true }).decode(payload.slice(s + 4));
+                                return msg + (meta ? ' [meta: ' + meta + ']' : '');
+                            }
+                        }
+                    }
+                    if (type === 0x0002) return '[XMTP ID] 0x' + Array.from(payload).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+                    if (type === 0x0003) return '[IPFS CID] (' + len + ' bytes)';
+                    if (type === 0x0004) return '[ABI calldata] 0x' + Array.from(payload.slice(0, 4)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('') + '...';
+                }
+            }
+            // Fallback: raw UTF-8 decode with printable check
+            var text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            text = text.replace(/^[\x00-\x1f]+/, '').replace(/[\x00-\x1f]+$/, '');
+            if (text.length === 0) return null;
+            var printable = 0;
+            for (var j = 0; j < text.length; j++) {
+                var code = text.charCodeAt(j);
+                if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9 || code > 127) printable++;
+            }
+            return (printable / text.length >= 0.8) ? text : null;
+        } catch (e) { return null; }
+    }
+
+    function toggleHexDecode(el) {
+        var decoded = el.nextElementSibling;
+        decoded.style.display = decoded.style.display === 'none' ? 'inline' : 'none';
     }
 
     // Deep object diff - returns object with only different paths

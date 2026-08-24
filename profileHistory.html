@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile CID History</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+    var ethersLoaded = false;
+    function loadEthers() {
+        if (ethersLoaded) return Promise.resolve();
+        return new Promise(function(resolve, reject) {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+            s.onload = function() { ethersLoaded = true; resolve(); };
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+    </script>
+    <style>
+        :root {
+            --primary: #191568;
+            --accent: #ff491b;
+            --bg: #fff7f5;
+            --card-bg: #ffffff;
+            --border: #e5e3fb;
+            --text: #191568;
+            --text-muted: #666;
+            --success: #22c55e;
+            --error: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; }
+        body {
+            font-family: "DM Sans", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-weight: 600; font-size: 1.3rem; }
+        .header-links a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .header-links a:hover { color: #fff; }
+        .container {
+            max-width: 960px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .input-row input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        .input-row input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+        .btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #251b9f; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+        }
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+        .btn-outline:hover { background: var(--border); }
+        .btn-accent { background: var(--accent); }
+        .btn-accent:hover { background: #e0400f; }
+
+        .api-config {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .api-config code {
+            background: #f0eef9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        /* Current profile card */
+        .profile-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .profile-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+        .profile-info h2 { font-size: 1.15rem; margin-bottom: 4px; }
+        .profile-info .cid-line {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: monospace;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Timeline */
+        .timeline { position: relative; padding-left: 28px; margin-top: 16px; }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 8px;
+            bottom: 8px;
+            width: 2px;
+            background: var(--border);
+        }
+        .timeline-entry {
+            position: relative;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: -22px;
+            top: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            border: 2px solid var(--bg);
+        }
+        .timeline-entry:first-child .timeline-dot { background: var(--success); }
+        .timeline-entry.selected .timeline-dot { background: var(--accent); }
+
+        .timeline-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .timeline-entry:hover .timeline-card { border-color: var(--primary); }
+        .timeline-entry.selected .timeline-card {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255,73,27,0.15);
+        }
+        .timeline-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .timeline-cid {
+            font-family: monospace;
+            font-size: 0.82rem;
+            color: var(--text);
+            background: #f0eef9;
+            padding: 2px 8px;
+            border-radius: 3px;
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .timeline-cid:hover { color: var(--accent); }
+        .timeline-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .diff-select {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        /* Bottom inspect panel (fixed) */
+        .inspect-panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 280px;
+            min-height: 100px;
+            max-height: 70vh;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+            z-index: 50;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        }
+        .inspect-panel.visible { display: flex; }
+        .inspect-panel .resize-handle {
+            position: absolute;
+            left: 0; right: 0; top: 0;
+            height: 5px;
+            cursor: row-resize;
+            background: transparent;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+        .inspect-panel .resize-handle:hover,
+        .inspect-panel .resize-handle.dragging { background: var(--accent); }
+        .inspect-header {
+            padding: 8px 16px;
+            background: #f0eef9;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 8px;
+        }
+        .inspect-header .header-left {
+            display: flex; align-items: center; gap: 8px;
+            min-width: 0; overflow: hidden;
+        }
+        .inspect-header .header-left span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .inspect-header .header-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .inspect-close {
+            background: none; border: none; cursor: pointer;
+            font-size: 1.1rem; color: var(--text-muted);
+            padding: 4px 6px; border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .inspect-close:hover { background: #e5e3fb; color: var(--text); }
+        .inspect-body {
+            flex: 1;
+            overflow: auto;
+            padding: 12px 16px;
+        }
+        .inspect-body pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        /* Base64 image preview */
+        .b64-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin: 4px 0;
+        }
+        .b64-row pre { flex: 1; min-width: 0; }
+        .b64-preview {
+            flex-shrink: 0;
+            max-width: 120px;
+            max-height: 120px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            object-fit: contain;
+            background: #f9f9f9;
+        }
+        /* Adjust main content to not hide behind panel */
+        body.panel-open .container { padding-bottom: 300px; }
+
+        /* Diff view */
+        .diff-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .diff-side { min-width: 0; }
+        .diff-side h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--text-muted); }
+        .diff-line { font-size: 0.85rem; padding: 1px 4px; border-radius: 2px; font-family: monospace; }
+        .diff-added { background: #dcfce7; }
+        .diff-removed { background: #fee2e2; }
+        .diff-unchanged { color: var(--text-muted); }
+
+        /* Loading & error */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error-msg { color: var(--error); padding: 12px; background: #fef2f2; border-radius: 6px; margin: 10px 0; }
+        .empty-state { text-align: center; color: var(--text-muted); padding: 40px 20px; }
+
+        .load-more-row { text-align: center; margin: 16px 0; }
+        .copy-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            padding: 2px;
+            transition: color 0.2s;
+        }
+        .copy-btn:hover { color: var(--primary); }
+        .cid-inspect-link {
+            color: var(--primary);
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            cursor: pointer;
+        }
+        .cid-inspect-link:hover { text-decoration-style: solid; color: var(--accent); }
+        .btn-restore {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background 0.2s;
+        }
+        .btn-restore:hover { background: #e0400f; }
+        .btn-restore:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        @media (max-width: 600px) {
+            .diff-container { grid-template-columns: 1fr; }
+            .input-row { flex-direction: column; }
+        }
+    </style>
+    <script defer data-domain="aboutcircles.github.io/circlestools" src="https://plausible.io/js/script.js"></script>
+</head>
+<body>
+    <header>
+        <div>
+            <h1><i class="fas fa-clock-rotate-left" style="margin-right: 8px;"></i>Profile CID History</h1>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <div id="walletBar" style="display:none;font-size:0.85rem;padding:4px 12px;background:rgba(255,255,255,0.1);border-radius:20px;display:none;align-items:center;gap:6px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--success);"></span>
+                <span id="walletAddr"></span>
+                <button id="walletDisconnect" style="background:none;border:none;color:rgba(255,255,255,0.6);cursor:pointer;font-size:0.8rem;padding:2px 4px;" title="Disconnect">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+            <div class="header-links">
+                <a href="index.html"><i class="fas fa-home"></i> Tools</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="api-config">
+            <i class="fas fa-server"></i>
+            <select id="endpointSelect" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;">
+                <option value="https://rpc.aboutcircles.com/profiles">Production</option>
+                <option value="https://rpc.staging.aboutcircles.com/profiles">Staging</option>
+            </select>
+            <code id="apiUrlDisplay"></code>
+        </div>
+
+        <div class="input-row">
+            <input type="text" id="addressInput" placeholder="0x... Circles address" />
+            <button class="btn" id="checkBtn" onclick="checkHistory()">
+                <i class="fas fa-search"></i> Check
+            </button>
+        </div>
+
+        <div id="profileSection" style="display:none;"></div>
+        <div id="timelineSection"></div>
+    </div>
+
+    <!-- Fixed bottom inspect panel -->
+    <div class="inspect-panel" id="inspectPanel">
+        <div class="resize-handle" id="resizeHandle"></div>
+        <div class="inspect-header">
+            <div class="header-left">
+                <span id="inspectTitle">CID Content</span>
+            </div>
+            <div class="header-actions">
+                <button class="copy-btn" id="inspectCopyBtn" title="Copy CID"><i class="fas fa-copy"></i></button>
+                <button class="inspect-close" id="inspectCloseBtn" title="Close"><i class="fas fa-xmark"></i></button>
+            </div>
+        </div>
+        <div class="inspect-body" id="inspectBody"></div>
+    </div>
+
+    <script>
+    // ─── Configuration ───────────────────────────────────────────────
+    const DEFAULT_API = 'https://rpc.aboutcircles.com/profiles';
+    const PAGE_SIZE = 50;
+
+    let apiBase = DEFAULT_API;
+    let historyEntries = [];
+    let selectedEntry = null;
+    let diffSelections = [];   // max 2 CID indices for diffing
+    let currentAddress = null;
+    let offset = 0;
+    let viewGeneration = 0;    // race guard for rapid viewEntry clicks
+    let hasMore = true;
+
+    // Allow override via ?pinningApi= or ?api= query param
+    (function initConfig() {
+        var params = new URLSearchParams(window.location.search);
+        var override = params.get('pinningApi') || params.get('api');
+        if (override) apiBase = override.replace(/\/+$/, '');
+
+        var sel = document.getElementById('endpointSelect');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === apiBase) { sel.selectedIndex = i; break; }
+        }
+        document.getElementById('apiUrlDisplay').textContent = apiBase;
+
+        sel.addEventListener('change', function() {
+            apiBase = this.value;
+            document.getElementById('apiUrlDisplay').textContent = apiBase;
+        });
+
+        var addr = params.get('address');
+        if (addr) {
+            document.getElementById('addressInput').value = addr;
+            setTimeout(function() { checkHistory(); }, 50);
+        }
+    })();
+
+    // ─── Utility ─────────────────────────────────────────────────────
+    function truncateCid(cid) {
+        if (!cid || cid.length < 16) return cid || '';
+        return cid.slice(0, 8) + '...' + cid.slice(-6);
+    }
+
+    function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function formatTimestamp(ts) {
+        var d = typeof ts === 'number' ? new Date(ts < 1e12 ? ts * 1000 : ts) : new Date(ts);
+        if (isNaN(d.getTime())) return String(ts);
+        return d.toLocaleString();
+    }
+
+    function copyText(text) {
+        navigator.clipboard.writeText(text);
+    }
+
+    function el(tag, attrs, children) {
+        var e = document.createElement(tag);
+        if (attrs) Object.entries(attrs).forEach(function([k,v]) {
+            if (k === 'className') e.className = v;
+            else if (k === 'textContent') e.textContent = v;
+            else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+            else if (v !== undefined && v !== null) e.setAttribute(k, v);
+        });
+        if (children) {
+            if (typeof children === 'string') e.textContent = children;
+            else if (Array.isArray(children)) children.forEach(function(c) { if (c) e.appendChild(c); });
+            else e.appendChild(children);
+        }
+        return e;
+    }
+
+    // ─── API helpers ─────────────────────────────────────────────────
+    async function fetchCurrentProfile(address) {
+        var res = await fetch(apiBase + '/profile/' + address);
+        if (!res.ok) throw new Error('Profile fetch failed: ' + res.status);
+        return res.json();
+    }
+
+    async function fetchCidHistory(address, limit, off) {
+        var res = await fetch(apiBase + '/avatar/' + address + '/history?limit=' + limit + '&offset=' + off);
+        if (!res.ok) throw new Error('History fetch failed: ' + res.status);
+        return res.json();
+    }
+
+    async function fetchCidContent(cid) {
+        // Try /get first (shaped profile response), fall back to /raw/:cid
+        // which fetches from IPFS gateway for GC'd CIDs and re-caches them
+        var res = await fetch(apiBase + '/get?cid=' + encodeURIComponent(cid));
+        if (res.ok) return res.json();
+
+        var rawRes = await fetch(apiBase + '/raw/' + encodeURIComponent(cid));
+        if (rawRes.ok) {
+            var data = await rawRes.json();
+            data._source = 'raw';
+            return data;
+        }
+        throw new Error('CID unavailable (/get: ' + res.status + ', /raw: ' + rawRes.status + ')');
+    }
+
+    // ─── Main flow ───────────────────────────────────────────────────
+    async function checkHistory() {
+        var addr = document.getElementById('addressInput').value.trim();
+        if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+            var errDiv = document.getElementById('timelineSection');
+            errDiv.textContent = '';
+            var errMsg = el('div', {className: 'error-msg'}, 'Please enter a valid Ethereum address.');
+            errDiv.appendChild(errMsg);
+            return;
+        }
+
+        currentAddress = addr;
+        offset = 0;
+        historyEntries = [];
+        diffSelections = [];
+        selectedEntry = null;
+        hasMore = true;
+
+        window.history.replaceState(null, '', '?address=' + addr +
+            (apiBase !== DEFAULT_API ? '&pinningApi=' + encodeURIComponent(apiBase) : ''));
+
+        var btn = document.getElementById('checkBtn');
+        btn.disabled = true;
+        btn.textContent = '';
+        btn.appendChild(el('span', {className: 'loader'}));
+        btn.appendChild(document.createTextNode(' Loading...'));
+
+        var profileSection = document.getElementById('profileSection');
+        var timelineSection = document.getElementById('timelineSection');
+        closePanel();
+        profileSection.style.display = 'none';
+        profileSection.textContent = '';
+        timelineSection.textContent = '';
+
+        try {
+            var [profile, history] = await Promise.allSettled([
+                fetchCurrentProfile(addr),
+                fetchCidHistory(addr, PAGE_SIZE, 0)
+            ]);
+
+            if (profile.status === 'fulfilled' && profile.value) {
+                var profileData = profile.value;
+                var profileCid = profileData.CID || profileData.cidV0 || profileData.cid;
+                renderProfileCard(profileData, addr);
+                // Async-fetch CID content to get avatar image (not in /profile response)
+                if (profileCid) {
+                    fetchCidContent(profileCid).then(function(cidData) {
+                        var imgUrl = cidData.previewImageUrl || cidData.imageUrl || '';
+                        if (imgUrl) {
+                            var avatarEl = document.getElementById('profileAvatar');
+                            var placeholderEl = document.getElementById('profileAvatarPlaceholder');
+                            if (avatarEl) { avatarEl.src = imgUrl; avatarEl.style.display = ''; }
+                            if (placeholderEl) placeholderEl.style.display = 'none';
+                        }
+                    }).catch(function() {});
+                }
+            }
+
+            if (history.status === 'fulfilled') {
+                var entries = Array.isArray(history.value) ? history.value : (history.value.history || []);
+                historyEntries = entries;
+                hasMore = entries.length >= PAGE_SIZE;
+                offset = entries.length;
+                renderTimeline();
+                if (entries.length > 0) viewEntry(0);
+            } else {
+                timelineSection.textContent = '';
+                timelineSection.appendChild(el('div', {className: 'error-msg'},
+                    'Failed to load CID history. The profile may not exist in the pinning service.'));
+            }
+        } catch (err) {
+            timelineSection.textContent = '';
+            timelineSection.appendChild(el('div', {className: 'error-msg'}, err.message));
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '';
+            var icon = el('i', {className: 'fas fa-search'});
+            btn.appendChild(icon);
+            btn.appendChild(document.createTextNode(' Check'));
+        }
+    }
+
+    async function loadMore() {
+        if (!currentAddress || !hasMore) return;
+        try {
+            var result = await fetchCidHistory(currentAddress, PAGE_SIZE, offset);
+            var arr = Array.isArray(result) ? result : (result.history || []);
+            historyEntries = historyEntries.concat(arr);
+            hasMore = arr.length >= PAGE_SIZE;
+            offset += arr.length;
+            renderTimeline();
+        } catch (err) {
+            console.warn('Load more failed:', err);
+        }
+    }
+
+    // ─── Renderers (DOM-based) ───────────────────────────────────────
+    function renderProfileCard(profile, address) {
+        var section = document.getElementById('profileSection');
+        section.textContent = '';
+
+        var name = profile.name || profile.username || 'Unknown';
+        var avatarUrl = profile.previewImageUrl || profile.avatarUrl || '';
+        var cid = profile.CID || profile.cidV0 || profile.cid || 'N/A';
+
+        var card = el('div', {className: 'profile-card'});
+
+        // Avatar — img hidden until src is set (async from CID content)
+        var img = el('img', {className: 'profile-avatar', id: 'profileAvatar', alt: 'avatar'});
+        img.style.display = avatarUrl ? '' : 'none';
+        if (avatarUrl) img.src = avatarUrl;
+        img.onerror = function() { this.style.display = 'none'; };
+
+        var placeholder = el('div', {className: 'profile-avatar', id: 'profileAvatarPlaceholder',
+            style: 'display:' + (avatarUrl ? 'none' : 'flex') + ';align-items:center;justify-content:center;font-size:1.5rem;color:var(--text-muted);'});
+        placeholder.appendChild(el('i', {className: 'fas fa-user'}));
+        card.appendChild(img);
+        card.appendChild(placeholder);
+
+        var info = el('div', {className: 'profile-info'});
+        info.appendChild(el('h2', {}, name));
+
+        var cidLine = el('div', {className: 'cid-line'});
+        var cidLink = el('a', {href: '#', className: 'cid-inspect-link', title: 'Inspect CID content',
+            onClick: function(e) { e.preventDefault(); inspectCid(cid, 'Current profile'); }});
+        cidLink.textContent = 'CID: ' + cid;
+        cidLine.appendChild(cidLink);
+        var copyBtn = el('button', {className: 'copy-btn', title: 'Copy CID',
+            onClick: function() { copyText(cid); }});
+        copyBtn.appendChild(el('i', {className: 'fas fa-copy'}));
+        cidLine.appendChild(copyBtn);
+        info.appendChild(cidLine);
+
+        var linkRow = el('div', {style: 'margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;'});
+        var profileLink = el('a', {
+            href: 'profileChecker.html?address=' + address,
+            className: 'btn btn-sm btn-outline',
+            style: 'text-decoration:none;display:inline-flex;align-items:center;gap:4px;'
+        });
+        profileLink.appendChild(el('i', {className: 'fas fa-user'}));
+        profileLink.appendChild(document.createTextNode(' On-chain Profile'));
+        linkRow.appendChild(profileLink);
+        var scanLink = el('a', {
+            href: 'https://gnosisscan.io/address/' + address,
+            target: '_blank', rel: 'noopener noreferrer',
+            className: 'btn btn-sm btn-outline',
+            style: 'text-decoration:none;display:inline-flex;align-items:center;gap:4px;'
+        });
+        scanLink.appendChild(el('i', {className: 'fas fa-arrow-up-right-from-square'}));
+        scanLink.appendChild(document.createTextNode(' Gnosisscan'));
+        linkRow.appendChild(scanLink);
+        info.appendChild(linkRow);
+
+        card.appendChild(info);
+        section.appendChild(card);
+        section.style.display = 'block';
+    }
+
+    function renderTimeline() {
+        var section = document.getElementById('timelineSection');
+        section.textContent = '';
+
+        if (!historyEntries.length) {
+            var empty = el('div', {className: 'empty-state'});
+            empty.appendChild(el('i', {className: 'fas fa-inbox', style: 'font-size:2rem;margin-bottom:8px;'}));
+            empty.appendChild(el('br'));
+            empty.appendChild(document.createTextNode('No CID history found for this address.'));
+            section.appendChild(empty);
+            return;
+        }
+
+        var heading = el('h3', {style: 'margin-bottom:12px;font-size:1rem;'},
+            'CID History (' + historyEntries.length + (hasMore ? '+' : '') + ' entries)');
+        section.appendChild(heading);
+
+        var btnRow = el('div', {style: 'margin-bottom:12px;'});
+        var diffBtn = el('button', {className: 'btn btn-sm btn-accent', id: 'diffBtn', disabled: 'true',
+            onClick: function() { showDiff(); }});
+        diffBtn.appendChild(el('i', {className: 'fas fa-code-compare'}));
+        diffBtn.appendChild(document.createTextNode(' Compare Selected (0/2)'));
+        btnRow.appendChild(diffBtn);
+        section.appendChild(btnRow);
+
+        var timeline = el('div', {className: 'timeline'});
+
+        historyEntries.forEach(function(entry, idx) {
+            var cid = entry.cid || entry.cidV0 || 'unknown';
+            var block = entry.blockNumber || entry.block || '';
+            var timestamp = entry.timestamp ? formatTimestamp(entry.timestamp) : '';
+            var isSelected = selectedEntry === idx;
+
+            var te = el('div', {className: 'timeline-entry' + (isSelected ? ' selected' : ''), 'data-idx': idx});
+            te.appendChild(el('div', {className: 'timeline-dot'}));
+
+            var card = el('div', {className: 'timeline-card'});
+            card.addEventListener('click', (function(i) { return function() { viewEntry(i); }; })(idx));
+
+            var meta = el('div', {className: 'timeline-meta'});
+            if (idx === 0) {
+                var s = el('span');
+                s.appendChild(el('strong', {}, 'Current'));
+                meta.appendChild(s);
+            } else {
+                meta.appendChild(el('span', {}, '#' + (idx + 1)));
+            }
+            var metaRight = el('span');
+            if (block) {
+                metaRight.appendChild(el('i', {className: 'fas fa-cube', style: 'margin-right:3px;font-size:0.8em;'}));
+                metaRight.appendChild(document.createTextNode(block + '  '));
+            }
+            if (timestamp) {
+                metaRight.appendChild(el('i', {className: 'fas fa-clock', style: 'margin-right:3px;font-size:0.8em;'}));
+                metaRight.appendChild(document.createTextNode(timestamp));
+            }
+            meta.appendChild(metaRight);
+            card.appendChild(meta);
+
+            var cidRow = el('div', {style: 'display:flex;align-items:center;gap:8px;'});
+            var cb = el('input', {type: 'checkbox', className: 'diff-select', 'data-idx': idx});
+            if (diffSelections.includes(idx)) cb.checked = true;
+            cb.addEventListener('change', (function(i) {
+                return function(e) { e.stopPropagation(); toggleDiffSelect(i, this); };
+            })(idx));
+            cb.addEventListener('click', function(e) { e.stopPropagation(); });
+            cidRow.appendChild(cb);
+
+            var cidLink = el('a', {href: '#', className: 'timeline-cid', title: 'Inspect CID content',
+                style: 'cursor:pointer;text-decoration:none;'});
+            cidLink.textContent = cid;
+            cidLink.addEventListener('click', (function(i) {
+                return function(e) { e.preventDefault(); e.stopPropagation(); viewEntry(i); };
+            })(idx));
+            cidRow.appendChild(cidLink);
+            var cpBtn = el('button', {className: 'copy-btn', title: 'Copy full CID'});
+            cpBtn.addEventListener('click', (function(c) {
+                return function(e) { e.stopPropagation(); copyText(c); };
+            })(cid));
+            cpBtn.appendChild(el('i', {className: 'fas fa-copy'}));
+            cidRow.appendChild(cpBtn);
+            card.appendChild(cidRow);
+
+            te.appendChild(card);
+            timeline.appendChild(te);
+        });
+
+        section.appendChild(timeline);
+
+        if (hasMore) {
+            var loadMoreRow = el('div', {className: 'load-more-row'});
+            var lmBtn = el('button', {className: 'btn btn-sm btn-outline', onClick: function() { loadMore(); }});
+            lmBtn.appendChild(el('i', {className: 'fas fa-chevron-down'}));
+            lmBtn.appendChild(document.createTextNode(' Load More'));
+            loadMoreRow.appendChild(lmBtn);
+            section.appendChild(loadMoreRow);
+        }
+    }
+
+    // ─── Bottom panel helpers ────────────────────────────────────────
+    var currentPanelCid = '';
+
+    function openPanel(title, cid) {
+        currentPanelCid = cid || '';
+        document.getElementById('inspectTitle').textContent = title;
+        document.getElementById('inspectPanel').classList.add('visible');
+        document.body.classList.add('panel-open');
+    }
+
+    function closePanel() {
+        document.getElementById('inspectPanel').classList.remove('visible');
+        document.body.classList.remove('panel-open');
+        document.getElementById('inspectBody').textContent = '';
+    }
+
+    function panelLoading() {
+        var body = document.getElementById('inspectBody');
+        body.textContent = '';
+        body.appendChild(el('span', {className: 'loader'}));
+        body.appendChild(document.createTextNode(' Loading...'));
+    }
+
+    // Base64 image detection regex
+    var B64_IMG_RE = /^data:image\/[a-z+]+;base64,/;
+
+    function renderJsonWithPreviews(obj) {
+        var body = document.getElementById('inspectBody');
+        body.textContent = '';
+        // Show IPFS gateway fallback notice
+        if (obj && obj._source === 'raw') {
+            var notice = el('div', {style: 'padding:6px 10px;background:#fef3c7;border-radius:4px;font-size:0.82rem;color:#92400e;margin-bottom:8px;'});
+            notice.appendChild(el('i', {className: 'fas fa-triangle-exclamation', style: 'margin-right:6px;'}));
+            notice.appendChild(document.createTextNode('Fetched via /raw fallback (CID was GC\'d, re-fetched from IPFS gateway)'));
+            body.appendChild(notice);
+        }
+        if (typeof obj !== 'object' || obj === null) {
+            body.appendChild(el('pre', {}, JSON.stringify(obj, null, 2)));
+            return;
+        }
+        Object.keys(obj).forEach(function(key) {
+            if (key === '_source') return;
+            var val = obj[key];
+            var strVal = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+
+            if (typeof val === 'string' && B64_IMG_RE.test(val)) {
+                // Base64 image — show preview alongside truncated value
+                var row = el('div', {className: 'b64-row'});
+                var truncated = val.slice(0, 60) + '... (' + Math.round(val.length / 1024) + ' KB)';
+                row.appendChild(el('pre', {}, '"' + key + '": "' + truncated + '"'));
+                var img = el('img', {className: 'b64-preview', alt: key});
+                img.src = val;
+                row.appendChild(img);
+                body.appendChild(row);
+            } else {
+                body.appendChild(el('pre', {}, '"' + key + '": ' + strVal));
+            }
+        });
+    }
+
+    // Close + copy wiring
+    document.getElementById('inspectCloseBtn').addEventListener('click', closePanel);
+    document.getElementById('inspectCopyBtn').addEventListener('click', function() { copyText(currentPanelCid); });
+
+    // ─── Resize drag ─────────────────────────────────────────────────
+    (function initResize() {
+        var handle = document.getElementById('resizeHandle');
+        var panel = document.getElementById('inspectPanel');
+        var dragging = false;
+
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            dragging = true;
+            handle.classList.add('dragging');
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        function onMove(e) {
+            if (!dragging) return;
+            var newH = window.innerHeight - e.clientY;
+            newH = Math.max(100, Math.min(newH, window.innerHeight * 0.7));
+            panel.style.height = newH + 'px';
+        }
+        function onUp() {
+            dragging = false;
+            handle.classList.remove('dragging');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        }
+    })();
+
+    // ─── Inspect / View ──────────────────────────────────────────────
+    async function inspectCid(cid, label) {
+        openPanel((label || 'CID') + ': ' + cid, cid);
+        panelLoading();
+        try {
+            var content = await fetchCidContent(cid);
+            renderJsonWithPreviews(content);
+        } catch (err) {
+            var body = document.getElementById('inspectBody');
+            body.textContent = '';
+            body.appendChild(el('div', {className: 'error-msg'}, 'Failed to load: ' + err.message));
+        }
+    }
+
+    async function viewEntry(idx) {
+        // Update selected state via class toggle instead of full rebuild
+        var prev = document.querySelector('.timeline-entry.selected');
+        if (prev) prev.classList.remove('selected');
+        var cur = document.querySelector('.timeline-entry[data-idx="' + idx + '"]');
+        if (cur) cur.classList.add('selected');
+        selectedEntry = idx;
+
+        var gen = ++viewGeneration;
+        var entry = historyEntries[idx];
+        var cid = entry.cid || entry.cidV0 || '';
+        var label = idx === 0 ? 'Current' : '#' + (idx + 1);
+        openPanel(label + ' \u2014 ' + cid, cid);
+
+        // Show restore button for non-current entries
+        var actions = document.querySelector('.inspect-header .header-actions');
+        var oldRestore = document.getElementById('restoreBtn');
+        if (oldRestore) oldRestore.remove();
+        if (idx > 0 && cid) {
+            var restoreBtn = el('button', {className: 'btn-restore', id: 'restoreBtn',
+                onClick: (function(c) { return function() { restoreProfile(c); }; })(cid)});
+            restoreBtn.appendChild(el('i', {className: 'fas fa-rotate-left'}));
+            restoreBtn.appendChild(document.createTextNode(' Restore'));
+            actions.insertBefore(restoreBtn, actions.firstChild);
+        }
+
+        panelLoading();
+        try {
+            var content = await fetchCidContent(cid);
+            if (gen !== viewGeneration) return; // stale — newer click superseded
+            renderJsonWithPreviews(content);
+        } catch (err) {
+            if (gen !== viewGeneration) return;
+            var body = document.getElementById('inspectBody');
+            body.textContent = '';
+            body.appendChild(el('div', {className: 'error-msg'}, 'Failed: ' + err.message));
+        }
+    }
+
+    function toggleDiffSelect(idx, checkbox) {
+        if (checkbox.checked) {
+            if (diffSelections.length >= 2) {
+                diffSelections.shift();
+            }
+            diffSelections.push(idx);
+        } else {
+            diffSelections = diffSelections.filter(function(i) { return i !== idx; });
+        }
+
+        document.querySelectorAll('.diff-select').forEach(function(cb) {
+            cb.checked = diffSelections.includes(parseInt(cb.getAttribute('data-idx')));
+        });
+
+        var diffBtn = document.getElementById('diffBtn');
+        diffBtn.disabled = diffSelections.length !== 2;
+        diffBtn.textContent = '';
+        diffBtn.appendChild(el('i', {className: 'fas fa-code-compare'}));
+        diffBtn.appendChild(document.createTextNode(' Compare Selected (' + diffSelections.length + '/2)'));
+    }
+
+    async function showDiff() {
+        if (diffSelections.length !== 2) return;
+
+        // Sort so older entry (higher index) is on left, newer on right
+        var sorted = diffSelections.slice().sort(function(a, b) { return b - a; });
+        var idxA = sorted[0], idxB = sorted[1];
+        var entryA = historyEntries[idxA];
+        var entryB = historyEntries[idxB];
+        var cidA = entryA.cid || entryA.cidV0;
+        var cidB = entryB.cid || entryB.cidV0;
+
+        openPanel('Diff: #' + (idxA + 1) + ' vs #' + (idxB + 1), '');
+        panelLoading();
+
+        try {
+            var [contentA, contentB] = await Promise.all([
+                fetchCidContent(cidA),
+                fetchCidContent(cidB)
+            ]);
+            // Strip _source metadata before diffing
+            delete contentA._source; delete contentB._source;
+            renderDiff(contentA, contentB, cidA, cidB, idxA, idxB);
+        } catch (err) {
+            var body = document.getElementById('inspectBody');
+            body.textContent = '';
+            body.appendChild(el('div', {className: 'error-msg'}, 'Diff failed: ' + err.message));
+        }
+    }
+
+    function renderDiff(objA, objB, cidA, cidB, idxA, idxB) {
+        function diffLines(a, b, prefix) {
+            var lines = [];
+            var strA = JSON.stringify(a), strB = JSON.stringify(b);
+            if (a === b || strA === strB) {
+                // Skip base64 image data in unchanged lines for readability
+                var display = (typeof a === 'string' && B64_IMG_RE.test(a))
+                    ? '"' + a.slice(0, 40) + '..." (image)'
+                    : strA;
+                lines.push({cls: 'diff-unchanged', textA: prefix + display, textB: prefix + display});
+                return lines;
+            }
+            var aIsObj = a !== null && typeof a === 'object' && !Array.isArray(a);
+            var bIsObj = b !== null && typeof b === 'object' && !Array.isArray(b);
+            if (aIsObj && bIsObj) {
+                Array.from(new Set(Object.keys(a).concat(Object.keys(b)))).sort().forEach(function(k) {
+                    var cp = prefix ? prefix + '.' + k : k;
+                    if (!(k in a)) lines.push({cls: 'diff-added', textA: '', textB: cp + ': ' + JSON.stringify(b[k])});
+                    else if (!(k in b)) lines.push({cls: 'diff-removed', textA: cp + ': ' + JSON.stringify(a[k]), textB: ''});
+                    else lines = lines.concat(diffLines(a[k], b[k], cp));
+                });
+                return lines;
+            }
+            if (Array.isArray(a) && Array.isArray(b)) {
+                for (var i = 0; i < Math.max(a.length, b.length); i++) {
+                    var ip = prefix + '[' + i + ']';
+                    if (i >= a.length) lines.push({cls: 'diff-added', textA: '', textB: ip + ': ' + JSON.stringify(b[i])});
+                    else if (i >= b.length) lines.push({cls: 'diff-removed', textA: ip + ': ' + JSON.stringify(a[i]), textB: ''});
+                    else lines = lines.concat(diffLines(a[i], b[i], ip));
+                }
+                return lines;
+            }
+            lines.push({cls: 'diff-changed', textA: prefix + ': ' + strA, textB: prefix + ': ' + strB});
+            return lines;
+        }
+
+        var lines = diffLines(objA || {}, objB || {}, '');
+        var body = document.getElementById('inspectBody');
+        body.textContent = '';
+
+        var container = el('div', {className: 'diff-container'});
+        var sideA = el('div', {className: 'diff-side'});
+        sideA.appendChild(el('h3', {}, '#' + (idxA + 1) + ' \u2014 ' + truncateCid(cidA)));
+        var sideB = el('div', {className: 'diff-side'});
+        sideB.appendChild(el('h3', {}, '#' + (idxB + 1) + ' \u2014 ' + truncateCid(cidB)));
+
+        lines.forEach(function(l) {
+            var clsA = l.cls === 'diff-changed' ? 'diff-removed' : l.cls === 'diff-added' ? '' : l.cls;
+            var clsB = l.cls === 'diff-changed' ? 'diff-added' : l.cls === 'diff-removed' ? '' : l.cls;
+            var la = el('div', {className: 'diff-line ' + clsA});
+            la.textContent = l.textA || '\u00A0';
+            sideA.appendChild(la);
+            var lb = el('div', {className: 'diff-line ' + clsB});
+            lb.textContent = l.textB || '\u00A0';
+            sideB.appendChild(lb);
+        });
+
+        container.appendChild(sideA);
+        container.appendChild(sideB);
+        body.appendChild(container);
+    }
+
+    // ─── Profile Restore (rollback CID on-chain) ─────────────────────
+    var NAME_REGISTRY = '0xA27566fD89162cC3D40Cb59c87AAaA49B85F3474'; // Gnosis Chain (100)
+    var NAME_REGISTRY_ABI = ['function updateMetadataDigest(bytes32 _metadataDigest)'];
+
+    // Base58 decoder (CIDv0 uses base58btc)
+    var B58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    function base58Decode(str) {
+        var bytes = [0];
+        for (var i = 0; i < str.length; i++) {
+            var c = B58_ALPHABET.indexOf(str[i]);
+            if (c < 0) throw new Error('Invalid base58 char: ' + str[i]);
+            var carry = c;
+            for (var j = 0; j < bytes.length; j++) {
+                carry += bytes[j] * 58;
+                bytes[j] = carry & 0xff;
+                carry >>= 8;
+            }
+            while (carry) { bytes.push(carry & 0xff); carry >>= 8; }
+        }
+        for (var i = 0; i < str.length && str[i] === '1'; i++) bytes.push(0);
+        return new Uint8Array(bytes.reverse());
+    }
+
+    function cidV0ToBytes32(cidV0) {
+        var raw = base58Decode(cidV0);
+        if (raw.length < 34 || raw[0] !== 0x12 || raw[1] !== 0x20)
+            throw new Error('Invalid CIDv0 format');
+        var digest = raw.slice(2, 34);
+        return '0x' + Array.from(digest).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+
+    var connectedSigner = null;
+    var connectedAddr = null;
+
+    function showWallet(addr) {
+        connectedAddr = addr;
+        var bar = document.getElementById('walletBar');
+        bar.style.display = 'flex';
+        document.getElementById('walletAddr').textContent = addr.slice(0,6) + '...' + addr.slice(-4);
+    }
+
+    function hideWallet() {
+        connectedSigner = null;
+        connectedAddr = null;
+        document.getElementById('walletBar').style.display = 'none';
+    }
+
+    document.getElementById('walletDisconnect').addEventListener('click', hideWallet);
+
+    async function connectWallet() {
+        try { await loadEthers(); } catch (e) { throw new Error('Failed to load ethers.js — CDN may be blocked'); }
+        if (typeof ethers === 'undefined') throw new Error('ethers.js failed to initialize');
+        if (!window.ethereum) throw new Error('No wallet detected. Install MetaMask or similar.');
+
+        var provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send('eth_requestAccounts', []);
+        var network = await provider.getNetwork();
+        if (network.chainId !== 100) throw new Error('Please switch to Gnosis Chain (chain ID 100). Currently on chain ' + network.chainId);
+        connectedSigner = provider.getSigner();
+        var addr = await connectedSigner.getAddress();
+        showWallet(addr);
+        return addr;
+    }
+
+    async function restoreProfile(cid) {
+        if (!cid || !currentAddress) return;
+
+        var restoreBtn = document.getElementById('restoreBtn');
+
+        try {
+            // Step 1: Connect wallet if not connected
+            if (!connectedAddr) {
+                if (restoreBtn) { restoreBtn.disabled = true; restoreBtn.textContent = 'Connect wallet...'; }
+                await connectWallet();
+            }
+
+            // Step 2: Confirm (no strict address check — signer may be a Safe owner)
+            var isSameAddr = connectedAddr.toLowerCase() === currentAddress.toLowerCase();
+            var confirmMsg = 'Restore profile to CID:\n' + cid + '\n\n';
+            if (isSameAddr) {
+                confirmMsg += 'Sending tx from ' + connectedAddr.slice(0,6) + '...' + connectedAddr.slice(-4);
+            } else {
+                confirmMsg += 'Connected: ' + connectedAddr.slice(0,6) + '...' + connectedAddr.slice(-4) + '\n';
+                confirmMsg += 'Profile: ' + currentAddress.slice(0,6) + '...' + currentAddress.slice(-4) + '\n\n';
+                confirmMsg += 'If ' + currentAddress.slice(0,6) + '... is a Safe, ensure your connected account is an owner.';
+            }
+            if (!confirm(confirmMsg))
+                return;
+
+            // Step 4: Send tx
+            if (restoreBtn) restoreBtn.textContent = 'Sending tx...';
+            var bytes32 = cidV0ToBytes32(cid);
+            var contract = new ethers.Contract(NAME_REGISTRY, NAME_REGISTRY_ABI, connectedSigner);
+            var tx = await contract.updateMetadataDigest(bytes32);
+
+            if (restoreBtn) restoreBtn.textContent = 'Confirming...';
+            await tx.wait();
+
+            if (restoreBtn) { restoreBtn.textContent = 'Restored!'; restoreBtn.style.background = 'var(--success)'; }
+            setTimeout(function() { checkHistory(); }, 2000);
+        } catch (err) {
+            console.error('Restore failed:', err);
+            var msg = err.reason || err.message || String(err);
+            if (restoreBtn) { restoreBtn.disabled = false; restoreBtn.textContent = 'Restore'; }
+            alert('Restore failed: ' + msg);
+        }
+    }
+    </script>
+</body>
+</html>
