@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mirror Group Tester</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 860px; margin: 24px auto; padding: 0 16px; color: #111; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+  button { background: #1f6feb; color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font-size: .95rem; cursor: pointer; margin: 4px 6px 4px 0; }
+  button:disabled { background: #9db; opacity: .5; cursor: default; }
+  button.alt { background: #444; }
+  .card { border: 1px solid #e2e2e2; border-radius: 10px; padding: 14px 16px; margin: 12px 0; background: #fafafa; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: .92rem; }
+  .row b { font-weight: 600; } code, .mono { font-family: ui-monospace, Menlo, monospace; font-size: .86rem; }
+  .ok { color: #137333; } .bad { color: #b00020; } .muted { color: #666; }
+  #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #0d1117; color: #c9d1d9; padding: 10px; border-radius: 8px; max-height: 220px; overflow: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .82rem; margin-top: 8px; }
+  th, td { border-bottom: 1px solid #eee; padding: 4px 6px; text-align: left; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: .75rem; }
+  .pill.y { background: #d7f5dd; color: #137333; } .pill.n { background: #fde2e1; color: #b00020; }
+</style>
+</head>
+<body>
+<h1>Mirror Group Tester</h1>
+<p class="muted">Create a deterministic, ownerless Circles base group that mirrors <b>your</b> trust. Send 1 of your own CRC to the factory (or use the free <code>createFor</code>), then sync. Anyone can sync; the group can only ever trust who you trust.</p>
+
+<div class="card">
+  <button id="connect">Connect wallet</button>
+  <span id="net" class="muted"></span>
+  <div class="row"><span>Your address</span><span class="mono" id="me">–</span></div>
+  <div class="row"><span>Registered human?</span><span id="human">–</span></div>
+  <div class="row"><span>Your own CRC balance</span><span id="crcbal">–</span></div>
+  <div class="row"><span>Factory</span><span class="mono" id="factory">–</span></div>
+  <div class="row"><span>Your mirror group (deterministic)</span><span class="mono" id="group">–</span></div>
+  <div class="row"><span>Deployed?</span><span id="deployed">–</span></div>
+</div>
+
+<h2>1. Create your group</h2>
+<div class="card">
+  <button id="create1crc">Send 1 CRC → create</button>
+  <button id="createFree" class="alt">createFor (free, no CRC)</button>
+  <div class="muted" style="font-size:.85rem;margin-top:6px">Both produce the same deterministic address. "Send 1 CRC" is the intended flow; the 1 CRC is kept by the factory as an anti-spam fee.</div>
+</div>
+
+<h2>2. Sync trust (mirror you → your group)</h2>
+<div class="card">
+  <button id="sync">Sync until complete</button>
+  <label style="font-size:.85rem">batch <input id="batch" type="number" value="50" style="width:60px"></label>
+  <div id="syncstatus" class="muted" style="margin-top:6px"></div>
+</div>
+
+<h2>3. Compare trust: you vs your group</h2>
+<div class="card">
+  <button id="compare" class="alt">Load comparison</button>
+  <div id="cmpsummary" style="margin-top:8px"></div>
+  <div id="cmptable"></div>
+</div>
+
+<h2>Log</h2>
+<div id="log"></div>
+
+<script>
+// ------- config -------
+const FACTORY_ADDRESS = "0x75C5a0a15B5601FaA077A3368A7f12745Aa17DBc"; // set after deployment
+const HUB = "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8";
+const SENTINEL = "0x0000000000000000000000000000000000000001";
+const READ_RPC = "https://rpc.aboutcircles.com";
+const GNOSIS_CHAIN = 100;
+
+const FACTORY_ABI = [
+  "function CONTROLLER() view returns (address)",
+  "function CONDITION() view returns (address)",
+  "function predictGroup(address) view returns (address)",
+  "function groupOf(address) view returns (address)",
+  "function isDeployed(address) view returns (bool)",
+  "function createFor(address) returns (address)",
+];
+const CONTROLLER_ABI = [
+  "function sync(address group, uint256 maxMarkers) returns (bool cycleComplete)",
+];
+const HUB_ABI = [
+  "function isHuman(address) view returns (bool)",
+  "function isGroup(address) view returns (bool)",
+  "function balanceOf(address,uint256) view returns (uint256)",
+  "function isTrusted(address,address) view returns (bool)",
+  "function trustMarkers(address,address) view returns (address previous, uint96 expiry)",
+  "function safeTransferFrom(address,address,uint256,uint256,bytes)",
+];
+
+const readProvider = new ethers.providers.JsonRpcProvider(READ_RPC);
+let provider, signer, me, factory, controllerAddr, group;
+const $ = (id) => document.getElementById(id);
+const short = (a) => a ? a.slice(0, 6) + "…" + a.slice(-4) : "–";
+function log(m) { const l = $("log"); l.textContent += m + "\n"; l.scrollTop = l.scrollHeight; }
+
+function idOf(addr) { return ethers.BigNumber.from(addr); }
+
+async function connect() {
+  if (!window.ethereum) { alert("No wallet found (install MetaMask / Rabby)."); return; }
+  provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+  await provider.send("eth_requestAccounts", []);
+  const net = await provider.getNetwork();
+  $("net").textContent = "chain " + net.chainId;
+  if (net.chainId !== GNOSIS_CHAIN) {
+    try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x64" }] }); }
+    catch (e) { alert("Please switch your wallet to Gnosis Chain (100)."); }
+  }
+  signer = provider.getSigner();
+  me = await signer.getAddress();
+  factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, readProvider);
+  await refresh();
+}
+
+async function refresh() {
+  $("me").textContent = me;
+  $("factory").textContent = short(FACTORY_ADDRESS);
+  const hub = new ethers.Contract(HUB, HUB_ABI, readProvider);
+  const [human, bal, ctrl, predicted, dep] = await Promise.all([
+    hub.isHuman(me), hub.balanceOf(me, idOf(me)), factory.CONTROLLER(),
+    factory.predictGroup(me), factory.isDeployed(me),
+  ]);
+  controllerAddr = ctrl;
+  group = predicted;
+  $("human").innerHTML = human ? '<span class="pill y">yes</span>' : '<span class="pill n">no — register on Circles first</span>';
+  $("crcbal").textContent = ethers.utils.formatEther(bal) + " CRC";
+  $("group").textContent = predicted;
+  $("deployed").innerHTML = dep ? '<span class="pill y">yes</span>' : '<span class="pill n">not yet</span>';
+  $("create1crc").disabled = dep; $("createFree").disabled = dep;
+  log("connected " + me + " | group " + predicted + " | deployed=" + dep);
+}
+
+async function createWith1Crc() {
+  try {
+    const hub = new ethers.Contract(HUB, HUB_ABI, signer);
+    const bal = await hub.balanceOf(me, idOf(me));
+    if (bal.lt(ethers.utils.parseEther("1"))) { alert("You need ≥ 1 of your own unwrapped CRC. Try the free createFor instead."); return; }
+    log("sending 1 CRC to factory…");
+    const tx = await hub.safeTransferFrom(me, FACTORY_ADDRESS, idOf(me), ethers.utils.parseEther("1"), "0x", { gasLimit: 6000000 });
+    log("tx " + tx.hash); await tx.wait(); log("group created ✓"); await refresh();
+  } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
+}
+async function createFree() {
+  try {
+    const f = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+    log("createFor(" + me + ")…");
+    const tx = await f.createFor(me, { gasLimit: 6000000 });
+    log("tx " + tx.hash); await tx.wait(); log("group created ✓"); await refresh();
+  } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
+}
+
+async function syncAll() {
+  try {
+    const dep = await factory.isDeployed(me);
+    if (!dep) { alert("Create your group first."); return; }
+    const batch = parseInt($("batch").value || "50");
+    const ctrl = new ethers.Contract(controllerAddr, CONTROLLER_ABI, signer);
+    const ctrlRead = new ethers.Contract(controllerAddr, CONTROLLER_ABI, readProvider);
+    let done = false, calls = 0;
+    while (!done && calls < 80) {
+      done = await ctrlRead.callStatic.sync(group, batch);
+      const tx = await ctrl.sync(group, batch, { gasLimit: 7000000 });
+      $("syncstatus").textContent = `sync call ${calls + 1} (batch ${batch})… tx ${short(tx.hash)}`;
+      await tx.wait(); calls++;
+    }
+    $("syncstatus").innerHTML = `<span class="ok">✓ sync complete after ${calls} call(s)</span>`;
+    log("sync complete: " + calls + " calls");
+  } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
+}
+
+async function walkTrust(who) {
+  const hub = new ethers.Contract(HUB, HUB_ABI, readProvider);
+  const now = Math.floor(Date.now() / 1000);
+  const out = new Map();
+  let cur = SENTINEL;
+  for (let i = 0; i < 3000; i++) {
+    const [prev] = await hub.trustMarkers(who, cur);
+    if (prev === ethers.constants.AddressZero || prev.toLowerCase() === SENTINEL) break;
+    const [, expiry] = await hub.trustMarkers(who, prev);
+    if (Number(expiry) > now) out.set(prev.toLowerCase(), true);
+    cur = prev;
+  }
+  return out;
+}
+
+async function compare() {
+  $("cmpsummary").textContent = "loading trust lists…";
+  const [mine, theirs] = await Promise.all([walkTrust(me), walkTrust(group)]);
+  const all = new Set([...mine.keys(), ...theirs.keys()]);
+  let match = 0, onlyMine = 0, onlyGroup = 0, rows = "";
+  for (const a of all) {
+    const inMe = mine.has(a), inG = theirs.has(a);
+    if (inMe && inG) match++; else if (inMe) onlyMine++; else onlyGroup++;
+    rows += `<tr><td class="mono">${short(a)}</td><td>${inMe ? '<span class="pill y">yes</span>' : '<span class="pill n">no</span>'}</td><td>${inG ? '<span class="pill y">yes</span>' : '<span class="pill n">no</span>'}</td></tr>`;
+  }
+  const synced = onlyMine === 0 && onlyGroup === 0;
+  $("cmpsummary").innerHTML = `You trust <b>${mine.size}</b> · group trusts <b>${theirs.size}</b> · matching <b>${match}</b> · ` +
+    `<span class="${synced ? 'ok' : 'bad'}">${synced ? 'FULLY MIRRORED ✓' : (onlyMine + ' not-yet-synced, ' + onlyGroup + ' stale')}</span>`;
+  $("cmptable").innerHTML = `<table><thead><tr><th>avatar</th><th>you trust</th><th>group trusts</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+$("connect").onclick = connect;
+$("create1crc").onclick = createWith1Crc;
+$("createFree").onclick = createFree;
+$("sync").onclick = syncAll;
+$("compare").onclick = compare;
+</script>
+</body>
+</html>
