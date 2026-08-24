@@ -560,14 +560,36 @@
                     const initialData = await helperContract.getUserDataWithTrustPage(inputAddress, SENTINEL, 0);
                     const isGroup = initialData.v2Data.isGroup;
 
-                    // If it's a group, look up the treasury address for correct balance queries
+                    // Some group types (scored treasuries) hold no collateral in the registered
+                    // treasury itself but route it to sub-treasuries. Detect those and treat the
+                    // sub-treasuries as the real collateral holders.
+                    async function resolveTreasuryHolders(treasury) {
+                        try {
+                            const router = new ethers.Contract(treasury, [
+                                "function LOW_SCORE_SUB_TREASURY() view returns (address)",
+                                "function HIGH_SCORE_SUB_TREASURY() view returns (address)"
+                            ], provider);
+                            const [low, high] = await Promise.all([
+                                router.LOW_SCORE_SUB_TREASURY().catch(() => ethers.constants.AddressZero),
+                                router.HIGH_SCORE_SUB_TREASURY().catch(() => ethers.constants.AddressZero)
+                            ]);
+                            // high first so the primary balanceHolder is the majority holder
+                            const subs = [high, low].filter(a => a && a !== ethers.constants.AddressZero);
+                            if (subs.length) return subs;
+                        } catch (err) { /* not a scored-treasury router */ }
+                        return [treasury];
+                    }
+
+                    // If it's a group, look up the treasury address(es) for correct balance queries
                     let balanceHolder = inputAddress;
+                    let extraTreasuryHolders = []; // additional collateral holders merged into per-member holds
                     if (isGroup) {
                         loadingText.textContent = "Detected group, fetching treasury...";
+                        let registeredTreasury = ethers.constants.AddressZero;
                         try {
                             const [groupInfo] = await groupGetterContract.getGroupsInfo([inputAddress]);
                             if (groupInfo.baseTreasury && groupInfo.baseTreasury !== ethers.constants.AddressZero) {
-                                balanceHolder = groupInfo.baseTreasury;
+                                registeredTreasury = groupInfo.baseTreasury;
                             }
                         } catch (err) {
                             console.warn("Could not fetch group treasury:", err);
@@ -575,20 +597,22 @@
                         // The GroupInfoGetter above only resolves "base" groups. For other group
                         // types its baseTreasury is 0x0, so fall back to the Hub's generic
                         // treasuries() mapping (works for any group).
-                        if (balanceHolder === inputAddress) {
+                        if (registeredTreasury === ethers.constants.AddressZero) {
                             try {
                                 const hubTreasuries = new ethers.Contract(
                                     v2HubAddress,
                                     ["function treasuries(address) view returns (address)"],
                                     provider
                                 );
-                                const genericTreasury = await hubTreasuries.treasuries(inputAddress);
-                                if (genericTreasury && genericTreasury !== ethers.constants.AddressZero) {
-                                    balanceHolder = genericTreasury;
-                                }
+                                registeredTreasury = await hubTreasuries.treasuries(inputAddress);
                             } catch (err) {
                                 console.warn("Could not fetch generic group treasury:", err);
                             }
+                        }
+                        if (registeredTreasury && registeredTreasury !== ethers.constants.AddressZero) {
+                            const holders = await resolveTreasuryHolders(registeredTreasury);
+                            balanceHolder = holders[0];
+                            extraTreasuryHolders = holders.slice(1);
                         }
                     }
 
@@ -628,6 +652,56 @@
                         v2TotalSupply: entry.v2TotalSupply,
                         userHolds: entry.userHolds,
                     }));
+
+                    // 3b) For groups whose collateral is split across sub-treasuries, the "For"
+                    //     query above only counted the primary sub-treasury. Add the remaining
+                    //     sub-treasuries' per-member holdings (fetched from the Circles indexer,
+                    //     which matches on-chain balanceOf exactly) so treasury totals are complete.
+                    async function fetchTreasuryCrcBalances(account) {
+                        const map = new Map();
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 15000);
+                        try {
+                            const resp = await fetch("https://rpc.aboutcircles.com/", {
+                                method: "POST",
+                                headers: { "content-type": "application/json" },
+                                signal: controller.signal,
+                                body: JSON.stringify({
+                                    jsonrpc: "2.0", id: 1, method: "circles_query",
+                                    params: [{
+                                        Namespace: "V_CrcV2", Table: "BalancesByAccountAndToken",
+                                        Columns: ["tokenAddress", "demurragedTotalBalance"],
+                                        Filter: [{ Type: "FilterPredicate", FilterType: "Equals", Column: "account", Value: account.toLowerCase() }],
+                                        Sorting: [], Limit: 20000
+                                    }]
+                                })
+                            });
+                            const json = await resp.json();
+                            if (json && json.result && json.result.rows) {
+                                const cols = json.result.columns;
+                                const iTok = cols.indexOf("tokenAddress");
+                                const iBal = cols.indexOf("demurragedTotalBalance");
+                                for (const row of json.result.rows) {
+                                    try { map.set(String(row[iTok]).toLowerCase(), ethers.BigNumber.from(String(row[iBal]))); } catch (e) {}
+                                }
+                            }
+                        } catch (err) {
+                            console.warn("fetchTreasuryCrcBalances failed for", account, err);
+                        } finally {
+                            clearTimeout(timeoutId);
+                        }
+                        return map;
+                    }
+                    if (isGroup && extraTreasuryHolders.length) {
+                        loadingText.textContent = "Aggregating sub-treasury balances...";
+                        const extraMaps = await Promise.all(extraTreasuryHolders.map(h => fetchTreasuryCrcBalances(h)));
+                        for (const entry of trustedAddressesData) {
+                            const key = entry.trustedAddress.toLowerCase();
+                            let extra = ethers.BigNumber.from(0);
+                            for (const m of extraMaps) { const v = m.get(key); if (v) extra = extra.add(v); }
+                            if (!extra.isZero()) entry.userHolds = ethers.BigNumber.from(entry.userHolds).add(extra);
+                        }
+                    }
 
                     // 4) Get ERC20 tokens for the main user (skip per-row ERC20 for huge lists)
                     loadingText.textContent = "Fetching ERC20 data...";
@@ -703,7 +777,10 @@
                     const expiredCount = totalInList - activeCount;
                     summaryHtml += `<div class="info"><strong>Trust Connections (V2 linked list):</strong> ${activeCount} active of ${totalInList} total${expiredCount > 0 ? ` (${expiredCount} expired/untrusted)` : ''}</div>`;
                     if (isGroup && balanceHolder !== inputAddress) {
-                        summaryHtml += `<div class="info"><strong>Treasury:</strong> <a class="address-link" href="https://gnosisscan.io/address/${balanceHolder}" target="_blank" rel="noopener noreferrer">${balanceHolder}</a> (balances held here)</div>`;
+                        const allHolders = [balanceHolder, ...extraTreasuryHolders];
+                        const holderLinks = allHolders.map(h => `<a class="address-link" href="https://gnosisscan.io/address/${h}" target="_blank" rel="noopener noreferrer">${h}</a>`).join(', ');
+                        const holderLabel = allHolders.length > 1 ? 'Treasuries' : 'Treasury';
+                        summaryHtml += `<div class="info"><strong>${holderLabel}:</strong> ${holderLinks} (balances held here)</div>`;
                     }
 
                     // Compute totals for summary
