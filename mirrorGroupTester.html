@@ -63,7 +63,7 @@
 
 <script>
 // ------- config -------
-const FACTORY_ADDRESS = "0x79D408f6e5156339F83c684BbD774F2B8D4C46FC"; // set after deployment
+const FACTORY_ADDRESS = "0x23e0e4C44F026Db16766Bd99322d763B1ce5697c"; // set after deployment
 const HUB = "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8";
 const SENTINEL = "0x0000000000000000000000000000000000000001";
 const READ_RPC = "https://rpc.aboutcircles.com";
@@ -137,7 +137,7 @@ async function createWith1Crc() {
     const bal = await hub.balanceOf(me, idOf(me));
     if (bal.lt(ethers.utils.parseEther("1"))) { alert("You need ≥ 1 of your own unwrapped CRC. Try the free createFor instead."); return; }
     log("sending 1 CRC to factory…");
-    const tx = await hub.safeTransferFrom(me, FACTORY_ADDRESS, idOf(me), ethers.utils.parseEther("1"), "0x", { gasLimit: 6000000 });
+    const tx = await hub.safeTransferFrom(me, FACTORY_ADDRESS, idOf(me), ethers.utils.parseEther("1"), "0x", { gasLimit: 12000000 });
     log("tx " + tx.hash); await tx.wait(); log("group created ✓"); await refresh();
   } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
 }
@@ -145,7 +145,7 @@ async function createFree() {
   try {
     const f = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
     log("createFor(" + me + ")…");
-    const tx = await f.createFor(me, { gasLimit: 6000000 });
+    const tx = await f.createFor(me, { gasLimit: 12000000 });
     log("tx " + tx.hash); await tx.wait(); log("group created ✓"); await refresh();
   } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
 }
