@@ -569,13 +569,19 @@
                                 "function LOW_SCORE_SUB_TREASURY() view returns (address)",
                                 "function HIGH_SCORE_SUB_TREASURY() view returns (address)"
                             ], provider);
+                            // Require BOTH probes to succeed (no per-call .catch): a revert means
+                            // this is not a scored-treasury router, so we must not operate on a
+                            // partial holder set (that would silently drop a treasury).
                             const [low, high] = await Promise.all([
-                                router.LOW_SCORE_SUB_TREASURY().catch(() => ethers.constants.AddressZero),
-                                router.HIGH_SCORE_SUB_TREASURY().catch(() => ethers.constants.AddressZero)
+                                router.LOW_SCORE_SUB_TREASURY(),
+                                router.HIGH_SCORE_SUB_TREASURY()
                             ]);
-                            // high first so the primary balanceHolder is the majority holder
-                            const subs = [high, low].filter(a => a && a !== ethers.constants.AddressZero);
-                            if (subs.length) return subs;
+                            // high first (majority holder) as primary; dedupe case-insensitively
+                            const uniq = [];
+                            for (const a of [high, low]) {
+                                if (a && a !== ethers.constants.AddressZero && !uniq.some(x => x.toLowerCase() === a.toLowerCase())) uniq.push(a);
+                            }
+                            if (uniq.length) return uniq;
                         } catch (err) { /* not a scored-treasury router */ }
                         return [treasury];
                     }
@@ -657,8 +663,12 @@
                     //     query above only counted the primary sub-treasury. Add the remaining
                     //     sub-treasuries' per-member holdings (fetched from the Circles indexer,
                     //     which matches on-chain balanceOf exactly) so treasury totals are complete.
+                    const INDEXER_ROW_LIMIT = 20000;
                     async function fetchTreasuryCrcBalances(account) {
+                        // Returns { ok, truncated, map }. `ok` is false on any failure so callers
+                        // can flag incomplete totals instead of silently undercounting.
                         const map = new Map();
+                        let ok = false, truncated = false;
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 15000);
                         try {
@@ -672,33 +682,39 @@
                                         Namespace: "V_CrcV2", Table: "BalancesByAccountAndToken",
                                         Columns: ["tokenAddress", "demurragedTotalBalance"],
                                         Filter: [{ Type: "FilterPredicate", FilterType: "Equals", Column: "account", Value: account.toLowerCase() }],
-                                        Sorting: [], Limit: 20000
+                                        Sorting: [], Limit: INDEXER_ROW_LIMIT
                                     }]
                                 })
                             });
+                            if (!resp.ok) throw new Error("HTTP " + resp.status);
                             const json = await resp.json();
-                            if (json && json.result && json.result.rows) {
-                                const cols = json.result.columns;
-                                const iTok = cols.indexOf("tokenAddress");
-                                const iBal = cols.indexOf("demurragedTotalBalance");
-                                for (const row of json.result.rows) {
-                                    try { map.set(String(row[iTok]).toLowerCase(), ethers.BigNumber.from(String(row[iBal]))); } catch (e) {}
-                                }
+                            if (json.error) throw new Error("RPC error: " + JSON.stringify(json.error));
+                            if (!json.result || !Array.isArray(json.result.rows) || !Array.isArray(json.result.columns)) throw new Error("malformed response");
+                            const cols = json.result.columns;
+                            const iTok = cols.indexOf("tokenAddress");
+                            const iBal = cols.indexOf("demurragedTotalBalance");
+                            if (iTok < 0 || iBal < 0) throw new Error("missing expected columns");
+                            for (const row of json.result.rows) {
+                                map.set(String(row[iTok]).toLowerCase(), ethers.BigNumber.from(String(row[iBal])));
                             }
+                            if (json.result.rows.length >= INDEXER_ROW_LIMIT) truncated = true; // possibly truncated
+                            ok = true;
                         } catch (err) {
                             console.warn("fetchTreasuryCrcBalances failed for", account, err);
                         } finally {
                             clearTimeout(timeoutId);
                         }
-                        return map;
+                        return { ok, truncated, map };
                     }
+                    let treasuryTotalsIncomplete = false;
                     if (isGroup && extraTreasuryHolders.length) {
                         loadingText.textContent = "Aggregating sub-treasury balances...";
-                        const extraMaps = await Promise.all(extraTreasuryHolders.map(h => fetchTreasuryCrcBalances(h)));
+                        const extraResults = await Promise.all(extraTreasuryHolders.map(h => fetchTreasuryCrcBalances(h)));
+                        for (const r of extraResults) { if (!r.ok || r.truncated) treasuryTotalsIncomplete = true; }
                         for (const entry of trustedAddressesData) {
                             const key = entry.trustedAddress.toLowerCase();
                             let extra = ethers.BigNumber.from(0);
-                            for (const m of extraMaps) { const v = m.get(key); if (v) extra = extra.add(v); }
+                            for (const r of extraResults) { const v = r.map.get(key); if (v) extra = extra.add(v); }
                             if (!extra.isZero()) entry.userHolds = ethers.BigNumber.from(entry.userHolds).add(extra);
                         }
                     }
@@ -811,6 +827,9 @@
                         const diff = groupSupply.sub(allHolds);
                         const diffSign = diff.isNegative() ? '' : '+';
                         summaryHtml += `<div class="info"><strong>Group Total Supply:</strong> ${fmtNum(groupSupply)} <span style="color: #666;">(difference to treasury: ${diffSign}${fmtNum(diff)})</span></div>`;
+                        if (treasuryTotalsIncomplete) {
+                            summaryHtml += `<div class="info" style="color: #b00;">⚠ Some sub-treasury balances could not be fully loaded, so treasury holds may be understated.</div>`;
+                        }
                     }
                     resultDiv.innerHTML = summaryHtml;
 
