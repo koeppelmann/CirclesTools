@@ -47,7 +47,7 @@
 <h2>2. Sync trust (mirror you → your group)</h2>
 <div class="card">
   <button id="sync">Sync until complete</button>
-  <label style="font-size:.85rem">batch <input id="batch" type="number" value="50" style="width:60px"></label>
+  <label style="font-size:.85rem">batch <input id="batch" type="number" value="250" style="width:60px"></label>
   <div id="syncstatus" class="muted" style="margin-top:6px"></div>
 </div>
 
@@ -63,7 +63,7 @@
 
 <script>
 // ------- config -------
-const FACTORY_ADDRESS = "0x23e0e4C44F026Db16766Bd99322d763B1ce5697c"; // set after deployment
+const FACTORY_ADDRESS = "0xbBb1c57A8e1A22F5EE8aF470Db927f803043F10B"; // set after deployment
 const HUB = "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8";
 const SENTINEL = "0x0000000000000000000000000000000000000001";
 const READ_RPC = "https://rpc.aboutcircles.com";
@@ -160,7 +160,7 @@ async function syncAll() {
     let done = false, calls = 0;
     while (!done && calls < 80) {
       done = await ctrlRead.callStatic.sync(group, batch);
-      const tx = await ctrl.sync(group, batch, { gasLimit: 7000000 });
+      const tx = await ctrl.sync(group, batch, { gasLimit: 12000000 });
       $("syncstatus").textContent = `sync call ${calls + 1} (batch ${batch})… tx ${short(tx.hash)}`;
       await tx.wait(); calls++;
     }
