@@ -482,6 +482,103 @@
                 }
             })();
 
+            // ---- Fallback for non-base groups ----------------------------------------
+            // The on-chain GroupInfoGetter only understands "base" groups: it reads the
+            // group's BASE_TREASURY()/BASE_MINT_POLICY()/owner()/... getters. Newer group
+            // types (e.g. the Gnosis group 0x93eD5A96…) don't expose those, so the getter
+            // returns an all-zero struct and the tool shows nothing. For those we rebuild
+            // the same struct from generic Hub getters (mintPolicies/treasuries/totalSupply),
+            // the NameRegistry, and the Circles indexer (for the wrapped ERC20s).
+            const HUB_ADDRESS = "0xc12C1E50ABB450d6205Ea2C3Fa861b3B834d13e8";
+            const NAME_REGISTRY_ADDRESS = "0xA27566fD89162cc3D40Cb59c87AAaA49B85F3474";
+            const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+            const hubContract = new ethers.Contract(HUB_ADDRESS, [
+                "function isGroup(address) view returns (bool)",
+                "function mintPolicies(address) view returns (address)",
+                "function treasuries(address) view returns (address)",
+                "function totalSupply(uint256) view returns (uint256)"
+            ], provider);
+            const erc20SupplyAbi = ["function totalSupply() view returns (uint256)"];
+
+            // Look up a group's wrapped ERC20s via the Circles indexer, keyed by circlesType
+            // (0 = demurraged, 1 = static/inflationary).
+            async function fetchGroupWrappers(address) {
+                const result = { demurraged: ZERO_ADDRESS, static: ZERO_ADDRESS };
+                try {
+                    const resp = await fetch("https://rpc.aboutcircles.com/", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0", id: 1, method: "circles_query",
+                            params: [{
+                                Namespace: "CrcV2", Table: "ERC20WrapperDeployed",
+                                Columns: ["erc20Wrapper", "circlesType"],
+                                Filter: [{ Type: "FilterPredicate", FilterType: "Equals", Column: "avatar", Value: address.toLowerCase() }],
+                                Sorting: [], Limit: 10
+                            }]
+                        })
+                    });
+                    const json = await resp.json();
+                    if (json && json.result && json.result.rows) {
+                        const cols = json.result.columns;
+                        const iErc20 = cols.indexOf("erc20Wrapper");
+                        const iType = cols.indexOf("circlesType");
+                        for (const row of json.result.rows) {
+                            if (Number(row[iType]) === 1) result.static = ethers.utils.getAddress(row[iErc20]);
+                            else result.demurraged = ethers.utils.getAddress(row[iErc20]);
+                        }
+                    }
+                } catch (err) {
+                    console.warn("fetchGroupWrappers failed for", address, err);
+                }
+                return result;
+            }
+
+            async function safeErc20Supply(address) {
+                if (!address || address === ZERO_ADDRESS) return ethers.BigNumber.from(0);
+                try { return await new ethers.Contract(address, erc20SupplyAbi, provider).totalSupply(); }
+                catch { return ethers.BigNumber.from(0); }
+            }
+
+            // Build a GroupInfo-shaped object for a non-base group using generic getters.
+            async function fetchNonBaseGroupInfo(address) {
+                const tokenId = ethers.BigNumber.from(address); // uint256(uint160(address))
+                const [mintPolicy, treasury, erc1155Supply, wrappers] = await Promise.all([
+                    hubContract.mintPolicies(address).catch(() => ZERO_ADDRESS),
+                    hubContract.treasuries(address).catch(() => ZERO_ADDRESS),
+                    hubContract.totalSupply(tokenId).catch(() => ethers.BigNumber.from(0)),
+                    fetchGroupWrappers(address)
+                ]);
+                const [demurragedWrapSupply, staticWrapSupply] = await Promise.all([
+                    safeErc20Supply(wrappers.demurraged),
+                    safeErc20Supply(wrappers.static)
+                ]);
+                // NOTE: the on-chain GroupInfoGetter (used for base groups) populates its
+                // `staticERC20` field with the DEMURRAGED wrapper and its `demurragedERC20`
+                // field with the STATIC wrapper (its field names are inverted vs the actual
+                // token type). We mirror that convention here so non-base groups render
+                // identically to base groups in the existing table.
+                return {
+                    owner: ZERO_ADDRESS,
+                    service: ZERO_ADDRESS,
+                    feeCollection: ZERO_ADDRESS,
+                    membershipConditions: [],
+                    baseMintHandler: ZERO_ADDRESS,
+                    baseMintPolicy: mintPolicy,
+                    baseTreasury: treasury,
+                    hub: HUB_ADDRESS,
+                    staticERC20: wrappers.demurraged,
+                    demurragedERC20: wrappers.static,
+                    nameRegistry: NAME_REGISTRY_ADDRESS,
+                    maxConditions: ethers.BigNumber.from(0),
+                    erc1155TotalSupply: erc1155Supply,
+                    staticERC20TotalSupply: demurragedWrapSupply,
+                    demurragedERC20TotalSupply: staticWrapSupply,
+                    balance: ethers.BigNumber.from(0),
+                    isNonBaseGroup: true
+                };
+            }
+
             const checkButton = document.getElementById("checkButton");
             const resultDiv = document.getElementById("result");
             const groupInput = document.getElementById("groupInput");
@@ -515,6 +612,22 @@
                 try {
                     // Call the getter function on-chain
                     const groups = await groupGetterContract.getGroupsInfo(addresses);
+
+                    // The GroupInfoGetter only understands "base" groups; for other group
+                    // types it returns an empty struct (hub == 0). Rebuild those from
+                    // generic getters so non-base groups render correctly too.
+                    const groupsArr = addresses.map((_, i) => groups[i]);
+                    await Promise.all(groupsArr.map(async (info, i) => {
+                        const emptyStruct = !info || !info.hub || info.hub === ZERO_ADDRESS;
+                        if (!emptyStruct) return;
+                        try {
+                            if (await hubContract.isGroup(addresses[i])) {
+                                groupsArr[i] = await fetchNonBaseGroupInfo(addresses[i]);
+                            }
+                        } catch (err) {
+                            console.warn("non-base group fallback failed for", addresses[i], err);
+                        }
+                    }));
 
                     // Remove loader
                     resultDiv.innerHTML = "";
@@ -622,7 +735,7 @@
                     // Add each group as a row
                     for (let i = 0; i < addresses.length; i++) {
                         const groupAddress = addresses[i];
-                        const info = groups[i];
+                        const info = groupsArr[i];
                         const row = document.createElement("tr");
 
                         // Helper function to truncate address

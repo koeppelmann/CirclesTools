@@ -572,6 +572,24 @@
                         } catch (err) {
                             console.warn("Could not fetch group treasury:", err);
                         }
+                        // The GroupInfoGetter above only resolves "base" groups. For other group
+                        // types its baseTreasury is 0x0, so fall back to the Hub's generic
+                        // treasuries() mapping (works for any group).
+                        if (balanceHolder === inputAddress) {
+                            try {
+                                const hubTreasuries = new ethers.Contract(
+                                    v2HubAddress,
+                                    ["function treasuries(address) view returns (address)"],
+                                    provider
+                                );
+                                const genericTreasury = await hubTreasuries.treasuries(inputAddress);
+                                if (genericTreasury && genericTreasury !== ethers.constants.AddressZero) {
+                                    balanceHolder = genericTreasury;
+                                }
+                            } catch (err) {
+                                console.warn("Could not fetch generic group treasury:", err);
+                            }
+                        }
                     }
 
                     // Now fetch user data + first page of trust connections.
