@@ -504,10 +504,13 @@
             // (0 = demurraged, 1 = static/inflationary).
             async function fetchGroupWrappers(address) {
                 const result = { demurraged: ZERO_ADDRESS, static: ZERO_ADDRESS };
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
                 try {
                     const resp = await fetch("https://rpc.aboutcircles.com/", {
                         method: "POST",
                         headers: { "content-type": "application/json" },
+                        signal: controller.signal,
                         body: JSON.stringify({
                             jsonrpc: "2.0", id: 1, method: "circles_query",
                             params: [{
@@ -530,6 +533,8 @@
                     }
                 } catch (err) {
                     console.warn("fetchGroupWrappers failed for", address, err);
+                } finally {
+                    clearTimeout(timeoutId);
                 }
                 return result;
             }
@@ -872,9 +877,13 @@
                         row.sortPrice = 0;
                         row.rawErc1155Supply = parseFloat(ethers.utils.formatEther(info.erc1155TotalSupply || 0));
                         row.demurragedERC20Address = info.demurragedERC20;
+                        // Whether this group actually has a wrapped token to price (a missing
+                        // wrapper is 0x0 and must not enter the perpetual price-retry loop).
+                        const hasPriceToken = info.demurragedERC20 && info.demurragedERC20 !== ZERO_ADDRESS;
                         function updateStaticPools(pools, error) {
                             staticPoolDiv.innerHTML = '';
                             if (error) {
+                                if (!hasPriceToken) return;
                                 setTimeout(() => {
                                     getPoolsForToken(info.demurragedERC20).then((p) => updateStaticPools(p, null)).catch(() => updateStaticPools([], true));
                                 }, 5000);
@@ -895,6 +904,7 @@
                             }
                         }
                         (function fetchStaticPools() {
+                            if (!hasPriceToken) { updateStaticPools([], false); return; }
                             getPoolsForToken(info.demurragedERC20)
                                 .then(p => updateStaticPools(p, null))
                                 .catch(() => updateStaticPools([], true));
