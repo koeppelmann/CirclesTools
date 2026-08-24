@@ -169,17 +169,28 @@ async function syncAll() {
   } catch (e) { log("ERROR " + (e.data?.message || e.message)); }
 }
 
+// Fetch the full active-trust set for `who` in a SINGLE indexer query
+// (V_CrcV2.TrustRelations), instead of walking the on-chain linked list one call at a time.
 async function walkTrust(who) {
-  const hub = new ethers.Contract(HUB, HUB_ABI, readProvider);
   const now = Math.floor(Date.now() / 1000);
   const out = new Map();
-  let cur = SENTINEL;
-  for (let i = 0; i < 3000; i++) {
-    const [prev] = await hub.trustMarkers(who, cur);
-    if (prev === ethers.constants.AddressZero || prev.toLowerCase() === SENTINEL) break;
-    const [, expiry] = await hub.trustMarkers(who, prev);
-    if (Number(expiry) > now) out.set(prev.toLowerCase(), true);
-    cur = prev;
+  const body = {
+    jsonrpc: "2.0", id: 1, method: "circles_query",
+    params: [{
+      Namespace: "V_CrcV2", Table: "TrustRelations",
+      Columns: ["trustee", "expiryTime"],
+      Filter: [{ Type: "FilterPredicate", FilterType: "Equals", Column: "truster", Value: who.toLowerCase() }],
+      Sorting: [], Limit: 5000,
+    }],
+  };
+  const resp = await fetch(READ_RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const json = await resp.json();
+  if (json && json.result && json.result.rows) {
+    const cols = json.result.columns;
+    const iT = cols.indexOf("trustee"), iE = cols.indexOf("expiryTime");
+    for (const row of json.result.rows) {
+      if (Number(row[iE]) > now) out.set(String(row[iT]).toLowerCase(), true);
+    }
   }
   return out;
 }
