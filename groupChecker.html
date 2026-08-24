@@ -1041,7 +1041,10 @@
                     "0x0afd8899bca011bb95611409f09c8efbf6b169cf";
                 const trustedGroups = await fetchTrustedGroups(trusterAddress);
                 // Add extra groups not covered by the truster
-                const extraGroups = ['0x86533d1aDA8Ffbe7b6F7244F9A1b707f7f3e239b'];
+                const extraGroups = [
+                    '0x86533d1aDA8Ffbe7b6F7244F9A1b707f7f3e239b',
+                    '0x93eD5A96347927ff6fF6b790F8Cf5258240c321f' // Gnosis group (new, non-base type)
+                ];
                 extraGroups.forEach(g => { if (!trustedGroups.includes(g)) trustedGroups.push(g); });
                 if (trustedGroups.length > 0) {
                     groupInput.value = trustedGroups.join(", ");
